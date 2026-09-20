@@ -141,7 +141,7 @@ def tool_get_page(page_type: str, name_or_id: str) -> dict:
     }
 
 # Tool 3: answer_conference
-async def tool_answer_conference(question: str, breadth: str = "auto", only_with_slides: bool = False) -> dict:
+async def tool_answer_conference(question: str, breadth: str = "auto", only_with_slides: bool = False, user_context: str = None) -> dict:
     """Answer questions about AGNTCon + MCPCon Europe 2026 using Two-Tier Adaptive RAG DAG with citations."""
     
     # 1. Parse Cardinality & Scope (Wave 1 of DAG)
@@ -201,9 +201,11 @@ CRITICAL INVARIANTS:
 1. Every major claim or practice described MUST cite the session ID (e.g. [[2RBBJ]]) and include an outbound Markdown link to the canonical Sched presentation: [Presentation Title](https://agntconmcpconeu26.sched.com/event/...).
 2. If the user asks for a list, ranking, or comparison of multiple talks, enumerate all matching candidates using a structured numbered list or Markdown table.
 3. If the topic was not discussed in the provided excerpts, state: "This topic was not covered in the conference sessions."
-4. Always cite speakers by name."""
+4. Always cite speakers by name.
+5. Tailor technical depth, architectural framing, and practical takeaways to the attendee's declared profile where applicable."""
 
-    user_msg = f"Question: {question}\n\n<conference_excerpts>\n{context_str}\n</conference_excerpts>"
+    profile_snippet = f"\n\n<attendee_profile>\n{user_context.strip()}\n</attendee_profile>" if user_context and user_context.strip() else ""
+    user_msg = f"Question: {question}{profile_snippet}\n\n<conference_excerpts>\n{context_str}\n</conference_excerpts>"
     
     # Cascade configuration: NVIDIA NIM -> OpenRouter Active Free -> Kilocode
     gateways = []

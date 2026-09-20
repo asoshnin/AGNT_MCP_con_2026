@@ -29,8 +29,15 @@
             <option value="system">🌓 System</option>
             <option value="dark">🌙 Dark</option>
             <option value="light">☀️ Light</option>
+            <option value="conference">Conference Palette</option>
           </select>
           <a href="https://github.com/asoshnin/AGNT_MCP_con_2026" target="_blank" rel="noopener" class="btn-header">⭐ Star on GitHub</a>
+          <button id="btn-open-profile" class="btn-header" style="display: inline-flex; align-items: center; gap: 4px;">
+            👤 My Profile
+          </button>
+          <button id="btn-export-track" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
+            📦 My Track (<span id="track-count">0</span>)
+          </button>
           <button id="btn-open-settings" class="btn-header">⚙️ Settings & MCP</button>
           <button id="btn-open-collab" class="btn-header" style="border-color: rgba(56, 189, 248, 0.4); font-weight: 600;">💼 Interest in Collaboration</button>
         </div>
@@ -54,7 +61,20 @@
           <button id="search-clear" class="search-clear-btn" title="Clear search" style="display: none;">✕</button>
         </div>
         
+        <div class="command-bar-container">
+          <div class="command-chips">
+            <button type="button" class="command-chip" data-query="MCP Protocol">🔌 MCP Protocol</button>
+            <button type="button" class="command-chip" data-query="Sandboxing & Security">🛡️ Sandboxing & Security</button>
+            <button type="button" class="command-chip" data-query="eBPF Kernel Monitoring">⚡ eBPF & Kernel</button>
+            <button type="button" class="command-chip" data-query="Multi-Agent Systems">🤖 Multi-Agent Systems</button>
+            <button type="button" class="command-chip" data-action="top-takeaways">⚡ Top Takeaways</button>
+          </div>
+        </div>
+        
         <div class="filter-row">
+          <button id="btn-filter-recommended" class="pill" style="display: none; background: rgba(56, 189, 248, 0.15); color: var(--accent); font-weight: 600; border: 1px solid rgba(56, 189, 248, 0.4);">
+            ✨ Recommended For You (<span id="recommended-count">0</span>)
+          </button>
           <div id="concept-pills" class="concept-pills">
             <!-- Dynamically populated with live counts -->
           </div>
@@ -483,6 +503,103 @@
       </div>
     </div>
 
+    <div id="profile-modal-backdrop" class="modal-backdrop">
+      <div class="modal-box" style="max-width: 680px;">
+        <button id="profile-modal-close" class="modal-close">&times;</button>
+        <div class="modal-header-bar">
+          <span class="modal-title">👤 Attendee Profile & Personalization</span>
+        </div>
+        <div class="markdown-content" style="font-size: 0.9rem;">
+          <p style="font-size: 0.84rem; color: var(--text-secondary); margin-bottom: 14px;">
+            Tailor session relevance scores, assistant answers, and recommendations to your technical goals. 
+            <strong>Zero Server PII Guarantee:</strong> Profile data is stored 100% in your browser's local memory.
+          </p>
+
+          <form id="profile-form">
+            <div style="margin-bottom: 14px;">
+              <label style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 6px;">1. Your Primary Role / Perspective</label>
+              <select id="profile-role" class="search-input" style="width: 100%; padding: 8px 12px; font-size: 0.85rem;">
+                <option value="AI Engineer / Agent Dev">AI Engineer / Agent Developer</option>
+                <option value="Security / Red Team Researcher">Security / Red Team Researcher</option>
+                <option value="Platform Architect">Platform & Infrastructure Architect</option>
+                <option value="Executive / Founder">Executive / Founder / Product Leader</option>
+                <option value="Researcher / Academic">Researcher / Academic</option>
+              </select>
+            </div>
+
+            <div style="margin-bottom: 14px;">
+              <label style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 6px;">2. Core Focus Areas (Select all that apply)</label>
+              <div id="profile-focus-checkboxes" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.82rem;">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" name="focus" value="MCP Protocol & Tools"> Model Context Protocol (MCP)
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" name="focus" value="Agent Sandboxing & Containment"> Sandboxing & Containment
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" name="focus" value="eBPF & Kernel Monitoring"> eBPF & Kernel Monitoring
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" name="focus" value="RAG & Context Architecture"> RAG & Context Architecture
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" name="focus" value="LLM Evaluation & Benchmarking"> Evaluation & Benchmarks
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" name="focus" value="Multi-Agent Orchestration"> Multi-Agent Orchestration
+                </label>
+              </div>
+            </div>
+
+            <div style="margin-bottom: 14px;">
+              <label style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 6px;">3. Primary Objective</label>
+              <select id="profile-objective" class="search-input" style="width: 100%; padding: 8px 12px; font-size: 0.85rem;">
+                <option value="Hands-on Code & Implementations">Hands-on Code, Tools & Repositories</option>
+                <option value="Security Hardening & Failure Traps">Security Hardening & Failure Traps</option>
+                <option value="Industry Trends & Protocol Standards">Industry Trends & Protocol Standardization</option>
+              </select>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 20px;">
+              <button type="button" id="btn-clear-profile" class="btn-header" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.4); padding: 8px 14px; font-size: 0.82rem;">
+                🗑️ Clear Profile
+              </button>
+              <button type="submit" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; padding: 8px 20px;">
+                💾 Save Profile
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div id="export-modal-backdrop" class="modal-backdrop">
+      <div class="modal-box" style="max-width: 680px;">
+        <button id="export-modal-close" class="modal-close">&times;</button>
+        <div class="modal-header-bar">
+          <span class="modal-title">📦 My Curated Conference Track</span>
+        </div>
+        <div class="markdown-content" style="font-size: 0.9rem;">
+          <p style="font-size: 0.84rem; color: var(--text-secondary); margin-bottom: 14px;">
+            Export your bookmarked sessions into Obsidian Markdown notes or a Single Printable PDF Executive Briefing.
+          </p>
+
+          <div id="export-track-list" style="max-height: 240px; overflow-y: auto; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+            <!-- Populated dynamically -->
+          </div>
+
+          <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end;">
+            <button type="button" id="btn-export-pdf-dossier" class="btn-header" style="background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-primary); font-weight: 600; padding: 10px 18px; display: inline-flex; align-items: center; gap: 6px;">
+              📄 Save / Print Single PDF Dossier
+            </button>
+            <button type="button" id="btn-download-obsidian-zip" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; padding: 10px 18px; display: inline-flex; align-items: center; gap: 6px;">
+              💾 Download Obsidian Vault (.zip)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Floating Interactive MCP Chat Drawer -->
     <div class="chat-drawer">
       <button id="chat-toggle" class="chat-toggle-btn">
@@ -536,8 +653,10 @@
     </footer>
   </div>
 
+  <div id="printable-dossier"></div>
   <script src="assets/vendor/marked.min.js"></script>
   <script src="assets/vendor/purify.min.js"></script>
+  <script src="assets/jszip.min.js"></script>
   <script src="assets/app.js"></script>
 </body>
 </html>

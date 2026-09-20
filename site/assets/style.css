@@ -31,6 +31,22 @@ html[data-theme='light'] {
   --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
+html[data-theme='conference'] {
+  --bg-main: #070c18;
+  --bg-card: #0d1527;
+  --bg-secondary: #131f37;
+  --border: #1e3156;
+  --text-primary: #f0f6fc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent: #0284c7;
+  --accent-hover: #38bdf8;
+  --badge-bg: rgba(2, 132, 199, 0.18);
+  --table-header: #101c33;
+  --nav-bg: rgba(7, 12, 24, 0.92);
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -567,6 +583,75 @@ header {
   border-color: #ef4444;
 }
 
+.card-takeaway-badge {
+  background: rgba(56, 189, 248, 0.08);
+  border-left: 3px solid var(--accent);
+  padding: 8px 12px;
+  margin: 10px 0;
+  border-radius: 0 6px 6px 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+.card-takeaway-badge strong {
+  color: var(--accent);
+}
+
+.btn-track-toggle {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.btn-track-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn-track-toggle.in-track {
+  background: var(--badge-bg);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.command-bar-container {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.command-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+.command-chip {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  padding: 4px 10px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.command-chip:hover {
+  background: var(--bg-secondary);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* Floating Chat Drawer */
 .chat-drawer {
   position: fixed;
@@ -954,4 +1039,62 @@ footer {
   color: var(--text-secondary);
   border-top: 1px solid var(--border);
   margin-top: 40px;
+}
+
+@media print {
+  body {
+    background: #fff !important;
+    color: #000 !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  }
+  header, footer, .chat-drawer, .nav-actions, .filter-bar, .command-bar-container, .btn-header, #settings-modal-backdrop, #profile-modal-backdrop, #export-modal-backdrop, #modal-backdrop, #legal-modal-backdrop, #feedback-modal, #collab-modal, #disclaimer-modal, #speaker-rights-modal, #sessions-container {
+    display: none !important;
+  }
+  #printable-dossier {
+    display: block !important;
+  }
+  .print-cover {
+    padding: 30px 10px 20px 10px;
+    border-bottom: 2px solid #000;
+    margin-bottom: 25px;
+    page-break-after: avoid;
+  }
+  .print-cover h1 {
+    font-size: 24pt;
+    margin-bottom: 6px;
+    color: #000;
+  }
+  .print-cover .print-subtitle {
+    font-size: 12pt;
+    color: #444;
+    margin-bottom: 8px;
+  }
+  .print-session-card {
+    page-break-inside: avoid;
+    border-bottom: 1px solid #ddd;
+    padding: 18px 0;
+    margin-bottom: 14px;
+  }
+  .print-session-card h2 {
+    font-size: 15pt;
+    margin-top: 0;
+    margin-bottom: 4px;
+    color: #000;
+  }
+  .print-takeaway {
+    background: #f4f4f5 !important;
+    border-left: 4px solid #0284c7 !important;
+    padding: 8px 12px !important;
+    margin: 10px 0 !important;
+    font-size: 10.5pt !important;
+    color: #000 !important;
+  }
+  .print-essence {
+    font-size: 10pt;
+    line-height: 1.5;
+    color: #222;
+  }
+}
+#printable-dossier {
+  display: none;
 }

@@ -1,0 +1,79 @@
+{
+  "conference_name": "AGNTCon + MCPCon Europe 2026",
+  "dates": "17-18 September 2026",
+  "location": "RAI Amsterdam",
+  "total_sessions": 3,
+  "macro_focus": "Productionizing Agentic AI, Model Context Protocol (MCP) standardization, and Linux container security.",
+  "top_themes": [
+    {
+      "name": "Model Context Protocol (MCP)",
+      "slug": "mcp",
+      "session_count": 13
+    },
+    {
+      "name": "Agent Containment & Security",
+      "slug": "security",
+      "session_count": 18
+    },
+    {
+      "name": "Multi-Agent Orchestration",
+      "slug": "orchestration",
+      "session_count": 10
+    },
+    {
+      "name": "Context Engineering & RAG",
+      "slug": "rag",
+      "session_count": 9
+    },
+    {
+      "name": "LLM Evaluation & Benchmarking",
+      "slug": "evaluation",
+      "session_count": 9
+    }
+  ],
+  "brand_palette": {
+    "name": "Conference Cyan & Indigo",
+    "primary_accent": "#0284c7",
+    "secondary_accent": "#6366f1",
+    "bg_dark": "#070c18"
+  },
+  "tracks": [
+    {
+      "id": "track_mcp",
+      "label": "Model Context Protocol (MCP)",
+      "tags": [
+        "mcp",
+        "tools",
+        "protocol"
+      ]
+    },
+    {
+      "id": "track_sec",
+      "label": "Security & Sandboxing",
+      "tags": [
+        "security",
+        "sandboxing",
+        "red-teaming",
+        "ebpf"
+      ]
+    },
+    {
+      "id": "track_mas",
+      "label": "Multi-Agent Systems",
+      "tags": [
+        "orchestration",
+        "agents",
+        "consensus"
+      ]
+    },
+    {
+      "id": "track_rag",
+      "label": "RAG & Memory Architecture",
+      "tags": [
+        "rag",
+        "memory",
+        "context"
+      ]
+    }
+  ]
+}

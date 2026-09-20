@@ -330,6 +330,13 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 question = str(payload.get("question", "")).strip()
                 only_slides = bool(payload.get("only_with_slides", False))
                 breadth = str(payload.get("breadth", "auto"))
+                user_profile = payload.get("user_profile")
+                user_context = None
+                if isinstance(user_profile, dict):
+                    role = str(user_profile.get("role", "")).strip()
+                    focus = ", ".join(user_profile.get("focus_areas", []))
+                    obj = str(user_profile.get("objective", "")).strip()
+                    user_context = f"Role: {role} | Focus: {focus} | Objective: {obj}"
             except Exception:
                 self.send_response(400)
                 self.end_headers()
@@ -350,7 +357,7 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
 
             # 4. Call MCP tool_answer_conference
             try:
-                result = asyncio.run(tool_answer_conference(question, breadth=breadth, only_with_slides=only_slides))
+                result = asyncio.run(tool_answer_conference(question, breadth=breadth, only_with_slides=only_slides, user_context=user_context))
                 if isinstance(result, dict) and "error" in result:
                     err_msg = str(result.get("error", ""))
                     if any(k in err_msg.lower() for k in ["rate", "timeout", "exhausted", "503", "429", "connection"]):

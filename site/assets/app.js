@@ -6,6 +6,79 @@ let CURRENT_VIEW_MODE = localStorage.getItem("agntcon_view_mode") || "grid";
 let CURRENT_SORT = "relevance";
 let CURRENT_INFERENCE_TIER = localStorage.getItem("agntcon_inference_tier") || "cloud";
 
+let IS_RECOMMENDED_MODE = false;
+
+function getUserProfile() {
+  const raw = localStorage.getItem("agntcon_user_profile");
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    return null;
+  }
+}
+
+function calculateProfileFit(talk, profile) {
+  if (!profile) return 0;
+
+  // Focus Areas overlap
+  const profileFocus = (profile.focus_areas || []);
+  const talkConcepts = (talk.concepts || []).map(c => c.toLowerCase());
+  const intersection = profileFocus.filter(c => talkConcepts.includes(c.toLowerCase()));
+  const s_tags = (intersection.length / Math.max(1, profileFocus.length)) * 100;
+
+  // Role match
+  const roleStr = (profile.role || "").toLowerCase();
+  const titleStr = (talk.title || "").toLowerCase();
+  const essenceStr = (talk.one_paragraph || "").toLowerCase();
+  const roleTokens = roleStr.split(/\s+/).filter(t => t.length > 2);
+  let s_role = 30;
+  if (roleTokens.some(t => titleStr.includes(t) || essenceStr.includes(t))) {
+    s_role = 100;
+  }
+
+  // Topic depth
+  const s_depth = (talk.relevance_score || 0.8) * 100;
+
+  const result = Math.min(100, Math.round(0.50 * s_tags + 0.30 * s_role + 0.20 * s_depth));
+  return result;
+}
+
+function getTrack() {
+  try {
+    return JSON.parse(localStorage.getItem("agntcon_my_track") || "[]");
+  } catch (e) {
+    return [];
+  }
+}
+
+function toggleTrack(id) {
+  let track = getTrack();
+  if (track.includes(id)) {
+    track = track.filter(x => x !== id);
+  } else {
+    track.push(id);
+  }
+  localStorage.setItem("agntcon_my_track", JSON.stringify(track));
+  updateTrackCount();
+  renderCards(); // Refresh icons on cards
+  
+  // Also refresh modal toggle if open
+  const modalToggle = document.querySelector("#modal-body .btn-track-toggle");
+  if (modalToggle) {
+    const isBookmarked = track.includes(id);
+    modalToggle.innerHTML = isBookmarked ? "★ In Track" : "☆ Add to Track";
+    modalToggle.classList.toggle("active", isBookmarked);
+  }
+}
+
+function updateTrackCount() {
+  const countEl = document.getElementById("track-count");
+  if (countEl) {
+    countEl.textContent = getTrack().length;
+  }
+}
+
 function initTheme() {
   const themeSelect = document.getElementById('theme-select');
   let savedTheme = localStorage.getItem('agntcon_theme') || 'system';
@@ -18,6 +91,8 @@ function initTheme() {
     let actualTheme = themeValue;
     if (themeValue === 'system') {
       actualTheme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    } else if (themeValue === 'conference') {
+      actualTheme = 'conference';
     }
     document.documentElement.setAttribute('data-theme', actualTheme);
   }
@@ -275,6 +350,294 @@ function setupEventListeners() {
       if (e.target === modalBackdrop) closeModal();
     });
   }
+
+  // Profile Modal
+  const profileModal = document.getElementById("profile-modal-backdrop");
+  const btnOpenProfile = document.getElementById("btn-open-profile");
+  const profileClose = document.getElementById("profile-modal-close");
+  const profileForm = document.getElementById("profile-form");
+  const btnClearProfile = document.getElementById("btn-clear-profile");
+
+  const updateProfileUI = () => {
+    const profile = getUserProfile();
+    const recommendedBtn = document.getElementById("btn-filter-recommended");
+    const recommendedCount = document.getElementById("recommended-count");
+    if (profile) {
+      if (recommendedBtn) recommendedBtn.style.display = "inline-flex";
+      if (recommendedCount) {
+        const matches = ALL_TALKS.filter(t => calculateProfileFit(t, profile) >= 50).length;
+        recommendedCount.textContent = matches;
+      }
+    } else {
+      if (recommendedBtn) {
+        recommendedBtn.style.display = "none";
+        IS_RECOMMENDED_MODE = false;
+        recommendedBtn.classList.remove("active");
+      }
+    }
+  };
+
+  if (btnOpenProfile) {
+    btnOpenProfile.addEventListener("click", () => {
+      const profile = getUserProfile();
+      if (profile) {
+        if (document.getElementById("profile-role")) document.getElementById("profile-role").value = profile.role || "";
+        if (document.getElementById("profile-focus")) document.getElementById("profile-focus").value = (profile.focus_areas || []).join(", ");
+      }
+      if (profileModal) profileModal.classList.add("open");
+    });
+  }
+
+  if (profileClose) profileClose.addEventListener("click", () => profileModal.classList.remove("open"));
+
+  if (profileForm) {
+    profileForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const role = document.getElementById("profile-role").value.trim();
+      const focus = document.getElementById("profile-focus").value.split(",").map(s => s.trim()).filter(Boolean);
+      localStorage.setItem("agntcon_user_profile", JSON.stringify({ role, focus_areas: focus }));
+      profileModal.classList.remove("open");
+      updateProfileUI();
+      renderCards();
+    });
+  }
+
+  if (btnClearProfile) {
+    btnClearProfile.addEventListener("click", () => {
+      localStorage.removeItem("agntcon_user_profile");
+      if (document.getElementById("profile-role")) document.getElementById("profile-role").value = "";
+      if (document.getElementById("profile-focus")) document.getElementById("profile-focus").value = "";
+      profileModal.classList.remove("open");
+      updateProfileUI();
+      renderCards();
+    });
+  }
+
+  // Magic Filter
+  const btnRecommended = document.getElementById("btn-filter-recommended");
+  if (btnRecommended) {
+    btnRecommended.addEventListener("click", () => {
+      IS_RECOMMENDED_MODE = !IS_RECOMMENDED_MODE;
+      btnRecommended.classList.toggle("active", IS_RECOMMENDED_MODE);
+      renderCards();
+    });
+  }
+
+  // Export Track
+  const btnExportTrack = document.getElementById("btn-export-track");
+  const exportModal = document.getElementById("export-modal-backdrop");
+  const exportClose = document.getElementById("export-modal-close");
+  if (btnExportTrack) {
+    btnExportTrack.addEventListener("click", () => {
+      const trackIds = getTrack();
+      const listEl = document.getElementById("export-track-list");
+      if (listEl) {
+        const trackTalks = ALL_TALKS.filter(t => trackIds.includes(t.id));
+        if (trackTalks.length === 0) {
+          listEl.innerHTML = '<p style="color: var(--text-secondary); padding: 10px;">Your track is empty. Add sessions to your track first!</p>';
+        } else {
+          listEl.innerHTML = trackTalks.map(t => `
+            <div style="padding: 8px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <strong style="color: var(--accent);">[[${t.id}]]</strong> 
+                <span style="font-size: 0.9rem;">${escapeHtml(t.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, ""))}</span>
+              </div>
+              <button class="btn-cite" onclick="toggleTrack('${t.id}'); this.closest('div').remove();" style="padding: 2px 8px; font-size: 0.7rem;">Remove</button>
+            </div>
+          `).join("");
+        }
+      }
+      if (exportModal) exportModal.classList.add("open");
+    });
+  }
+  if (exportClose) exportClose.addEventListener("click", () => exportModal.classList.remove("open"));
+
+  // Obsidian Export
+  const btnDownloadObsidian = document.getElementById("btn-download-obsidian-zip");
+  if (btnDownloadObsidian) {
+    btnDownloadObsidian.addEventListener("click", async () => {
+      if (typeof JSZip === 'undefined') {
+        alert("JSZip library not loaded. Ensure it is included in your index.html.");
+        return;
+      }
+      const zip = new JSZip();
+      const trackIds = getTrack();
+      const trackTalks = ALL_TALKS.filter(t => trackIds.includes(t.id));
+
+      if (trackTalks.length === 0) {
+        alert("Your track is empty. Add sessions to your track before exporting.");
+        return;
+      }
+
+      // 00_Conference_Itinerary.md
+      let itineraryMd = "# AGNTCon + MCPCon Europe 2026: My Itinerary\n\n";
+      itineraryMd += "| ID | Title | Speaker | Link |\n|---|---|---|---|\n";
+      trackTalks.forEach(t => {
+        const cleanTitle = t.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, "").trim();
+        itineraryMd += `| [[${t.id}]] | ${cleanTitle} | ${(t.speakers || []).join(", ")} | [Sched](${t.sched_url}) |\n`;
+      });
+      zip.file("00_Conference_Itinerary.md", itineraryMd);
+
+      // Sessions/
+      const sessionsFolder = zip.folder("Sessions");
+      for (const t of trackTalks) {
+        const cleanTitle = t.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, "").trim();
+        const safeTitle = cleanTitle.replace(/[/\\?%*:|"<>]/g, '-');
+        
+        // YAML Frontmatter (stringified double-quoted to prevent colon errors)
+        const frontmatter = {
+          id: t.id,
+          title: cleanTitle,
+          speakers: t.speakers || [],
+          concepts: t.concepts || [],
+          url: t.sched_url,
+          exported: new Date().toISOString()
+        };
+        
+        let content = `---\n${JSON.stringify(frontmatter, null, 2)}\n---\n\n`;
+        content += `# ${cleanTitle}\n\n`;
+        content += `**Speakers:** ${(t.speakers || []).join(", ")}\n`;
+        content += `**Tags:** ${(t.concepts || []).map(c => `#${c.replace(/\s+/g, '_')}`).join(" ")}\n\n`;
+        content += `## Summary\n${t.one_paragraph || ""}\n\n`;
+        content += `## Links\n- [Official Sched](${t.sched_url})\n`;
+        if (t.slide_url) content += `- [Slides](${t.slide_url})\n`;
+        
+        sessionsFolder.file(`${t.id} - ${safeTitle}.md`, content);
+      }
+
+      // Concepts/
+      const conceptsFolder = zip.folder("Concepts");
+      const allConcepts = new Set();
+      trackTalks.forEach(t => (t.concepts || []).forEach(c => allConcepts.add(c)));
+      allConcepts.forEach(c => {
+        const related = trackTalks.filter(t => (t.concepts || []).includes(c));
+        let conceptMd = `# Concept: ${c}\n\n## Related Sessions\n`;
+        related.forEach(r => {
+          conceptMd += `- [[${r.id}]] - ${r.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, "").trim()}\n`;
+        });
+        conceptsFolder.file(`${c.replace(/[/\\?%*:|"<>]/g, '-')}.md`, conceptMd);
+      });
+
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "agntcon2026_obsidian_vault.zip";
+      a.click();
+      window.URL.revokeObjectURL(url);
+    });
+  }
+
+  // PDF Export
+  const btnExportPdf = document.getElementById("btn-export-pdf-dossier");
+  if (btnExportPdf) {
+    btnExportPdf.addEventListener("click", () => {
+      const trackIds = getTrack();
+      const trackTalks = ALL_TALKS.filter(t => trackIds.includes(t.id));
+      const profile = getUserProfile();
+      const printable = document.getElementById("printable-dossier");
+      
+      if (!printable) {
+        alert("Printable container not found in DOM.");
+        return;
+      }
+      
+      if (trackTalks.length === 0) {
+        alert("Your track is empty. Add sessions to your track before exporting.");
+        return;
+      }
+
+      let html = `
+        <div class="print-cover">
+          <h1>AGNTCon + MCPCon Europe 2026</h1>
+          <h2>Research Dossier & Curated Itinerary</h2>
+          <p><strong>Generated:</strong> ${new Date().toLocaleDateString()}</p>
+          ${profile ? `
+            <div style="margin-top: 20px; padding: 15px; border: 1px solid #ccc;">
+              <strong>User Profile Summary:</strong><br>
+              Role: ${escapeHtml(profile.role)}<br>
+              Focus Areas: ${escapeHtml((profile.focus_areas || []).join(", "))}
+            </div>
+          ` : ""}
+        </div>
+        
+        <h3>Curated Itinerary Summary</h3>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+          <thead>
+            <tr style="border-bottom: 2px solid #333;">
+              <th style="text-align: left; padding: 8px;">ID</th>
+              <th style="text-align: left; padding: 8px;">Title</th>
+              <th style="text-align: left; padding: 8px;">Speaker</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${trackTalks.map(t => `
+              <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 8px;">${t.id}</td>
+                <td style="padding: 8px;">${escapeHtml(t.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, ""))}</td>
+                <td style="padding: 8px;">${escapeHtml((t.speakers || []).join(", "))}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+        
+        <div class="print-sessions-detail">
+          ${trackTalks.map(t => {
+            const cleanTitle = t.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, "").trim();
+            const firstSentence = (t.one_paragraph || "").split(/[.!?]\s/)[0].trim() + ".";
+            return `
+              <div class="print-session-card" style="page-break-inside: avoid; border: 1px solid #000; padding: 20px; margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between;">
+                  <span style="font-weight: bold;">[[${t.id}]]</span>
+                  <span>${escapeHtml(t.sched_url)}</span>
+                </div>
+                <h2 style="margin: 10px 0;">${escapeHtml(cleanTitle)}</h2>
+                <p><strong>Speaker(s):</strong> ${escapeHtml((t.speakers || []).join(", "))}</p>
+                <div class="print-takeaway" style="background: #f0f0f0; padding: 10px; margin: 10px 0; border-left: 5px solid #333;">
+                  <strong>💡 Key Takeaway:</strong> ${escapeHtml(firstSentence)}
+                </div>
+                <div class="print-essence">
+                  <strong>Distilled Essence:</strong><br>
+                  ${escapeHtml(t.one_paragraph || "")}
+                </div>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      `;
+      
+      printable.innerHTML = html;
+      window.print();
+    });
+  }
+
+  // Command Chips
+  document.querySelectorAll(".command-chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      const query = chip.getAttribute("data-query");
+      const action = chip.getAttribute("data-action");
+      if (query) {
+        const si = document.getElementById("search-input");
+        if (si) {
+          si.value = query;
+          si.dispatchEvent(new Event("input"));
+        }
+      }
+      if (action === "top-takeaways") {
+        const chatPanel = document.getElementById("chat-panel");
+        const chatInput = document.getElementById("chat-input");
+        const chatForm = document.getElementById("chat-form");
+        if (chatPanel) chatPanel.classList.add("open");
+        if (chatInput) chatInput.value = "What are the top 3 architectural takeaways and security recommendations from AGNTCon + MCPCon Europe 2026?";
+        if (chatForm) chatForm.dispatchEvent(new Event("submit"));
+      }
+    });
+  });
+
+  // Initial UI refresh
+  updateProfileUI();
+  updateTrackCount();
+
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeModal();
   });
@@ -336,6 +699,14 @@ function renderCards() {
     if (HIGH_RELEVANCE_ONLY && (t.relevance_score || 0) < 0.7) return false;
     if (SLIDES_ONLY && !(t.has_slides || t.file_name)) return false;
     if (ACTIVE_TOPIC && !(t.concepts || []).map((c) => c.toLowerCase()).includes(ACTIVE_TOPIC)) return false;
+
+    const profile = getUserProfile();
+    t._profileFit = profile ? calculateProfileFit(t, profile) : 0;
+
+    if (IS_RECOMMENDED_MODE) {
+      if (t._profileFit < 50) return false;
+    }
+
     if (!q) {
       t._matchScore = null;
       return true;
@@ -364,9 +735,11 @@ function renderCards() {
     } else if (CURRENT_SORT === "id") {
       return (a.id || "").localeCompare(b.id || "");
     } else {
-      // Relevance sort: dynamic match if query active, otherwise intrinsic topic depth
+      // Relevance sort: dynamic match if query active, otherwise recommended fit, otherwise intrinsic topic depth
       if (q) {
         return (b._matchScore || 0) - (a._matchScore || 0);
+      } else if (IS_RECOMMENDED_MODE) {
+        return (b._profileFit || 0) - (a._profileFit || 0);
       } else {
         return (b.relevance_score || 0) - (a.relevance_score || 0);
       }
@@ -398,9 +771,22 @@ function renderCards() {
         if (hasSlides) badgesHtml += '<span class="badge badge-slides">📄 Slides Available</span>';
         if (hasRepo) badgesHtml += '<span class="badge badge-repo">💻 GitHub Repo</span>';
 
-        const scoreBadge = q && t._matchScore != null
-          ? `<span class="relevance-score match-active" title="Dynamic search query match score based on title, speaker, tags, and summary">🎯 Match: ${t._matchScore}%</span>`
-          : `<span class="relevance-score" title="Intrinsic conference topic depth (Agent Harnesses, MCP, Security, Tool-Use)">⭐ Topic Depth: ${Math.round((t.relevance_score || 0) * 100)}%</span>`;
+        const profile = getUserProfile();
+        let scoreBadge = "";
+        if (q && t._matchScore != null) {
+          scoreBadge = `<span class="relevance-score match-active" title="Dynamic search query match score">🎯 Query Match: ${t._matchScore}%</span>`;
+        } else if (profile) {
+          scoreBadge = `<span class="relevance-score" title="Match based on your interest profile">🎯 Profile Fit: ${t._profileFit}%</span>`;
+        } else {
+          scoreBadge = `<span class="relevance-score" title="Intrinsic conference topic depth">⭐ Topic Depth: ${Math.round((t.relevance_score || 0.8) * 100)}%</span>`;
+        }
+
+        const track = getTrack();
+        const isBookmarked = track.includes(t.id);
+        const trackBtn = `<button class="btn-track-toggle ${isBookmarked ? "active" : ""}" onclick="toggleTrack('${t.id}')">${isBookmarked ? "★ In Track" : "☆ Add to Track"}</button>`;
+
+        const firstSentence = (t.one_paragraph || "").split(/[.!?]\s/)[0].trim() + ".";
+        const takeawayBadge = `<div class="card-takeaway-badge">💡 <strong>Key Takeaway:</strong> ${escapeHtml(firstSentence)}</div>`;
 
         let directSlideBtn = "";
         if (hasSlides) {
@@ -414,8 +800,10 @@ function renderCards() {
         <div class="card-meta">
           <span class="card-id">[[${t.id}]]</span>
           ${scoreBadge}
+          ${trackBtn}
         </div>
         <h3 class="card-title session-title">${escapeHtml(cleanTitle)}</h3>
+        ${takeawayBadge}
         ${badgesHtml ? `<div class="card-badges">${badgesHtml}</div>` : ""}
         <p class="card-speakers">${escapeHtml((t.speakers || []).join(", ") || "Speaker")}</p>
         <p class="card-essence">${escapeHtml(t.one_paragraph || "View full essence for architectural takeaways.")}</p>
@@ -490,9 +878,14 @@ async function openEssenceModal(sid) {
     history.pushState(null, "", `#/session/${sid}`);
   }
   
+  const track = getTrack();
+  const isBookmarked = track.includes(sid);
+  const trackBtn = `<button class="btn-track-toggle ${isBookmarked ? "active" : ""}" onclick="toggleTrack('${sid}')" style="margin-left: auto;">${isBookmarked ? "★ In Track" : "☆ Add to Track"}</button>`;
+
   modalBody.innerHTML = `
     <div class="modal-header-bar">
       <span class="modal-title">Presentation Essence: [[${escapeHtml(sid)}]]</span>
+      ${trackBtn}
     </div>
     <div style="padding: 20px 0; color: var(--text-secondary);">Loading distilled Karpathy essence...</div>
   `;
@@ -526,6 +919,7 @@ async function openEssenceModal(sid) {
       modalBody.innerHTML = `
         <div class="modal-header-bar">
           <span class="modal-title">Presentation Essence: <span style="color: var(--accent);">[[${escapeHtml(sid)}]]</span></span>
+          ${trackBtn}
         </div>
         <div class="markdown-content">${htmlOutput}</div>
       `;
@@ -563,6 +957,7 @@ async function openEssenceModal(sid) {
       modalBody.innerHTML = `
         <div class="modal-header-bar">
           <span class="modal-title">Session: [[${escapeHtml(sid)}]]</span>
+          ${trackBtn}
         </div>
         <p style="padding: 20px 0; color: var(--text-secondary);">Source essence for <strong>${escapeHtml(sid)}</strong> is currently in ingestion pipeline.</p>
       `;
@@ -765,7 +1160,12 @@ Always cite the session ID (e.g. [[2RBBJ]]) and speaker by name for every claim.
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: jsonSafe({ question: q, only_with_slides: onlySlides, breadth: breadth }),
+        body: jsonSafe({ 
+          question: q, 
+          only_with_slides: onlySlides, 
+          breadth: breadth,
+          user_profile: getUserProfile()
+        }),
       });
 
       const data = await res.json();
