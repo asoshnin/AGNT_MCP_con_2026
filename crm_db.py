@@ -2,11 +2,10 @@
 Enforces WAL mode, busy timeout, and atomic writes.
 """
 
-import sqlite3
 import os
-import time
-import uuid
 import secrets
+import sqlite3
+import time
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "data", "crm.sqlite")
 
@@ -108,7 +107,7 @@ def bulk_update_status(inquiry_ids: list[str], new_status: str) -> int:
     cur = conn.cursor()
     now = time.strftime("%Y-%m-%d %H:%M:%S")
     placeholders = ",".join("?" * len(inquiry_ids))
-    cur.execute(f"UPDATE inquiries SET status = ?, updated_at = ? WHERE id IN ({placeholders})", [new_status, now] + inquiry_ids)
+    cur.execute(f"UPDATE inquiries SET status = ?, updated_at = ? WHERE id IN ({placeholders})", [new_status, now, *inquiry_ids])
     affected = cur.rowcount
     conn.commit()
     conn.close()

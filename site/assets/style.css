@@ -1316,6 +1316,138 @@ html[data-theme='light'] footer {
   color: #fff;
 }
 
+/* ==========================================================================
+   Responsive Mobile Breakpoints (Sprint P-05)
+   ========================================================================== */
+@media (max-width: 768px) {
+  .app-container {
+    padding: 0 12px 60px 12px;
+  }
+
+  .header-top {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .site-title {
+    font-size: 1.25rem;
+  }
+
+  .header-actions,
+  .nav-actions {
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+  }
+
+  .btn-header {
+    height: 32px !important;
+    font-size: 0.78rem;
+    padding: 0 8px;
+    flex-shrink: 0;
+  }
+
+  .modal-box {
+    width: 95%;
+    max-height: 88vh;
+  }
+
+  .modal-header-bar {
+    padding: 12px 16px;
+  }
+
+  .modal-title {
+    font-size: 1.05rem;
+    padding-right: 36px;
+  }
+
+  .chat-panel {
+    width: calc(100vw - 24px);
+    right: 12px;
+    left: 12px;
+    bottom: 46px;
+    height: 75vh;
+    max-height: calc(100vh - 60px);
+  }
+
+  .hero-search-box {
+    padding: 12px;
+  }
+
+  .command-bar-row {
+    flex-direction: column;
+  }
+
+  footer {
+    padding: 4px 10px;
+    font-size: 0.72rem;
+    height: auto;
+    min-height: 34px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-container {
+    padding: 0 8px 65px 8px;
+  }
+
+  .site-title {
+    font-size: 1.15rem;
+  }
+
+  .chat-panel {
+    width: 100vw;
+    right: 0;
+    left: 0;
+    bottom: 0;
+    height: 90vh;
+    border-radius: 14px 14px 0 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+  }
+
+  .chat-header {
+    padding: 10px 12px;
+  }
+
+  .modal-box {
+    width: 98%;
+    max-height: 92vh;
+    border-radius: 8px;
+  }
+
+  .modal-scroll-body,
+  .modal-body {
+    padding: 12px;
+  }
+
+  .filter-mode-tabs {
+    gap: 4px;
+  }
+
+  .filter-tab {
+    padding: 5px 10px;
+    font-size: 0.75rem;
+  }
+
+  .disclaimer-banner {
+    padding: 8px 10px;
+    font-size: 0.74rem;
+  }
+
+  footer {
+    font-size: 0.68rem;
+  }
+}
+
 @media print {
   body {
     background: #fff !important;

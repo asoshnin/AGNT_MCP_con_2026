@@ -7,8 +7,8 @@ Hosts:
 3. 4-Layer Security: Input clamping (500 chars), IP rate limiter, and clean error handling.
 """
 
-import sys
 import os
+import sys
 
 # Auto-resolve virtualenv if dependencies are missing in ambient Python
 try:
@@ -21,22 +21,29 @@ except ModuleNotFoundError:
     ]
     for venv_py in candidate_venvs:
         if os.path.exists(venv_py) and sys.executable != venv_py:
-            os.execv(venv_py, [venv_py] + sys.argv)
+            os.execv(venv_py, [venv_py, *sys.argv])
 
-import json
-import time
 import asyncio
+import concurrent.futures
+import json
+import threading
+import time
 from http.server import HTTPServer, SimpleHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+
+try:
+    from http.server import ThreadingHTTPServer
+except ImportError:
+    ThreadingHTTPServer = HTTPServer
 import argparse
 import secrets
+from urllib.parse import parse_qs, urlparse
 
 HUB_DIR = os.path.dirname(os.path.abspath(__file__))
 SITE_DIR = os.path.join(HUB_DIR, "site")
 
 sys.path.insert(0, HUB_DIR)
-from mcp_server import tool_search_talks, tool_get_page, tool_answer_conference
 import crm_db
+from mcp_server import tool_answer_conference, tool_get_page, tool_search_talks
 
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "agntcon2026admin")
 ADMIN_SESSION_TOKEN = secrets.token_hex(24)
@@ -45,7 +52,7 @@ def load_env_file():
     env_path = os.path.join(HUB_DIR, ".env")
     if os.path.exists(env_path):
         try:
-            with open(env_path, "r", encoding="utf-8") as f:
+            with open(env_path, encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if line and not line.startswith("#") and "=" in line:
@@ -135,6 +142,24 @@ DAILY_REQUEST_COUNT = 0
 LAST_RESET_DAY = time.strftime("%Y-%m-%d")
 DAILY_MAX_REQUESTS = 200
 
+# Active FIFO Semaphore Queue Tracking (Sprint P-04e)
+MAX_CONCURRENT_CHATS = 2
+MAX_WAITING_REQUESTS = 10
+ACTIVE_TASKS = 0
+WAITING_TASKS = 0
+QUEUE_LOCK = threading.Lock()
+CHAT_SEMAPHORE = asyncio.Semaphore(MAX_CONCURRENT_CHATS)
+
+ASYNC_LOOP = None
+
+def get_or_create_loop():
+    global ASYNC_LOOP
+    if ASYNC_LOOP is None:
+        ASYNC_LOOP = asyncio.new_event_loop()
+        t = threading.Thread(target=ASYNC_LOOP.run_forever, daemon=True, name="AsyncChatWorker")
+        t.start()
+    return ASYNC_LOOP
+
 def check_daily_quota() -> bool:
     global DAILY_REQUEST_COUNT, LAST_RESET_DAY
     today = time.strftime("%Y-%m-%d")
@@ -161,6 +186,13 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=SITE_DIR, **kwargs)
 
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        self.end_headers()
+
     def log_message(self, format, *args):
         # Clean logging format
         try:
@@ -180,6 +212,26 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(json.dumps({"status": "ok", "service": "agntcon-2026-hub", "version": "3.0.0"}).encode("utf-8"))
+            return
+
+        # Queue Status Telemetry (Sprint P-04e)
+        if path == "/api/queue-status":
+            with QUEUE_LOCK:
+                status_str = "busy" if ACTIVE_TASKS >= MAX_CONCURRENT_CHATS else "ready"
+                resp_data = {
+                    "active_tasks": ACTIVE_TASKS,
+                    "waiting_tasks": WAITING_TASKS,
+                    "waiting_depth": WAITING_TASKS,
+                    "queue_depth": WAITING_TASKS,
+                    "max_concurrent": MAX_CONCURRENT_CHATS,
+                    "status": status_str
+                }
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps(resp_data).encode("utf-8"))
             return
 
         # Search API
@@ -291,6 +343,7 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
+        global WAITING_TASKS, ACTIVE_TASKS
         parsed = urlparse(self.path)
         path = parsed.path
         client_ip = self.client_address[0]
@@ -359,26 +412,67 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": f"Question exceeds limit of {MAX_QUERY_CHARS} characters."}).encode("utf-8"))
                 return
 
-            # 4. Call MCP tool_answer_conference
-            try:
-                result = asyncio.run(tool_answer_conference(question, breadth=breadth, only_with_slides=only_slides, user_context=user_context))
-                if isinstance(result, dict) and "error" in result:
-                    self.send_response(503)
+            # 4. Queue Capacity Gate (Max 10 waiting)
+            with QUEUE_LOCK:
+                if WAITING_TASKS >= MAX_WAITING_REQUESTS:
+                    self.send_response(429)
                     self.send_header("Content-Type", "application/json")
+                    self.send_header("Retry-After", "15")
                     self.send_header("Access-Control-Allow-Origin", "*")
                     self.end_headers()
                     self.wfile.write(json.dumps({
-                        "error": result.get("error", "cascade_unavailable"),
-                        "message": result.get("message", "All public free-tier models are currently rate-limited or busy."),
-                        "citations": result.get("citations", [])
+                        "error": "queue_full",
+                        "message": "Chat inference queue is at maximum capacity (10 waiting). Please try again in 15 seconds."
                     }).encode("utf-8"))
                     return
+                WAITING_TASKS += 1
 
-                self.send_response(200)
+            # 5. Call MCP tool_answer_conference via Async Semaphore Queue
+            loop = get_or_create_loop()
+
+            async def _execute_chat():
+                global ACTIVE_TASKS, WAITING_TASKS
+                acquired = False
+                try:
+                    async with CHAT_SEMAPHORE:
+                        acquired = True
+                        with QUEUE_LOCK:
+                            WAITING_TASKS = max(0, WAITING_TASKS - 1)
+                            ACTIVE_TASKS += 1
+                        try:
+                            return await asyncio.wait_for(
+                                tool_answer_conference(
+                                    question,
+                                    breadth=breadth,
+                                    only_with_slides=only_slides,
+                                    user_context=user_context
+                                ),
+                                timeout=45.0
+                            )
+                        finally:
+                            with QUEUE_LOCK:
+                                ACTIVE_TASKS = max(0, ACTIVE_TASKS - 1)
+                finally:
+                    if not acquired:
+                        with QUEUE_LOCK:
+                            WAITING_TASKS = max(0, WAITING_TASKS - 1)
+
+            try:
+                future = asyncio.run_coroutine_threadsafe(
+                    asyncio.wait_for(_execute_chat(), timeout=45.0),
+                    loop
+                )
+                result = future.result(timeout=46.0)
+            except (concurrent.futures.TimeoutError, TimeoutError):
+                self.send_response(504)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
-                self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
+                self.wfile.write(json.dumps({
+                    "error": "gateway_timeout",
+                    "message": "Inference request timed out after 45 seconds in queue/generation."
+                }).encode("utf-8"))
+                return
             except Exception as e:
                 self.send_response(503)
                 self.send_header("Content-Type", "application/json")
@@ -386,8 +480,27 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(json.dumps({
                     "error": "cascade_unavailable",
-                    "message": f"Inference error: {e}"
+                    "message": f"Inference execution error: {e}"
                 }).encode("utf-8"))
+                return
+
+            if isinstance(result, dict) and "error" in result:
+                self.send_response(503)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "error": result.get("error", "cascade_unavailable"),
+                    "message": result.get("message", "All public free-tier models are currently rate-limited or busy."),
+                    "citations": result.get("citations", [])
+                }).encode("utf-8"))
+                return
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
             return
 
         # Collaboration Interest Endpoint
@@ -937,12 +1050,12 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
 def run_server(host="127.0.0.1", port=8080):
     os.makedirs(SITE_DIR, exist_ok=True)
     server_address = (host, port)
-    httpd = HTTPServer(server_address, HubHTTPRequestHandler)
-    print(f"===========================================================")
-    print(f"  AGNTCon + MCPCon Europe 2026 - LLM Wiki & MCP Gateway   ")
+    httpd = ThreadingHTTPServer(server_address, HubHTTPRequestHandler)
+    print("===========================================================")
+    print("  AGNTCon + MCPCon Europe 2026 - LLM Wiki & MCP Gateway   ")
     print(f"  Web Workspace: http://{host}:{port}/                     ")
     print(f"  MCP Server:    stdio / REST API at http://{host}:{port}/api/")
-    print(f"===========================================================")
+    print("===========================================================")
     print("[+] Press Ctrl+C to halt server.\n")
     try:
         httpd.serve_forever()
@@ -962,7 +1075,7 @@ def main():
         print(f"[+] Static directory verified: {SITE_DIR}")
         print(f"[+] Rate limiter configured: {RATE_LIMIT_PER_MINUTE} req/min")
         print(f"[+] Input clamping: {MAX_QUERY_CHARS} chars")
-        print(f"[+] SERVE_TEST_PASS: Routes initialized, read-only endpoints ready.")
+        print("[+] SERVE_TEST_PASS: Routes initialized, read-only endpoints ready.")
         return
 
     run_server(host=args.host, port=args.port)

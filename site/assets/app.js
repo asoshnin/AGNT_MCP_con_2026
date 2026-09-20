@@ -1614,6 +1614,36 @@ CRITICAL INVARIANTS:
     }
 
     // 2. Cloud Demo: Server-Side Proxy Path (Default)
+    const queueIndicator = document.getElementById("chat-queue-indicator");
+    let queuePollInterval = null;
+
+    if (queueIndicator) {
+      queueIndicator.style.display = "inline";
+      queueIndicator.textContent = "Checking queue...";
+    }
+
+    const pollQueue = async () => {
+      try {
+        const qRes = await fetch("/api/queue-status");
+        if (qRes.ok) {
+          const qData = await qRes.json();
+          const waiting = qData.waiting_tasks ?? qData.waiting_depth ?? 0;
+          if (queueIndicator) {
+            if (waiting > 0) {
+              queueIndicator.textContent = `Position in queue: #${waiting} (estimated wait: ~${waiting * 3}s)...`;
+            } else {
+              queueIndicator.textContent = "Synthesizing answer with grounded citations...";
+            }
+          }
+        }
+      } catch (e) {
+        // ignore telemetry polling failure
+      }
+    };
+
+    pollQueue();
+    queuePollInterval = setInterval(pollQueue, 2000);
+
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -1646,6 +1676,20 @@ CRITICAL INVARIANTS:
           </div>`;
         }
         botEl.innerHTML = html;
+      } else if (res.status === 429) {
+        botEl.innerHTML = `
+          <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px; color: var(--text-primary); font-size: 0.85rem; line-height: 1.5;">
+            <strong style="color: #ef4444;">⏳ Concurrency Queue Full (HTTP 429)</strong><br><br>
+            ${escapeHtml(data.message || data.error || "The server is currently experiencing high concurrent traffic. Please wait a few seconds and try again.")}
+          </div>
+        `;
+      } else if (res.status === 504) {
+        botEl.innerHTML = `
+          <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px; color: var(--text-primary); font-size: 0.85rem; line-height: 1.5;">
+            <strong style="color: #ef4444;">⏱️ Request Timeout (HTTP 504)</strong><br><br>
+            ${escapeHtml(data.message || data.error || "Inference request timed out after 45 seconds in queue/generation.")}
+          </div>
+        `;
       } else if (res.status === 503 || (data && (data.error === "cascade_unavailable" || data.error === "gateway_busy"))) {
         let citationsHtml = "";
         if (data.citations && data.citations.length > 0) {
@@ -1674,6 +1718,15 @@ CRITICAL INVARIANTS:
     } catch (err) {
       const botEl = document.getElementById(loadingId);
       botEl.innerHTML = `<div style="color: #f87171;">Connection error to /api/chat. Is serve.py running?</div>`;
+    } finally {
+      if (queuePollInterval) {
+        clearInterval(queuePollInterval);
+        queuePollInterval = null;
+      }
+      if (queueIndicator) {
+        queueIndicator.style.display = "none";
+        queueIndicator.textContent = "Queue: Ready";
+      }
     }
     chatMessages.scrollTop = chatMessages.scrollHeight;
   });

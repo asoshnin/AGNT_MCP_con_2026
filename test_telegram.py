@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Test Telegram alerting for ToyProjectsBot using credentials in .env."""
 
+import json
 import os
 import sys
-import json
 import urllib.request
 
 HUB_DIR = os.path.dirname(os.path.abspath(__file__))
 env_path = os.path.join(HUB_DIR, ".env")
 if os.path.exists(env_path):
-    with open(env_path, "r", encoding="utf-8") as f:
+    with open(env_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
