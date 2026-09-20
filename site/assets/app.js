@@ -697,9 +697,18 @@ Always cite the session ID (e.g. [[2RBBJ]]) and speaker by name for every claim.
           const answerText = (llmData.choices && llmData.choices[0] && llmData.choices[0].message) ? llmData.choices[0].message.content : "No response content.";
           let html = `<div>${formatBotMarkdown(answerText)}</div>`;
           if (citations.length > 0) {
-            html += `<div class="chat-citations"><strong>Canonical Sched Sources (Local LM Studio):</strong><br>${citations
-              .map((c) => `• <a href="${escapeHtml(c.sched_url)}" target="_blank" rel="noopener" style="color: var(--accent);">[[${escapeHtml(c.id)}]] ${escapeHtml(c.title)}</a>`)
-              .join("<br>")}</div>`;
+            html += `<div class="chat-citations" style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 0.82rem;">
+              <strong style="color: var(--text-primary);">Referenced Presentations:</strong><br>
+              ${citations.map((c) => `
+                <div style="margin-top: 6px; line-height: 1.4;">
+                  <strong>[[${escapeHtml(c.id)}]]</strong> ${escapeHtml(c.title)}<br>
+                  <span style="font-size: 0.78rem;">
+                    <a href="javascript:void(0)" onclick="openEssenceModal('${escapeHtml(c.id)}')" style="color: var(--accent); font-weight: 600; text-decoration: underline; margin-right: 8px;">📖 View Summary / Essence</a>
+                    <a href="${escapeHtml(c.sched_url)}" target="_blank" rel="noopener" style="color: var(--text-secondary); text-decoration: underline;">Official Sched ↗</a>
+                  </span>
+                </div>
+              `).join("")}
+            </div>`;
           }
           botEl.innerHTML = html;
         } else {
@@ -737,9 +746,18 @@ Always cite the session ID (e.g. [[2RBBJ]]) and speaker by name for every claim.
       if (res.ok) {
         let html = `<div>${formatBotMarkdown(data.answer)}</div>`;
         if (data.citations && data.citations.length > 0) {
-          html += `<div class="chat-citations"><strong>Canonical Sched Sources:</strong><br>${data.citations
-            .map((c) => `• <a href="${escapeHtml(c.sched_url)}" target="_blank" rel="noopener" style="color: var(--accent);">[[${escapeHtml(c.id)}]] ${escapeHtml(c.title)}</a>`)
-            .join("<br>")}</div>`;
+          html += `<div class="chat-citations" style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 0.82rem;">
+            <strong style="color: var(--text-primary);">Referenced Presentations:</strong><br>
+            ${data.citations.map((c) => `
+              <div style="margin-top: 6px; line-height: 1.4;">
+                <strong>[[${escapeHtml(c.id)}]]</strong> ${escapeHtml(c.title)}<br>
+                <span style="font-size: 0.78rem;">
+                  <a href="javascript:void(0)" onclick="openEssenceModal('${escapeHtml(c.id)}')" style="color: var(--accent); font-weight: 600; text-decoration: underline; margin-right: 8px;">📖 View Summary / Essence</a>
+                  <a href="${escapeHtml(c.sched_url)}" target="_blank" rel="noopener" style="color: var(--text-secondary); text-decoration: underline;">Official Sched ↗</a>
+                </span>
+              </div>
+            `).join("")}
+          </div>`;
         }
         botEl.innerHTML = html;
       } else if (res.status === 503 || (data && data.error === "cascade_unavailable")) {
@@ -780,8 +798,8 @@ function formatBotMarkdown(text) {
   let out = escapeHtml(text);
   // Format markdown links [title](url)
   out = out.replace(/\[(.*?)\]\((https?:\/\/.*?)\)/g, '<a href="$2" target="_blank" rel="noopener" style="color: var(--accent); font-weight: 500;">$1 ↗</a>');
-  // Format wikilinks [[2RBBJ]]
-  out = out.replace(/\[\[([A-Za-z0-9_-]+)\]\]/g, '<span style="color: var(--accent); font-weight: 600;">[[$1]]</span>');
+  // Format wikilinks [[2RBBJ]] as clickable links to open essence modal!
+  out = out.replace(/\[\[([A-Za-z0-9_-]+)\]\]/g, '<a href="javascript:void(0)" onclick="openEssenceModal(\'$1\')" style="color: var(--accent); font-weight: 700; text-decoration: underline; cursor: pointer;" title="Open presentation summary">[[$1]]</a>');
   // Format bold
   out = out.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
   // Replace newlines
