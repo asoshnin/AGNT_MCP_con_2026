@@ -87,7 +87,8 @@ def dispatch_resend_email(to_email: str, subject: str, html_body: str):
             data=payload,
             headers={
                 "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "User-Agent": "resend-python/2.0.0"
             }
         )
         with urllib.request.urlopen(req, timeout=4.0) as res:
@@ -162,7 +163,10 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
 
     def log_message(self, format, *args):
         # Clean logging format
-        sys.stdout.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {args[0]} {args[1]} {args[2]}\n")
+        try:
+            sys.stdout.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {format % args}\n")
+        except Exception:
+            sys.stdout.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {format}\n")
 
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -475,6 +479,27 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
             </div>
             """
             dispatch_resend_email(email, f"[#{ticket_id}] Your AGNTCon 2026 Collaboration Inquiry", email_html)
+
+            # Also notify maintainer by email
+            maintainer_email = os.environ.get("MAINTAINER_NOTIFICATION_EMAIL") or os.environ.get("RESEND_MAINTAINER_EMAIL", "alex@onexcare.com")
+            if maintainer_email and maintainer_email != email:
+                maintainer_html = f"""
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                  <h2 style="color: #0284c7; margin-top: 0;">💼 New Collaboration Inquiry: #{ticket_id}</h2>
+                  <p><strong>From:</strong> {name} ({org or 'Individual'})</p>
+                  <p><strong>Email:</strong> <a href="mailto:{email}">{email}</a></p>
+                  <p><strong>Profile:</strong> <a href="{profile_url}">{profile_url}</a></p>
+                  <p><strong>Type:</strong> {inquiry_type}</p>
+                  <blockquote style="background: #f8fafc; border-left: 4px solid #0284c7; padding: 12px 16px; margin: 16px 0; color: #1e293b;">
+                    {description.replace(chr(10), '<br>')}
+                  </blockquote>
+                  <div style="margin: 20px 0;">
+                    <a href="{full_ticket_url}" style="background: #0284c7; color: #ffffff; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">Open Client Thread →</a>
+                    <a href="{public_url}/admin#ticket={ticket_id}" style="background: #475569; color: #ffffff; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block; margin-left: 8px;">Open in CRM Dashboard →</a>
+                  </div>
+                </div>
+                """
+                dispatch_resend_email(maintainer_email, f"💼 [New Collaboration] #{ticket_id} from {name} ({org or 'N/A'})", maintainer_html)
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
