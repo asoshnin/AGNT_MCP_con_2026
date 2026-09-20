@@ -1,21 +1,5 @@
 :root {
-  /* Dark Mode (Default) */
-  --bg-primary: #0b0f19;
-  --bg-secondary: #131b2e;
-  --bg-card: #162036;
-  --border: #23304b;
-  --border-hover: #38bdf8;
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --accent: #38bdf8;
-  --accent-hover: #60a5fa;
-  --badge-bg: rgba(56, 189, 248, 0.12);
-  --badge-border: rgba(56, 189, 248, 0.25);
-  --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-html[data-theme='light'] {
+  /* Light Mode (Default) */
   --bg-primary: #f8fafc;
   --bg-secondary: #ffffff;
   --bg-card: #ffffff;
@@ -31,20 +15,20 @@ html[data-theme='light'] {
   --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
-html[data-theme='conference'] {
-  --bg-main: #070c18;
-  --bg-card: #0d1527;
-  --bg-secondary: #131f37;
-  --border: #1e3156;
-  --text-primary: #f0f6fc;
+html[data-theme='dark'] {
+  --bg-primary: #0b0f19;
+  --bg-secondary: #131b2e;
+  --bg-card: #162036;
+  --border: #23304b;
+  --border-hover: #38bdf8;
+  --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
-  --accent: #0284c7;
-  --accent-hover: #38bdf8;
-  --badge-bg: rgba(2, 132, 199, 0.18);
-  --table-header: #101c33;
-  --nav-bg: rgba(7, 12, 24, 0.92);
-  --shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  --accent: #38bdf8;
+  --accent-hover: #60a5fa;
+  --badge-bg: rgba(56, 189, 248, 0.12);
+  --badge-border: rgba(56, 189, 248, 0.25);
+  --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 * {

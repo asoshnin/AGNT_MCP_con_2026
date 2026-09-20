@@ -143,40 +143,30 @@ function updateTrackCount() {
 }
 
 function initTheme() {
-  const themeSelect = document.getElementById('theme-select');
-  let savedTheme = localStorage.getItem('agntcon_theme') || 'system';
-
-  if (themeSelect) {
-    themeSelect.value = savedTheme;
+  const themeToggle = document.getElementById('theme-toggle');
+  let currentTheme = localStorage.getItem('agntcon_theme') || 'light';
+  if (currentTheme !== 'light' && currentTheme !== 'dark') {
+    currentTheme = 'light';
   }
 
-  function applyTheme(themeValue) {
-    let actualTheme = themeValue;
-    if (themeValue === 'system') {
-      actualTheme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-    } else if (themeValue === 'conference') {
-      actualTheme = 'conference';
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('agntcon_theme', theme);
+    if (themeToggle) {
+      themeToggle.textContent = theme === 'light' ? '☀️' : '🌙';
+      themeToggle.title = `Switch to ${theme === 'light' ? 'Dark' : 'Light'} theme`;
     }
-    document.documentElement.setAttribute('data-theme', actualTheme);
   }
 
-  // Initial application
-  applyTheme(savedTheme);
+  applyTheme(currentTheme);
 
-  // Listen for changes from the select dropdown
-  if (themeSelect) {
-    themeSelect.addEventListener('change', (e) => {
-      localStorage.setItem('agntcon_theme', e.target.value);
-      applyTheme(e.target.value);
+  if (themeToggle) {
+    themeToggle.addEventListener('click', () => {
+      const active = document.documentElement.getAttribute('data-theme') || 'light';
+      const nextTheme = active === 'light' ? 'dark' : 'light';
+      applyTheme(nextTheme);
     });
   }
-
-  // Listen for system theme changes if set to system
-  window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', (e) => {
-    if (localStorage.getItem('agntcon_theme') === 'system' || !localStorage.getItem('agntcon_theme')) {
-      applyTheme('system');
-    }
-  });
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -186,6 +176,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   const searchClear = document.getElementById("search-clear");
   if (searchInput) searchInput.value = "";
   if (searchClear) searchClear.style.display = "none";
+
+  // Prevent stale test data from pre-populating "My Track" if no profile exists
+  if (!getUserProfile() && localStorage.getItem("agntcon_track_profile_sync")) {
+    localStorage.removeItem("agntcon_my_track");
+    localStorage.removeItem("agntcon_track_profile_sync");
+  }
 
   await loadCatalog();
   setupEventListeners();
@@ -787,7 +783,6 @@ function setupEventListeners() {
         alert("JSZip library not loaded. Ensure it is included in your index.html.");
         return;
       }
-      const zip = new JSZip();
       const trackIds = getTrack();
       const trackTalks = ALL_TALKS.filter(t => trackIds.includes(t.id));
 
@@ -796,40 +791,49 @@ function setupEventListeners() {
         return;
       }
 
+      btnDownloadObsidian.textContent = "⏳ Bundling Vault...";
+
+      const zip = new JSZip();
+
       // 00_Conference_Itinerary.md
       let itineraryMd = "# AGNTCon + MCPCon Europe 2026: My Itinerary\n\n";
-      itineraryMd += "| ID | Title | Speaker | Link |\n|---|---|---|---|\n";
+      itineraryMd += "| ID | Title | Speaker | Sched Link |\n|---|---|---|---|\n";
       trackTalks.forEach(t => {
         const cleanTitle = t.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, "").trim();
-        itineraryMd += `| [[${t.id}]] | ${cleanTitle} | ${(t.speakers || []).join(", ")} | [Sched](${t.sched_url}) |\n`;
+        itineraryMd += `| [[${t.id}]] | ${cleanTitle} | ${(t.speakers || []).join(", ")} | [Official Sched](${t.sched_url}) |\n`;
       });
       zip.file("00_Conference_Itinerary.md", itineraryMd);
 
-      // Sessions/
+      // Sessions/ folder with FULL, UNABRIDGED ESSENCE
       const sessionsFolder = zip.folder("Sessions");
       for (const t of trackTalks) {
         const cleanTitle = t.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, "").trim();
         const safeTitle = cleanTitle.replace(/[/\\?%*:|"<>]/g, '-');
         
-        // YAML Frontmatter (stringified double-quoted to prevent colon errors)
-        const frontmatter = {
-          id: t.id,
-          title: cleanTitle,
-          speakers: t.speakers || [],
-          concepts: t.concepts || [],
-          url: t.sched_url,
-          exported: new Date().toISOString()
-        };
+        let fullMarkdown = "";
+        try {
+          const res = await fetch(`/api/page?type=source&name=${t.id}`);
+          if (res.ok) {
+            const data = await res.json();
+            fullMarkdown = data.content || "";
+          }
+        } catch (e) {
+          console.warn("Could not fetch full essence for " + t.id, e);
+        }
+
+        if (!fullMarkdown) {
+          const frontmatter = {
+            id: t.id,
+            title: cleanTitle,
+            speakers: t.speakers || [],
+            concepts: t.concepts || [],
+            sched_url: t.sched_url,
+            exported: new Date().toISOString()
+          };
+          fullMarkdown = `---\n${JSON.stringify(frontmatter, null, 2)}\n---\n\n# ${cleanTitle}\n\n**Speakers:** ${(t.speakers || []).join(", ")}\n\n## Summary\n${t.one_paragraph || ""}\n\n## Links\n- [Official Sched](${t.sched_url})\n`;
+        }
         
-        let content = `---\n${JSON.stringify(frontmatter, null, 2)}\n---\n\n`;
-        content += `# ${cleanTitle}\n\n`;
-        content += `**Speakers:** ${(t.speakers || []).join(", ")}\n`;
-        content += `**Tags:** ${(t.concepts || []).map(c => `#${c.replace(/\s+/g, '_')}`).join(" ")}\n\n`;
-        content += `## Summary\n${t.one_paragraph || ""}\n\n`;
-        content += `## Links\n- [Official Sched](${t.sched_url})\n`;
-        if (t.slide_url) content += `- [Slides](${t.slide_url})\n`;
-        
-        sessionsFolder.file(`${t.id} - ${safeTitle}.md`, content);
+        sessionsFolder.file(`${t.id} - ${safeTitle}.md`, fullMarkdown);
       }
 
       // Concepts/
@@ -852,13 +856,14 @@ function setupEventListeners() {
       a.download = "agntcon2026_obsidian_vault.zip";
       a.click();
       window.URL.revokeObjectURL(url);
+      btnDownloadObsidian.textContent = "💾 Download Obsidian Vault (.zip)";
     });
   }
 
   // PDF Export
   const btnExportPdf = document.getElementById("btn-export-pdf-dossier");
   if (btnExportPdf) {
-    btnExportPdf.addEventListener("click", () => {
+    btnExportPdf.addEventListener("click", async () => {
       const trackIds = getTrack();
       const trackTalks = ALL_TALKS.filter(t => trackIds.includes(t.id));
       const profile = getUserProfile();
@@ -874,58 +879,90 @@ function setupEventListeners() {
         return;
       }
 
+      btnExportPdf.textContent = "⏳ Generating Dossier...";
+
+      // Fetch full unabridged essence for each session in parallel
+      const detailedSessions = await Promise.all(trackTalks.map(async (t) => {
+        let fullContent = "";
+        try {
+          const res = await fetch(`/api/page?type=source&name=${t.id}`);
+          if (res.ok) {
+            const data = await res.json();
+            fullContent = data.content || "";
+          }
+        } catch (e) {}
+        return { talk: t, fullContent: fullContent };
+      }));
+
+      btnExportPdf.textContent = "📄 Save / Print Single PDF Dossier";
+
       let html = `
         <div class="print-cover">
           <h1>AGNTCon + MCPCon Europe 2026</h1>
-          <h2>Research Dossier & Curated Itinerary</h2>
-          <p><strong>Generated:</strong> ${new Date().toLocaleDateString()}</p>
+          <div class="print-subtitle">Comprehensive Research Briefing & Curated Itinerary</div>
+          <p style="font-size: 10pt; color: #666; margin-top: 4px;"><strong>Generated:</strong> ${new Date().toLocaleDateString()}</p>
           ${profile ? `
-            <div style="margin-top: 20px; padding: 15px; border: 1px solid #ccc;">
-              <strong>User Profile Summary:</strong><br>
-              Role: ${escapeHtml(profile.role)}<br>
-              Focus Areas: ${escapeHtml((profile.focus_areas || []).join(", "))}
+            <div style="margin-top: 14px; padding: 12px; border: 1px solid #ddd; background: #f9f9f9; font-size: 10pt;">
+              <strong>Attendee Profile:</strong> ${escapeHtml(profile.role || "Specialist")}<br>
+              <strong>Focus Areas:</strong> ${escapeHtml((profile.focus_areas || []).join(", ") || "All")}<br>
+              ${profile.custom_notes ? `<strong>Goals:</strong> ${escapeHtml(profile.custom_notes)}` : ""}
             </div>
           ` : ""}
         </div>
         
-        <h3>Curated Itinerary Summary</h3>
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+        <h3 style="margin-top: 20px; font-size: 14pt;">Curated Itinerary Index</h3>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 9.5pt;">
           <thead>
-            <tr style="border-bottom: 2px solid #333;">
-              <th style="text-align: left; padding: 8px;">ID</th>
-              <th style="text-align: left; padding: 8px;">Title</th>
-              <th style="text-align: left; padding: 8px;">Speaker</th>
+            <tr style="border-bottom: 2px solid #000;">
+              <th style="text-align: left; padding: 6px;">ID</th>
+              <th style="text-align: left; padding: 6px;">Presentation Title</th>
+              <th style="text-align: left; padding: 6px;">Speaker(s)</th>
+              <th style="text-align: left; padding: 6px;">Official Sched</th>
             </tr>
           </thead>
           <tbody>
             ${trackTalks.map(t => `
-              <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding: 8px;">${t.id}</td>
-                <td style="padding: 8px;">${escapeHtml(t.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, ""))}</td>
-                <td style="padding: 8px;">${escapeHtml((t.speakers || []).join(", "))}</td>
+              <tr style="border-bottom: 1px solid #ddd;">
+                <td style="padding: 6px; font-weight: bold;">${t.id}</td>
+                <td style="padding: 6px;">${escapeHtml(t.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, ""))}</td>
+                <td style="padding: 6px;">${escapeHtml((t.speakers || []).join(", "))}</td>
+                <td style="padding: 6px;"><a href="${escapeHtml(t.sched_url)}">Sched Link ↗</a></td>
               </tr>
             `).join("")}
           </tbody>
         </table>
         
         <div class="print-sessions-detail">
-          ${trackTalks.map(t => {
+          ${detailedSessions.map(({ talk: t, fullContent }) => {
             const cleanTitle = t.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, "").trim();
             const firstSentence = (t.one_paragraph || "").split(/[.!?]\s/)[0].trim() + ".";
+            
+            // Format full markdown content, stripping YAML frontmatter for clean print layout
+            let formattedEssenceHtml = "";
+            if (fullContent) {
+              const strippedMd = fullContent.replace(/^---[\s\S]*?---\n*/, "");
+              if (typeof marked !== "undefined" && typeof DOMPurify !== "undefined") {
+                formattedEssenceHtml = DOMPurify.sanitize(marked.parse(strippedMd));
+              } else {
+                formattedEssenceHtml = `<div style="white-space: pre-wrap;">${escapeHtml(strippedMd)}</div>`;
+              }
+            } else {
+              formattedEssenceHtml = `<p>${escapeHtml(t.one_paragraph || "")}</p>`;
+            }
+
             return `
-              <div class="print-session-card" style="page-break-inside: avoid; border: 1px solid #000; padding: 20px; margin-bottom: 20px;">
-                <div style="display: flex; justify-content: space-between;">
-                  <span style="font-weight: bold;">[[${t.id}]]</span>
-                  <span>${escapeHtml(t.sched_url)}</span>
+              <div class="print-session-card">
+                <div style="display: flex; justify-content: space-between; font-size: 10pt; color: #555;">
+                  <span style="font-weight: bold; color: #000;">[[${t.id}]]</span>
+                  <span><a href="${escapeHtml(t.sched_url)}">${escapeHtml(t.sched_url)}</a></span>
                 </div>
-                <h2 style="margin: 10px 0;">${escapeHtml(cleanTitle)}</h2>
-                <p><strong>Speaker(s):</strong> ${escapeHtml((t.speakers || []).join(", "))}</p>
-                <div class="print-takeaway" style="background: #f0f0f0; padding: 10px; margin: 10px 0; border-left: 5px solid #333;">
+                <h2 style="margin: 8px 0 6px 0; font-size: 16pt;">${escapeHtml(cleanTitle)}</h2>
+                <p style="font-size: 10pt; color: #333; margin-bottom: 8px;"><strong>Speaker(s):</strong> ${escapeHtml((t.speakers || []).join(", "))}</p>
+                <div class="print-takeaway">
                   <strong>💡 Key Takeaway:</strong> ${escapeHtml(firstSentence)}
                 </div>
-                <div class="print-essence">
-                  <strong>Distilled Essence:</strong><br>
-                  ${escapeHtml(t.one_paragraph || "")}
+                <div class="markdown-content" style="font-size: 9.5pt; line-height: 1.5; color: #111;">
+                  ${formattedEssenceHtml}
                 </div>
               </div>
             `;
