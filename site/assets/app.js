@@ -1481,22 +1481,51 @@ function setupChat() {
 
       try {
         // Fetch RAG context from local search endpoint
-        const searchRes = await fetch(`/api/search?q=${encodeURIComponent(q)}&only_with_slides=${onlySlides ? "1" : "0"}`);
+        const searchRes = await fetch(`/api/search?q=${encodeURIComponent(q)}&only_with_slides=${onlySlides ? "1" : "0"}&limit=6`);
         const searchData = await searchRes.json();
-        const topMatches = (Array.isArray(searchData) ? searchData : (searchData.results || [])).slice(0, 6);
+        const topMatches = (Array.isArray(searchData) ? searchData : (searchData.results || [])).slice(0, 5);
 
-        let contextSnippets = [];
-        let citations = [];
-        topMatches.forEach((m) => {
-          citations.push({ id: m.id, title: m.title, sched_url: m.sched_url });
-          contextSnippets.push(`### [${m.id}]: ${m.title}\nSpeaker(s): ${(m.speakers || []).join(", ")}\nSummary: ${m.one_paragraph}`);
+        // Hydrate full source essence notes for focused candidates
+        const candidatePromises = topMatches.map(async (m, idx) => {
+          let fullText = m.one_paragraph || "";
+          try {
+            const pageRes = await fetch(`/api/page?type=source&name=${m.id}`);
+            if (pageRes.ok) {
+              const pageData = await pageRes.json();
+              if (pageData.content) {
+                fullText = pageData.content.replace(/^---[\s\S]*?---\n*/, "").trim();
+              }
+            }
+          } catch (e) {}
+          return `<candidate index="${idx + 1}" id="${m.id}">\nTitle: ${m.title}\nSpeakers: ${(m.speakers || []).join(", ")}\nSched URL: ${m.sched_url}\nSummary & Full Distilled Essence:\n${fullText}\n</candidate>`;
         });
+        const contextSnippets = await Promise.all(candidatePromises);
+
+        // Inject Attendee Profile for parity with Cloud Gateway
+        const profile = getUserProfile();
+        let profileSnippet = "";
+        if (profile) {
+          const parts = [];
+          if (profile.role) parts.push(`Role: ${profile.role}`);
+          if (profile.focus_areas && profile.focus_areas.length) parts.push(`Focus Areas: ${profile.focus_areas.join(", ")}`);
+          if (profile.objective) parts.push(`Objective: ${profile.objective}`);
+          if (profile.custom_notes) parts.push(`Specific Technical Goals / Notes: ${profile.custom_notes}`);
+          if (parts.length) {
+            profileSnippet = `\n\n<attendee_profile>\n${parts.join("\n")}\n</attendee_profile>`;
+          }
+        }
 
         const systemPrompt = `You are the research assistant for AGNTCon + MCPCon Europe 2026.
-Answer clearly, thoroughly, and completely based strictly on the provided conference excerpts.
-Always cite the session ID (e.g. [2RBBJ]) and speaker by name for every claim.`;
+Answer the user's question clearly, thoroughly, and completely based strictly on the provided conference excerpts.
 
-        const userMsg = `Question: ${q}\n\n<conference_excerpts>\n${contextSnippets.join("\n\n---\n\n")}\n</conference_excerpts>`;
+CRITICAL INVARIANTS:
+1. Every major claim or practice described MUST cite the session ID (e.g. [2RBBJ]) and include an outbound Markdown link to the canonical Sched presentation: [Presentation Title](https://agntconmcpconeu26.sched.com/event/...).
+2. If the user asks for a list, ranking, or comparison of multiple talks, enumerate all matching candidates using a structured numbered list or Markdown table. Complete all requested points in full without truncation.
+3. If the topic was not discussed in the provided excerpts, state: "This topic was not covered in the conference sessions."
+4. Always cite speakers by name.
+5. Tailor technical depth, architectural framing, and practical takeaways to the attendee's declared profile where applicable.`;
+
+        const userMsg = `Question: ${q}${profileSnippet}\n\n<conference_excerpts>\n${contextSnippets.join("\n\n")}\n</conference_excerpts>`;
 
         const headers = { "Content-Type": "application/json" };
         if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
@@ -1522,10 +1551,18 @@ Always cite the session ID (e.g. [2RBBJ]) and speaker by name for every claim.`;
           const llmData = await llmRes.json();
           const answerText = (llmData.choices && llmData.choices[0] && llmData.choices[0].message) ? llmData.choices[0].message.content : "No response content.";
           let html = `<div>${formatBotMarkdown(answerText)}</div>`;
-          if (citations.length > 0) {
+
+          // Filter citations to only those actually referenced in the answer
+          const citedSessions = topMatches.filter(m => 
+            answerText.toLowerCase().includes(m.id.toLowerCase()) || 
+            answerText.toLowerCase().includes(m.title.toLowerCase())
+          );
+          const displayedCitations = citedSessions.length > 0 ? citedSessions : topMatches.slice(0, 3);
+
+          if (displayedCitations.length > 0) {
             html += `<div class="chat-citations" style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 0.82rem;">
               <strong style="color: var(--text-primary);">Referenced Presentations:</strong><br>
-              ${citations.map((c) => `
+              ${displayedCitations.map((c) => `
                 <div style="margin-top: 6px; line-height: 1.4;">
                   <strong>[${escapeHtml(c.id)}]</strong> ${escapeHtml(c.title)}<br>
                   <span style="font-size: 0.78rem;">
