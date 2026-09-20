@@ -65,45 +65,48 @@
           </div>
         </div>
         
-        <div class="filter-row">
-          <button id="btn-filter-track" class="pill" style="display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border); font-weight: 600;">
-            ★ My Track (<span id="track-filter-count">0</span>)
-          </button>
-          <button id="btn-filter-recommended" class="pill" style="display: none; background: rgba(56, 189, 248, 0.15); color: var(--accent); font-weight: 600; border: 1px solid rgba(56, 189, 248, 0.4);">
-            ✨ Recommended For You (<span id="recommended-count">0</span>)
-          </button>
-          <button id="btn-filter-slides" class="pill" style="display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border);">
-            📄 Slides Only
-          </button>
-          <div id="concept-pills" class="concept-pills">
-            <!-- Dynamically populated with live counts -->
+        <div class="filter-zone">
+          <div class="filter-row">
+            <div class="filter-mode-tabs">
+              <button type="button" id="tab-filter-all" class="filter-tab active">
+                All Sessions (<span id="total-sessions-count">0</span>)
+              </button>
+              <button type="button" id="tab-filter-track" class="filter-tab">
+                ★ My Track (<span id="track-filter-count">0</span>)
+              </button>
+              <button type="button" id="tab-filter-recommended" class="filter-tab" style="display: none;">
+                ✨ Recommended (<span id="recommended-count">0</span>)
+              </button>
+              <button type="button" id="tab-filter-slides" class="filter-tab">
+                📄 Slides Only
+              </button>
+              <button type="button" id="tab-filter-depth" class="filter-tab">
+                ⭐ Deep Topic (≥ 70%)
+              </button>
+            </div>
+
+            <div class="toolbar-actions">
+              <select id="sort-select" class="btn-header" style="padding: 5px 8px; font-size: 0.8rem;" title="Sort order">
+                <option value="relevance">Sort: Relevance / Match ↓</option>
+                <option value="title">Sort: Title (A-Z)</option>
+                <option value="speaker">Sort: Speaker (A-Z)</option>
+                <option value="id">Sort: Session ID</option>
+              </select>
+
+              <div class="view-toggle-group">
+                <button id="view-grid-btn" class="btn-view-toggle active" title="Grid View">⊞ Grid</button>
+                <button id="view-table-btn" class="btn-view-toggle" title="Table View">☰ Table</button>
+              </div>
+            </div>
           </div>
 
-          <div class="toolbar-actions">
-            <label class="toggle-label">
-              <input type="checkbox" id="relevance-toggle">
-              <span>High Topic Depth (≥ 70%)</span>
-            </label>
-
-            <label class="toggle-label">
-              <input type="checkbox" id="slides-only-toggle">
-              <span>📄 Slides Attached Only</span>
-            </label>
-
-            <select id="sort-select" class="btn-header" style="padding: 5px 8px; font-size: 0.8rem;" title="Sort order">
-              <option value="relevance">Sort: Relevance / Match ↓</option>
-              <option value="title">Sort: Title (A-Z)</option>
-              <option value="speaker">Sort: Speaker (A-Z)</option>
-              <option value="id">Sort: Session ID</option>
-            </select>
-
-            <div class="view-toggle-group">
-              <button id="view-grid-btn" class="btn-view-toggle active" title="Grid View">⊞ Grid</button>
-              <button id="view-table-btn" class="btn-view-toggle" title="Table View">☰ Table</button>
+          <div class="concept-pills-wrapper">
+            <div id="concept-pills" class="concept-pills">
+              <!-- Dynamically populated with live counts -->
             </div>
           </div>
         </div>
-        <div id="results-count" style="font-size: 0.82rem; color: var(--text-secondary);">Loading catalog...</div>
+        <div id="results-count" style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 6px;">Loading catalog...</div>
       </section>
 
       <!-- Presentations Display: Grid or Table Container -->
@@ -133,9 +136,17 @@
 
     <!-- Modal for viewing Karpathy essence -->
     <div id="modal-backdrop" class="modal-backdrop">
-      <div class="modal-box">
-        <button id="modal-close" class="modal-close">&times;</button>
-        <div id="modal-body">Loading...</div>
+      <div class="modal-box" style="max-width: 860px;">
+        <div class="modal-header-bar">
+          <span class="modal-title" id="essence-modal-title">Presentation Essence</span>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <span id="essence-modal-track-btn"></span>
+            <button id="modal-close" class="modal-close" style="position: static; font-size: 1.4rem; padding: 2px 8px; line-height: 1;">&times;</button>
+          </div>
+        </div>
+        <div id="modal-body" class="modal-scroll-body">
+          <div style="padding: 20px 0; color: var(--text-secondary);">Loading distilled Karpathy essence...</div>
+        </div>
       </div>
     </div>
 

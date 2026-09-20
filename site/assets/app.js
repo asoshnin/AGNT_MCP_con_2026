@@ -226,6 +226,8 @@ async function loadCatalog() {
   }
   renderConceptPills();
   applyViewMode(CURRENT_VIEW_MODE);
+  const totalCountEl = document.getElementById("total-sessions-count");
+  if (totalCountEl) totalCountEl.textContent = ALL_TALKS.length;
   renderCards();
 }
 
@@ -431,19 +433,19 @@ function setupEventListeners() {
 
   const updateProfileUI = () => {
     const profile = getUserProfile();
-    const recommendedBtn = document.getElementById("btn-filter-recommended");
+    const tabRec = document.getElementById("tab-filter-recommended");
     const recommendedCount = document.getElementById("recommended-count");
     if (profile) {
-      if (recommendedBtn) recommendedBtn.style.display = "inline-flex";
+      if (tabRec) tabRec.style.display = "inline-flex";
       if (recommendedCount) {
         const matches = ALL_TALKS.filter(t => calculateProfileFit(t, profile) >= 60).length;
         recommendedCount.textContent = matches;
       }
     } else {
-      if (recommendedBtn) {
-        recommendedBtn.style.display = "none";
+      if (tabRec) {
+        tabRec.style.display = "none";
         IS_RECOMMENDED_MODE = false;
-        recommendedBtn.classList.remove("active");
+        tabRec.classList.remove("active");
       }
     }
   };
@@ -512,41 +514,74 @@ function setupEventListeners() {
     });
   }
 
-  // Magic Filter
-  const btnRecommended = document.getElementById("btn-filter-recommended");
-  if (btnRecommended) {
-    btnRecommended.addEventListener("click", () => {
-      IS_RECOMMENDED_MODE = !IS_RECOMMENDED_MODE;
-      btnRecommended.classList.toggle("active", IS_RECOMMENDED_MODE);
+  // Unified Filter Tabs (All, My Track, Recommended, Slides, Topic Depth)
+  const updateFilterTabs = () => {
+    const tabAll = document.getElementById("tab-filter-all");
+    const tabTrack = document.getElementById("tab-filter-track");
+    const tabRec = document.getElementById("tab-filter-recommended");
+    const tabSlides = document.getElementById("tab-filter-slides");
+    const tabDepth = document.getElementById("tab-filter-depth");
+
+    if (tabTrack) tabTrack.classList.toggle("active", IS_TRACK_FILTER_ACTIVE);
+    if (tabRec) tabRec.classList.toggle("active", IS_RECOMMENDED_MODE);
+    if (tabSlides) tabSlides.classList.toggle("active", SLIDES_ONLY);
+    if (tabDepth) tabDepth.classList.toggle("active", HIGH_RELEVANCE_ONLY);
+
+    const isAnyActive = IS_TRACK_FILTER_ACTIVE || IS_RECOMMENDED_MODE || SLIDES_ONLY || HIGH_RELEVANCE_ONLY || (ACTIVE_TOPIC !== null);
+    if (tabAll) tabAll.classList.toggle("active", !isAnyActive);
+
+    const totalCountEl = document.getElementById("total-sessions-count");
+    if (totalCountEl) totalCountEl.textContent = ALL_TALKS.length;
+  };
+
+  const tabAll = document.getElementById("tab-filter-all");
+  if (tabAll) {
+    tabAll.addEventListener("click", () => {
+      IS_TRACK_FILTER_ACTIVE = false;
+      IS_RECOMMENDED_MODE = false;
+      SLIDES_ONLY = false;
+      HIGH_RELEVANCE_ONLY = false;
+      ACTIVE_TOPIC = null;
+      document.querySelectorAll(".concept-pills .pill").forEach(p => p.classList.remove("active"));
+      const allPill = document.querySelector(".concept-pills .pill[data-topic='all']");
+      if (allPill) allPill.classList.add("active");
+      updateFilterTabs();
       renderCards();
     });
   }
 
-  // My Track Filter Pill
-  const btnFilterTrack = document.getElementById("btn-filter-track");
-  if (btnFilterTrack) {
-    btnFilterTrack.addEventListener("click", () => {
+  const tabTrack = document.getElementById("tab-filter-track");
+  if (tabTrack) {
+    tabTrack.addEventListener("click", () => {
       IS_TRACK_FILTER_ACTIVE = !IS_TRACK_FILTER_ACTIVE;
-      btnFilterTrack.classList.toggle("active", IS_TRACK_FILTER_ACTIVE);
+      updateFilterTabs();
       renderCards();
     });
   }
 
-  // Slides Available Filter Pill
-  const btnFilterSlides = document.getElementById("btn-filter-slides");
-  const slidesOnlyCheckbox = document.getElementById("slides-only-toggle");
-  if (btnFilterSlides) {
-    btnFilterSlides.addEventListener("click", () => {
-      SLIDES_ONLY = !SLIDES_ONLY;
-      btnFilterSlides.classList.toggle("active", SLIDES_ONLY);
-      if (slidesOnlyCheckbox) slidesOnlyCheckbox.checked = SLIDES_ONLY;
+  const tabRec = document.getElementById("tab-filter-recommended");
+  if (tabRec) {
+    tabRec.addEventListener("click", () => {
+      IS_RECOMMENDED_MODE = !IS_RECOMMENDED_MODE;
+      updateFilterTabs();
       renderCards();
     });
   }
-  if (slidesOnlyCheckbox) {
-    slidesOnlyCheckbox.addEventListener("change", (e) => {
-      SLIDES_ONLY = e.target.checked;
-      if (btnFilterSlides) btnFilterSlides.classList.toggle("active", SLIDES_ONLY);
+
+  const tabSlides = document.getElementById("tab-filter-slides");
+  if (tabSlides) {
+    tabSlides.addEventListener("click", () => {
+      SLIDES_ONLY = !SLIDES_ONLY;
+      updateFilterTabs();
+      renderCards();
+    });
+  }
+
+  const tabDepth = document.getElementById("tab-filter-depth");
+  if (tabDepth) {
+    tabDepth.addEventListener("click", () => {
+      HIGH_RELEVANCE_ONLY = !HIGH_RELEVANCE_ONLY;
+      updateFilterTabs();
       renderCards();
     });
   }
@@ -1238,6 +1273,8 @@ function renderCards() {
 async function openEssenceModal(sid) {
   const modalBackdrop = document.getElementById("modal-backdrop");
   const modalBody = document.getElementById("modal-body");
+  const titleEl = document.getElementById("essence-modal-title");
+  const trackBtnContainer = document.getElementById("essence-modal-track-btn");
   
   if (location.hash !== `#/session/${sid}`) {
     history.pushState(null, "", `#/session/${sid}`);
@@ -1245,16 +1282,18 @@ async function openEssenceModal(sid) {
   
   const track = getTrack();
   const isBookmarked = track.includes(sid);
-  const trackBtn = `<button class="btn-track-toggle ${isBookmarked ? "active" : ""}" onclick="toggleTrack('${sid}')" style="margin-left: auto;">${isBookmarked ? "★ In Track" : "☆ Add to Track"}</button>`;
+  const trackBtn = `<button class="btn-track-toggle ${isBookmarked ? "active" : ""}" onclick="toggleTrack('${sid}')">${isBookmarked ? "★ In Track" : "☆ Add to Track"}</button>`;
 
-  modalBody.innerHTML = `
-    <div class="modal-header-bar">
-      <span class="modal-title">Presentation Essence: [[${escapeHtml(sid)}]]</span>
-      ${trackBtn}
-    </div>
-    <div style="padding: 20px 0; color: var(--text-secondary);">Loading distilled Karpathy essence...</div>
-  `;
-  modalBackdrop.classList.add("open");
+  if (titleEl) {
+    titleEl.innerHTML = `Presentation Essence: <span style="color: var(--accent);">[[${escapeHtml(sid)}]]</span>`;
+  }
+  if (trackBtnContainer) {
+    trackBtnContainer.innerHTML = trackBtn;
+  }
+  if (modalBody) {
+    modalBody.innerHTML = `<div style="padding: 20px 0; color: var(--text-secondary);">Loading distilled Karpathy essence...</div>`;
+  }
+  if (modalBackdrop) modalBackdrop.classList.add("open");
 
   try {
     const res = await fetch(`/api/page?type=source&name=${sid}`);
@@ -1262,6 +1301,9 @@ async function openEssenceModal(sid) {
       const data = await res.json();
       let rawContent = data.content || "No essence content found.";
       
+      // CRITICAL FIX: Strip YAML frontmatter so raw metadata never bleeds above header or into markdown view
+      rawContent = rawContent.replace(/^---[\s\S]*?---\n*/, "");
+
       // Transform [[wikilinks]]:
       // - If session ID (e.g. 2RBBJ), render interactive session pill
       // - If keyword/concept (e.g. sandboxing), render clean tag without brackets
@@ -1281,59 +1323,50 @@ async function openEssenceModal(sid) {
         htmlOutput = `<div style="white-space: pre-wrap;">${escapeHtml(processed)}</div>`;
       }
 
-      modalBody.innerHTML = `
-        <div class="modal-header-bar">
-          <span class="modal-title">Presentation Essence: <span style="color: var(--accent);">[[${escapeHtml(sid)}]]</span></span>
-          ${trackBtn}
-        </div>
-        <div class="markdown-content">${htmlOutput}</div>
-      `;
+      if (modalBody) {
+        modalBody.innerHTML = `<div class="markdown-content">${htmlOutput}</div>`;
+      }
 
       // Enhance code blocks with copy snippet buttons
-      modalBody.querySelectorAll("pre").forEach((pre) => {
-        const wrapper = document.createElement("div");
-        wrapper.className = "code-container";
-        pre.parentNode.insertBefore(wrapper, pre);
-        wrapper.appendChild(pre);
+      if (modalBody) {
+        modalBody.querySelectorAll("pre").forEach((pre) => {
+          const wrapper = document.createElement("div");
+          wrapper.className = "code-container";
+          pre.parentNode.insertBefore(wrapper, pre);
+          wrapper.appendChild(pre);
 
-        const copyBtn = document.createElement("button");
-        copyBtn.className = "btn-copy-snippet";
-        copyBtn.textContent = "📋 Copy";
-        copyBtn.addEventListener("click", () => {
-          const codeText = pre.querySelector("code") ? pre.querySelector("code").innerText : pre.innerText;
-          navigator.clipboard.writeText(codeText).then(() => {
-            copyBtn.textContent = "✓ Copied!";
-            setTimeout(() => (copyBtn.textContent = "📋 Copy"), 2000);
+          const copyBtn = document.createElement("button");
+          copyBtn.className = "btn-copy-snippet";
+          copyBtn.textContent = "📋 Copy";
+          copyBtn.addEventListener("click", () => {
+            const codeText = pre.querySelector("code") ? pre.querySelector("code").innerText : pre.innerText;
+            navigator.clipboard.writeText(codeText).then(() => {
+              copyBtn.textContent = "✓ Copied!";
+              setTimeout(() => (copyBtn.textContent = "📋 Copy"), 2000);
+            });
+          });
+          wrapper.appendChild(copyBtn);
+        });
+
+        // Bind wikilinks click
+        modalBody.querySelectorAll(".wikilink-pill").forEach((pill) => {
+          pill.addEventListener("click", (e) => {
+            e.preventDefault();
+            const targetSid = pill.getAttribute("data-session-id");
+            if (targetSid) openEssenceModal(targetSid);
           });
         });
-        wrapper.appendChild(copyBtn);
-      });
-
-      // Bind wikilinks click
-      modalBody.querySelectorAll(".wikilink-pill").forEach((pill) => {
-        pill.addEventListener("click", (e) => {
-          e.preventDefault();
-          const targetSid = pill.getAttribute("data-session-id");
-          if (targetSid) openEssenceModal(targetSid);
-        });
-      });
+      }
 
     } else {
-      modalBody.innerHTML = `
-        <div class="modal-header-bar">
-          <span class="modal-title">Session: [[${escapeHtml(sid)}]]</span>
-          ${trackBtn}
-        </div>
-        <p style="padding: 20px 0; color: var(--text-secondary);">Source essence for <strong>${escapeHtml(sid)}</strong> is currently in ingestion pipeline.</p>
-      `;
+      if (modalBody) {
+        modalBody.innerHTML = `<p style="padding: 20px 0; color: var(--text-secondary);">Source essence for <strong>${escapeHtml(sid)}</strong> is currently in ingestion pipeline.</p>`;
+      }
     }
   } catch (e) {
-    modalBody.innerHTML = `
-      <div class="modal-header-bar">
-        <span class="modal-title">Error</span>
-      </div>
-      <p style="padding: 20px 0; color: #f87171;">Error loading essence for ${escapeHtml(sid)}: ${escapeHtml(e.message)}</p>
-    `;
+    if (modalBody) {
+      modalBody.innerHTML = `<p style="padding: 20px 0; color: #f87171;">Error loading essence for ${escapeHtml(sid)}: ${escapeHtml(e.message)}</p>`;
+    }
   }
 }
 
