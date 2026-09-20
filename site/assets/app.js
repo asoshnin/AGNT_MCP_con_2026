@@ -1899,6 +1899,8 @@ function setupModalsAndSettings() {
   const closeDisclaimer = () => disclaimerModal && disclaimerModal.classList.remove("open");
 
   if (btnOpenDisclaimer) btnOpenDisclaimer.addEventListener("click", openDisclaimer);
+  const btnOpenDisclaimerTop = document.getElementById("btn-open-disclaimer-top");
+  if (btnOpenDisclaimerTop) btnOpenDisclaimerTop.addEventListener("click", openDisclaimer);
   if (disclaimerClose) disclaimerClose.addEventListener("click", closeDisclaimer);
   if (disclaimerModal) disclaimerModal.addEventListener("click", (e) => { if (e.target === disclaimerModal) closeDisclaimer(); });
 

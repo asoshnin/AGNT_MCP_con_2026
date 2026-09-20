@@ -49,14 +49,24 @@ body {
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0 20px 60px 20px;
 }
 
 /* Header & Banner */
 header {
-  padding: 20px 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(11, 15, 25, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 12px 0;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 25px;
+  margin-bottom: 16px;
+}
+
+html[data-theme='light'] header {
+  background: rgba(248, 250, 252, 0.92);
 }
 
 .header-top {
@@ -718,7 +728,7 @@ header {
 /* Floating Chat Drawer */
 .chat-drawer {
   position: fixed;
-  bottom: 20px;
+  bottom: 46px;
   right: 20px;
   z-index: 1000;
 }
@@ -741,7 +751,7 @@ header {
 .chat-panel {
   display: none;
   position: fixed;
-  bottom: 75px;
+  bottom: 95px;
   right: 20px;
   width: 420px;
   height: 550px;
@@ -1192,12 +1202,36 @@ html[data-theme='light'] .markdown-content :not(pre) > code {
 }
 
 footer {
-  text-align: center;
-  padding: 30px 0;
-  font-size: 0.8rem;
-  color: var(--text-secondary);
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 99;
+  height: 34px;
+  background: rgba(11, 15, 25, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-top: 1px solid var(--border);
-  margin-top: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  box-sizing: border-box;
+  margin-top: 0;
+}
+
+html[data-theme='light'] footer {
+  background: rgba(248, 250, 252, 0.92);
+  border-top: 1px solid #cbd5e1;
+}
+
+@media (max-width: 768px) {
+  footer {
+    padding: 0 12px;
+    font-size: 0.72rem;
+  }
 }
 
 /* Track Studio Dual-Pane Layout */

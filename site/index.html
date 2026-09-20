@@ -40,11 +40,15 @@
 
     <div class="disclaimer-banner">
       <div style="display: flex; gap: 0.45rem; align-items: center; flex-wrap: wrap;">
+        <span class="disclaimer-pill">Unofficial Community Archive</span>
         <span class="disclaimer-pill">Academic Fair-Use</span>
-        <span class="disclaimer-pill">Zero-Slide Policy</span>
-        <span>Original syntheses linking directly to canonical talks on <a href="https://agntconmcpconeu26.sched.com/" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: underline;">Sched</a>.</span>
+        <span class="disclaimer-pill">Zero-Slide Hosting</span>
+        <span>Organized by <a href="https://events.linuxfoundation.org/agntcon-mcpcon-europe/" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: underline;">The Linux Foundation</a>. Independent open-source syntheses linking to <a href="https://agntconmcpconeu26.sched.com/" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: underline;">Sched</a>.</span>
       </div>
-      <button id="link-open-legal" style="background: none; border: none; color: var(--accent); cursor: pointer; font-size: 0.82rem; text-decoration: underline;">Legal Policy & Takedowns ↗</button>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <button id="btn-open-disclaimer-top" class="btn-cite" style="padding: 3px 8px; font-size: 0.76rem; border-color: rgba(234, 179, 8, 0.4); color: #eab308; cursor: pointer;" title="Read non-commercial demonstration disclaimer">⚠️ Read Disclaimer</button>
+        <button id="link-open-legal" style="background: none; border: none; color: var(--accent); cursor: pointer; font-size: 0.82rem; text-decoration: underline;">Legal Policy & Takedowns ↗</button>
+      </div>
     </div>
 
     <main>
@@ -696,18 +700,13 @@
     </div>
 
     <footer>
-      <div style="margin-bottom: 12px;">
-        <button id="btn-open-disclaimer" class="btn-disclaimer-badge">
-          ⚠️ READ DISCLAIMER
-        </button>
+      <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+        <span>Source code & MCP server:</span>
+        <a href="https://github.com/asoshnin/AGNT_MCP_con_2026" target="_blank" rel="noopener" style="color: var(--accent); font-weight: 500;">asoshnin/AGNT_MCP_con_2026</a>
       </div>
-      <p>
-        Unofficial Research Archive & MCP Server for AGNTCon + MCPCon Europe 2026.<br>
-        Source code & MCP server: <a href="https://github.com/asoshnin/AGNT_MCP_con_2026" target="_blank" rel="noopener" style="color: var(--accent); font-weight: 500;">asoshnin/AGNT_MCP_con_2026</a>.<br>
-        Designed and built by <a href="https://vwoosh.com" target="_blank" rel="noopener" style="color: var(--accent); font-weight: 600;">vwoosh.com</a>.<br>
-        Event organized by <a href="https://events.linuxfoundation.org/agntcon-mcpcon-europe/" target="_blank" rel="noopener" style="color: var(--accent);">The Linux Foundation</a>.
-        Independent community open-source project.
-      </p>
+      <div>
+        <span>Designed and built by <a href="https://vwoosh.com" target="_blank" rel="noopener" style="color: var(--accent); font-weight: 600;">vwoosh.com</a></span>
+      </div>
     </footer>
   </div>
 
