@@ -1380,6 +1380,16 @@ function closeModal() {
   }
 }
 
+function normalizeChatCompletionsUrl(baseUrl) {
+  let url = (baseUrl || "").trim().replace(/\/+$/, "");
+  if (!url) return "";
+  if (url.endsWith("/chat/completions")) return url;
+  if (!url.endsWith("/v1")) {
+    url = `${url}/v1`;
+  }
+  return `${url}/chat/completions`;
+}
+
 function updateChatEngineBadge() {
   const badge = document.getElementById("chat-engine-badge");
   if (!badge) return;
@@ -1391,19 +1401,17 @@ function updateChatEngineBadge() {
     badge.style.color = "var(--accent)";
   } else {
     const providerSelect = document.getElementById("model-provider-select");
-    const p = providerSelect ? providerSelect.value : "custom";
-    if (p === "lmstudio") {
-      badge.textContent = "💻 LM Studio (Local)";
-    } else if (p === "ollama") {
-      badge.textContent = "💻 Ollama (Local)";
+    const p = providerSelect ? providerSelect.value : "local";
+    if (p === "local") {
+      badge.textContent = "💻 Local LLM";
     } else if (p === "nvidia") {
-      badge.textContent = "🔑 NVIDIA NIM (BYOM)";
+      badge.textContent = "🔑 NVIDIA NIM";
     } else if (p === "kilocode") {
-      badge.textContent = "🔑 Kilocode (BYOM)";
+      badge.textContent = "🔑 Kilocode";
     } else if (p === "openrouter") {
-      badge.textContent = "🔑 OpenRouter (BYOM)";
+      badge.textContent = "🔑 OpenRouter";
     } else {
-      badge.textContent = "🔑 Custom (BYOM)";
+      badge.textContent = "💻 Custom / BYOM";
     }
     badge.style.background = "rgba(34, 197, 94, 0.15)";
     badge.style.color = "#22c55e";
@@ -1454,9 +1462,10 @@ function setupChat() {
       const baseUrlInput = document.getElementById("model-base-url");
       const modelNameInput = document.getElementById("model-name-input");
       const apiKeyInput = document.getElementById("model-api-key");
-      const baseUrl = (baseUrlInput ? baseUrlInput.value.trim() : "http://127.0.0.1:1234/v1").replace(/\/+$/, "");
-      const modelName = modelNameInput ? modelNameInput.value.trim() : "huihui-qwythos-9b-claude-mythos-5-1m-abliterated";
-      const apiKey = apiKeyInput ? apiKeyInput.value.trim() : "";
+      const rawBase = (baseUrlInput && baseUrlInput.value.trim()) || localStorage.getItem("agntcon_custom_base_url") || "http://127.0.0.1:1234/v1";
+      const modelName = (modelNameInput && modelNameInput.value.trim()) || localStorage.getItem("agntcon_custom_model_name") || "";
+      const apiKey = (apiKeyInput && apiKeyInput.value.trim()) || localStorage.getItem("agntcon_custom_key") || "";
+      const completionsUrl = normalizeChatCompletionsUrl(rawBase);
 
       try {
         // Fetch RAG context from local search endpoint
@@ -1472,7 +1481,7 @@ function setupChat() {
         });
 
         const systemPrompt = `You are the research assistant for AGNTCon + MCPCon Europe 2026.
-Answer clearly and concisely based strictly on the provided conference excerpts.
+Answer clearly, thoroughly, and completely based strictly on the provided conference excerpts.
 Always cite the session ID (e.g. [[2RBBJ]]) and speaker by name for every claim.`;
 
         const userMsg = `Question: ${q}\n\n<conference_excerpts>\n${contextSnippets.join("\n\n---\n\n")}\n</conference_excerpts>`;
@@ -1480,18 +1489,20 @@ Always cite the session ID (e.g. [[2RBBJ]]) and speaker by name for every claim.
         const headers = { "Content-Type": "application/json" };
         if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
 
-        const llmRes = await fetch(`${baseUrl}/chat/completions`, {
+        const reqBody = {
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userMsg }
+          ],
+          max_tokens: 2500,
+          temperature: 0.2
+        };
+        if (modelName) reqBody.model = modelName;
+
+        const llmRes = await fetch(completionsUrl, {
           method: "POST",
           headers: headers,
-          body: JSON.stringify({
-            model: modelName,
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userMsg }
-            ],
-            max_tokens: 1000,
-            temperature: 0.2
-          })
+          body: JSON.stringify(reqBody)
         });
 
         const botEl = document.getElementById(loadingId);
@@ -1515,11 +1526,11 @@ Always cite the session ID (e.g. [[2RBBJ]]) and speaker by name for every claim.
           }
           botEl.innerHTML = html;
         } else {
-          botEl.innerHTML = `<div style="color: #f87171;">Local LLM error (HTTP ${llmRes.status}). Verify model name '${escapeHtml(modelName)}' is loaded.</div>`;
+          botEl.innerHTML = `<div style="color: #f87171;">Local LLM error (HTTP ${llmRes.status}). Verify model name '${escapeHtml(modelName || "loaded model")}' at ${escapeHtml(completionsUrl)}.</div>`;
         }
       } catch (err) {
         const botEl = document.getElementById(loadingId);
-        if (window.location.protocol === "https:" && baseUrl.startsWith("http://")) {
+        if (window.location.protocol === "https:" && completionsUrl.startsWith("http://")) {
           botEl.innerHTML = `
             <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px; color: var(--text-primary); font-size: 0.85rem; line-height: 1.5;">
               <strong style="color: #ef4444;">🛡️ HTTPS Mixed Content Blocked</strong><br><br>
@@ -1538,7 +1549,7 @@ Always cite the session ID (e.g. [[2RBBJ]]) and speaker by name for every claim.
         } else {
           botEl.innerHTML = `
             <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px; color: var(--text-primary); font-size: 0.85rem; line-height: 1.5;">
-              <strong style="color: #ef4444;">✕ Inference Provider at ${escapeHtml(baseUrl)} is unreachable.</strong><br><br>
+              <strong style="color: #ef4444;">✕ Inference Provider at ${escapeHtml(completionsUrl)} is unreachable.</strong><br><br>
               Ensure your local LLM (LM Studio/Ollama) is running with CORS enabled, or your BYOM API key is valid.
               <div style="margin-top: 8px;">
                 <button class="btn-header" onclick="localStorage.setItem('agntcon_inference_tier', 'cloud'); updateChatEngineBadge(); location.reload();" style="font-size: 0.78rem; padding: 4px 10px;">
@@ -2015,18 +2026,25 @@ function setupModalsAndSettings() {
     });
   }
 
-  // Forget Key button
+  // Forget Key button (Wipes all custom inputs and keys)
   const btnForgetKey = document.getElementById("btn-forget-key");
   if (btnForgetKey) {
     btnForgetKey.addEventListener("click", () => {
       if (apiKeyInput) apiKeyInput.value = "";
+      if (baseUrlInput) baseUrlInput.value = "";
+      if (modelNameInput) modelNameInput.value = "";
+      if (providerSelect) providerSelect.value = "none";
       localStorage.removeItem("agntcon_custom_key");
-      btnForgetKey.textContent = "✓ Cleared";
-      setTimeout(() => (btnForgetKey.textContent = "Forget Key"), 2000);
+      localStorage.removeItem("agntcon_custom_base_url");
+      localStorage.removeItem("agntcon_custom_model_name");
+      localStorage.removeItem("agntcon_custom_provider");
+      btnForgetKey.textContent = "✓ Wiped All";
+      setTimeout(() => (btnForgetKey.textContent = "🗑️ Forget Key"), 2000);
+      updateChatEngineBadge();
     });
   }
 
-  // Restore saved API key from localStorage if present
+  // Restore saved BYOM settings from localStorage if present
   if (apiKeyInput) {
     const savedKey = localStorage.getItem("agntcon_custom_key");
     if (savedKey) apiKeyInput.value = savedKey;
@@ -2035,26 +2053,50 @@ function setupModalsAndSettings() {
     });
   }
 
-  // Provider presets
+  if (baseUrlInput) {
+    const savedBaseUrl = localStorage.getItem("agntcon_custom_base_url");
+    if (savedBaseUrl) baseUrlInput.value = savedBaseUrl;
+    baseUrlInput.addEventListener("input", (e) => {
+      localStorage.setItem("agntcon_custom_base_url", e.target.value.trim());
+      checkMixedContent();
+    });
+  }
+
+  if (modelNameInput) {
+    const savedModel = localStorage.getItem("agntcon_custom_model_name");
+    if (savedModel) modelNameInput.value = savedModel;
+    modelNameInput.addEventListener("input", (e) => {
+      localStorage.setItem("agntcon_custom_model_name", e.target.value.trim());
+      updateChatEngineBadge();
+    });
+  }
+
+  // Provider presets: Unified Local LLM + Cloud APIs
   if (providerSelect) {
+    const savedProvider = localStorage.getItem("agntcon_custom_provider");
+    if (savedProvider) providerSelect.value = savedProvider;
+
     providerSelect.addEventListener("change", (e) => {
       const p = e.target.value;
-      if (p === "lmstudio") {
+      localStorage.setItem("agntcon_custom_provider", p);
+      if (p === "local") {
         baseUrlInput.value = "http://127.0.0.1:1234/v1";
-        modelNameInput.value = "huihui-qwythos-9b-claude-mythos-5-1m-abliterated";
-      } else if (p === "ollama") {
-        baseUrlInput.value = "http://localhost:11434/v1";
-        modelNameInput.value = "qwen2.5:7b-instruct";
+        modelNameInput.value = ""; // Clean blank! LM Studio uses active loaded model; Ollama user types model
       } else if (p === "nvidia") {
         baseUrlInput.value = "https://integrate.api.nvidia.com/v1";
-        modelNameInput.value = "meta/llama-3.3-70b-instruct";
+        modelNameInput.value = "nvidia/llama-3.1-nemotron-70b-instruct";
+      } else if (p === "openrouter") {
+        baseUrlInput.value = "https://openrouter.ai/api/v1";
+        modelNameInput.value = "meta-llama/llama-3.3-70b-instruct";
       } else if (p === "kilocode") {
         baseUrlInput.value = "https://api.kilo.ai/v1";
         modelNameInput.value = "kilo-auto/free";
-      } else if (p === "openrouter") {
-        baseUrlInput.value = "https://openrouter.ai/api/v1";
-        modelNameInput.value = "meta-llama/llama-3.3-70b-instruct:free";
+      } else if (p === "none") {
+        baseUrlInput.value = "";
+        modelNameInput.value = "";
       }
+      localStorage.setItem("agntcon_custom_base_url", baseUrlInput.value);
+      localStorage.setItem("agntcon_custom_model_name", modelNameInput.value);
       checkMixedContent();
       updateChatEngineBadge();
     });
@@ -2079,33 +2121,35 @@ function setupModalsAndSettings() {
 
   if (btnTestModel) {
     btnTestModel.addEventListener("click", async () => {
-      const baseUrl = (baseUrlInput ? baseUrlInput.value.trim() : "").replace(/\/+$/, "");
+      const rawBase = baseUrlInput ? baseUrlInput.value.trim() : "";
       const model = modelNameInput ? modelNameInput.value.trim() : "";
       const apiKey = apiKeyInput ? apiKeyInput.value.trim() : "";
 
-      if (!baseUrl) {
+      if (!rawBase) {
         testModelResult.style.color = "#f87171";
         testModelResult.textContent = "Error: Base URL cannot be empty.";
         return;
       }
 
+      const probeUrl = normalizeChatCompletionsUrl(rawBase);
       testModelResult.style.color = "var(--text-secondary)";
-      testModelResult.textContent = `Pinging ${baseUrl}/chat/completions with model '${model}'...`;
+      testModelResult.textContent = `Pinging ${probeUrl} (model: '${model || "default loaded"}')...`;
       const t0 = performance.now();
 
       try {
         const headers = { "Content-Type": "application/json" };
         if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
 
-        const probeUrl = `${baseUrl}/chat/completions`;
+        const payload = {
+          messages: [{ role: "user", content: "ping" }],
+          max_tokens: 10
+        };
+        if (model) payload.model = model;
+
         const res = await fetch(probeUrl, {
           method: "POST",
           headers: headers,
-          body: JSON.stringify({
-            model: model,
-            messages: [{ role: "user", content: "ping" }],
-            max_tokens: 1
-          })
+          body: JSON.stringify(payload)
         });
 
         const elapsed = Math.round(performance.now() - t0);
@@ -2113,19 +2157,20 @@ function setupModalsAndSettings() {
           const data = await res.json();
           if (data.choices && data.choices.length > 0) {
             testModelResult.style.color = "#22c55e";
-            testModelResult.textContent = `✓ Online & Validated LLM inference model! TTFT latency: ${elapsed}ms (HTTP ${res.status})`;
+            testModelResult.textContent = `✓ Online & Validated LLM inference! TTFT: ${elapsed}ms (HTTP ${res.status})`;
           } else {
             testModelResult.style.color = "#eab308";
-            testModelResult.textContent = `⚠️ Endpoint responded (${elapsed}ms), but missing choices[0].message. Verify model type.`;
+            testModelResult.textContent = `⚠️ Endpoint responded (${elapsed}ms), but missing choices[0].message. Verify model name or server format.`;
           }
         } else {
+          const errText = await res.text().catch(() => "");
           testModelResult.style.color = "#f87171";
-          testModelResult.textContent = `✕ Server responded with HTTP ${res.status} (${elapsed}ms). Check model name or API key.`;
+          testModelResult.textContent = `✕ Server responded HTTP ${res.status} (${elapsed}ms): ${errText.slice(0, 100)}`;
         }
       } catch (err) {
         const elapsed = Math.round(performance.now() - t0);
         testModelResult.style.color = "#f87171";
-        testModelResult.textContent = `✕ Connection error (${elapsed}ms): Network/CORS failure. For Ollama, verify OLLAMA_ORIGINS="*" is set.`;
+        testModelResult.textContent = `✕ Connection error (${elapsed}ms): Network/CORS failure. Verify CORS/server is running.`;
       }
     });
   }

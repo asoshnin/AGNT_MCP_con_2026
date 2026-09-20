@@ -434,23 +434,23 @@
                 <div>
                   <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px;">Provider Preset</label>
                   <select id="model-provider-select" name="byom_provider" class="search-input" style="padding: 6px 10px; font-size: 0.85rem; width: 100%;">
-                    <option value="lmstudio">LM Studio (Local / Windows Tunnel)</option>
-                    <option value="ollama">Local Ollama</option>
-                    <option value="nvidia">NVIDIA NIM (meta/llama-3.3-70b-instruct)</option>
-                    <option value="kilocode">Kilocode Free Tier</option>
+                    <option value="none" selected>-- Select a Preset (Optional) --</option>
+                    <option value="local">Local LLM (LM Studio / Ollama)</option>
+                    <option value="nvidia">NVIDIA NIM</option>
                     <option value="openrouter">OpenRouter Free Tier</option>
+                    <option value="kilocode">Kilocode Free Tier</option>
                     <option value="custom">Custom OpenAI-Compatible API</option>
                   </select>
                 </div>
                 <div>
-                  <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px;">Model Name / Tag</label>
-                  <input type="text" id="model-name-input" name="byom_model_name" class="search-input" style="padding: 6px 10px; font-size: 0.85rem; width: 100%;" placeholder="e.g. meta/llama-3.3-70b-instruct" autocomplete="off">
+                  <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px;">Model Name / Identifier</label>
+                  <input type="text" id="model-name-input" name="byom_model_name" class="search-input" style="padding: 6px 10px; font-size: 0.85rem; width: 100%;" placeholder="e.g. your-model (blank for LM Studio loaded)" autocomplete="off">
                 </div>
               </div>
 
               <div style="margin-bottom: 10px;">
                 <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px;">Base URL</label>
-                <input type="text" id="model-base-url" name="byom_base_url" class="search-input" style="padding: 6px 10px; font-size: 0.85rem; width: 100%;" placeholder="http://127.0.0.1:1234/v1" autocomplete="off">
+                <input type="text" id="model-base-url" name="byom_base_url" class="search-input" style="padding: 6px 10px; font-size: 0.85rem; width: 100%;" placeholder="http://127.0.0.1:1234/v1 or http://localhost:11434/v1" autocomplete="off">
               </div>
 
               <div style="margin-bottom: 10px;">

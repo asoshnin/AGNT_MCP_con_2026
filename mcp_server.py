@@ -195,11 +195,11 @@ async def tool_answer_conference(question: str, breadth: str = "auto", only_with
     context_str = "\n\n".join(context_blocks)
     
     system_prompt = """You are the research assistant for AGNTCon + MCPCon Europe 2026.
-Answer the user's question clearly and concisely based strictly on the provided conference excerpts.
+Answer the user's question clearly, thoroughly, and completely based strictly on the provided conference excerpts.
 
 CRITICAL INVARIANTS:
 1. Every major claim or practice described MUST cite the session ID (e.g. [[2RBBJ]]) and include an outbound Markdown link to the canonical Sched presentation: [Presentation Title](https://agntconmcpconeu26.sched.com/event/...).
-2. If the user asks for a list, ranking, or comparison of multiple talks, enumerate all matching candidates using a structured numbered list or Markdown table.
+2. If the user asks for a list, ranking, or comparison of multiple talks, enumerate all matching candidates using a structured numbered list or Markdown table. Complete all requested points in full without truncation.
 3. If the topic was not discussed in the provided excerpts, state: "This topic was not covered in the conference sessions."
 4. Always cite speakers by name.
 5. Tailor technical depth, architectural framing, and practical takeaways to the attendee's declared profile where applicable."""
@@ -218,7 +218,10 @@ CRITICAL INVARIANTS:
                 "Authorization": f"Bearer {gemini_key}",
                 "Content-Type": "application/json"
             },
-            "model": "gemini-2.5-flash"
+            "model": "gemini-2.5-flash",
+            "extra_body": {
+                "reasoning_effort": "none"
+            }
         })
     if os.environ.get("NVIDIA_API_KEY"):
         gateways.append({
@@ -228,7 +231,7 @@ CRITICAL INVARIANTS:
                 "Authorization": f"Bearer {os.environ.get('NVIDIA_API_KEY')}",
                 "Content-Type": "application/json"
             },
-            "model": "meta/llama-3.3-70b-instruct"
+            "model": "nvidia/llama-3.1-nemotron-70b-instruct"
         })
     if os.environ.get("OPENROUTER_API_KEY"):
         gateways.append({
@@ -240,7 +243,7 @@ CRITICAL INVARIANTS:
                 "HTTP-Referer": "https://github.com/asoshnin/AGNT_MCP_con_2026",
                 "X-Title": "AGNTCon 2026 Hub"
             },
-            "model": "meta-llama/llama-3.3-70b-instruct:free"
+            "model": "meta-llama/llama-3.3-70b-instruct"
         })
     if os.environ.get("KILOCODE_API_KEY"):
         gateways.append({
@@ -256,16 +259,20 @@ CRITICAL INVARIANTS:
         
     for gw in gateways:
         try:
-            async with httpx.AsyncClient(timeout=25.0) as client:
-                r = await client.post(gw["url"], headers=gw["headers"], json={
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                req_json = {
                     "model": gw["model"],
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_msg}
                     ],
                     "temperature": 0.2,
-                    "max_tokens": 1200
-                })
+                    "max_tokens": 2500
+                }
+                if "extra_body" in gw:
+                    req_json.update(gw["extra_body"])
+
+                r = await client.post(gw["url"], headers=gw["headers"], json=req_json)
                 if r.status_code == 200:
                     data = r.json()
                     raw = data["choices"][0]["message"]["content"].strip()
