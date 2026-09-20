@@ -1,0 +1,40 @@
+# Public Intelligence Hub .gitignore
+# Secrets & Environments
+.env
+.env.*
+*credentials*
+*secret*
+*token*
+*apikey*
+
+# Python & System Caches
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+.venv/
+.pytest_cache/
+*.bak
+
+# 🔒 PROPRIETARY METHODOLOGY SHIELD
+# Strictly purge all internal VWOOSH methodology, governance, and scaffolding from Git
+_DEVELOPMENT/
+_DEVELOPMENT/**
+.vwoosh/
+.vwoosh/**
+
+# Ensure clean public database, summaries, and static site ARE committed
+!site/
+!site/**
+!wiki/
+!wiki/**
+
+# 🔒 PRIVATE OPERATOR & LEAD DATA AIR-GAP
+# Never commit client emails, inquiries, or CRM SQLite databases to public git
+/data/
+/data/**
+*.sqlite-wal
+*.sqlite-shm
+crm.sqlite*
+author_feedback.jsonl
+collaboration_inquiries.jsonl

@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AGNTCon + MCPCon Europe 2026 — Unofficial Research Wiki & MCP Hub</title>
+  <script>
+    (function() {
+      var saved = localStorage.getItem('agntcon_theme');
+      if (saved === 'light' || saved === 'dark') {
+        document.documentElement.setAttribute('data-theme', saved);
+      } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+        document.documentElement.setAttribute('data-theme', 'light');
+      } else {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <div class="header-top">
+        <h1 class="site-title">AGNTCon + MCPCon <span>2026</span></h1>
+        <div class="header-actions">
+          <select id="theme-select" class="btn-header theme-select" title="Color Theme">
+            <option value="system">🌓 System</option>
+            <option value="dark">🌙 Dark</option>
+            <option value="light">☀️ Light</option>
+          </select>
+          <a href="https://github.com/asoshnin/AGNT_MCP_con_2026" target="_blank" rel="noopener" class="btn-header">⭐ Star on GitHub</a>
+          <button id="btn-open-settings" class="btn-header">⚙️ Settings & MCP</button>
+          <button id="btn-open-legal" class="btn-header">⚖️ Legal Policy</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="disclaimer-banner">
+      <div style="display: flex; gap: 0.45rem; align-items: center; flex-wrap: wrap;">
+        <span class="disclaimer-pill">Academic Fair-Use</span>
+        <span class="disclaimer-pill">Zero-Slide Policy</span>
+        <span>Original syntheses linking directly to canonical talks on <a href="https://agntconmcpconeu26.sched.com/" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: underline;">Sched</a>.</span>
+      </div>
+      <button id="link-open-legal" style="background: none; border: none; color: var(--accent); cursor: pointer; font-size: 0.82rem; text-decoration: underline;">Legal Policy & Takedowns ↗</button>
+    </div>
+
+    <main>
+      <!-- Search & Discovery Controls -->
+      <section class="controls-card">
+        <div class="search-wrapper">
+          <input type="text" id="search-input" class="search-input" placeholder="Search presentations by title, speaker, framework (e.g. MCP, eBPF, LangChain, Red Hat), or topic...">
+          <button id="search-clear" class="search-clear-btn" title="Clear search" style="display: none;">✕</button>
+        </div>
+        
+        <div class="filter-row">
+          <div id="concept-pills" class="concept-pills">
+            <!-- Dynamically populated with live counts -->
+          </div>
+
+          <div class="toolbar-actions">
+            <label class="toggle-label">
+              <input type="checkbox" id="relevance-toggle">
+              <span>High Topic Depth (≥ 70%)</span>
+            </label>
+
+            <select id="sort-select" class="btn-header" style="padding: 5px 8px; font-size: 0.8rem;" title="Sort order">
+              <option value="relevance">Sort: Relevance / Match ↓</option>
+              <option value="title">Sort: Title (A-Z)</option>
+              <option value="speaker">Sort: Speaker (A-Z)</option>
+              <option value="id">Sort: Session ID</option>
+            </select>
+
+            <div class="view-toggle-group">
+              <button id="view-grid-btn" class="btn-view-toggle active" title="Grid View">⊞ Grid</button>
+              <button id="view-table-btn" class="btn-view-toggle" title="Table View">☰ Table</button>
+            </div>
+          </div>
+        </div>
+        <div id="results-count" style="font-size: 0.82rem; color: var(--text-secondary);">Loading catalog...</div>
+      </section>
+
+      <!-- Presentations Display: Grid or Table Container -->
+      <section id="sessions-container">
+        <div id="sessions-grid" class="sessions-grid">
+          <!-- Injected dynamically by assets/app.js -->
+        </div>
+        <div id="sessions-table-wrapper" class="sessions-table-wrapper" style="display: none;">
+          <table class="sessions-table">
+            <thead>
+              <tr>
+                <th style="width: 100px;">Session ID</th>
+                <th>Title & Highlights</th>
+                <th style="width: 180px;">Speaker(s)</th>
+                <th id="th-relevance-col" style="width: 120px; text-align: center;">Topic Depth</th>
+                <th>Concepts</th>
+                <th style="width: 200px; text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="sessions-table-body">
+              <!-- Injected dynamically by assets/app.js -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <!-- Modal for viewing Karpathy essence -->
+    <div id="modal-backdrop" class="modal-backdrop">
+      <div class="modal-box">
+        <button id="modal-close" class="modal-close">&times;</button>
+        <div id="modal-body">Loading...</div>
+      </div>
+    </div>
+
+    <!-- Modal for Legal & Fair-Use Framework -->
+    <div id="legal-modal-backdrop" class="modal-backdrop">
+      <div class="modal-box">
+        <button id="legal-modal-close" class="modal-close">&times;</button>
+        <div class="modal-header-bar">
+          <span class="modal-title">⚖️ Legal, Attribution & Fair-Use Policy</span>
+        </div>
+        <div class="markdown-content" style="font-size: 0.92rem;">
+          <p>
+            This website and its associated Model Context Protocol (MCP) server are operated as an <strong>independent, non-commercial academic research initiative</strong> to advance public understanding of autonomous agent architectures and interface protocols.
+          </p>
+
+          <h3>1. Transformative Fair Use</h3>
+          <p>
+            Under <strong>17 U.S.C. § 107 (United States)</strong> and <strong>Directive (EU) 2019/790 (European Union)</strong> on text and data mining for scientific research, the extraction, synthesis, and conceptual indexing of publicly scheduled technical conference metadata constitutes non-infringing transformative fair use. All distillations are original AI-assisted analytical syntheses rather than verbatim transcriptions.
+          </p>
+
+          <h3>2. Zero-Slide Hosting Guarantee</h3>
+          <p>
+            This platform does <strong>not store, host, mirror, or redistribute speaker slide PDFs, presentation files, or proprietary audiovisual recordings</strong>. All citations, speaker attributions, and deck references route strictly and directly to canonical, author-hosted URLs on the official conference schedule.
+          </p>
+
+          <h3>3. Trademark Non-Affiliation</h3>
+          <p>
+            "AGNTCon", "MCPCon", "Linux Foundation", "Sched", and associated logos or marks are registered trademarks of their respective owners. This project is an independent community open-source effort and is not endorsed by, sponsored by, or affiliated with The Linux Foundation or Sched.com.
+          </p>
+
+          <h3>4. Speaker Rights & Rapid 48-Hour Notice Channel</h3>
+          <p>
+            We deeply respect speaker intellectual property and community goodwill. If you are a speaker or rights holder and wish to update your talk's essence, append verified code repositories, or request exclusion/takedown, please submit our verified speaker form below.
+          </p>
+          <div style="margin-top: 1.5rem; text-align: center;">
+            <button id="btn-open-feedback-from-legal" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; padding: 10px 18px;">
+              📝 Open Speaker Correction & Takedown Portal
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal for Speaker Feedback & Correction Portal -->
+    <div id="feedback-modal-backdrop" class="modal-backdrop">
+      <div class="modal-box" style="max-width: 650px;">
+        <button id="feedback-modal-close" class="modal-close">&times;</button>
+        <div class="modal-header-bar">
+          <span class="modal-title">📝 Speaker Correction & Takedown Portal</span>
+        </div>
+        <form id="author-feedback-form" style="display: flex; flex-direction: column; gap: 14px;">
+          <p style="font-size: 0.85rem; color: var(--text-secondary);">
+            Are you a speaker or author? Submit corrections, official GitHub repositories, or takedown requests directly to our team. All valid requests are reviewed within 48 hours.
+          </p>
+
+          <!-- Honeypot field (hidden from humans) -->
+          <input type="text" id="feedback-hp" name="website_hp" style="display:none !important;" tabindex="-1" autocomplete="off">
+
+          <div>
+            <label style="display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px;">Select Presentation</label>
+            <select id="feedback-session-id" class="search-input" style="padding: 8px 12px;" required>
+              <option value="">-- Select Session --</option>
+            </select>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div>
+              <label style="display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px;">Your Full Name</label>
+              <input type="text" id="feedback-name" class="search-input" style="padding: 8px 12px;" placeholder="Roy Belio" required>
+            </div>
+            <div>
+              <label style="display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px;">Work / Speaker Email</label>
+              <input type="email" id="feedback-email" class="search-input" style="padding: 8px 12px;" placeholder="speaker@company.com" required>
+            </div>
+          </div>
+
+          <div>
+            <label style="display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px;">LinkedIn or GitHub Profile URL (Verification)</label>
+            <input type="url" id="feedback-profile" class="search-input" style="padding: 8px 12px;" placeholder="https://linkedin.com/in/... or https://github.com/..." required>
+          </div>
+
+          <div>
+            <label style="display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px;">Request Type</label>
+            <select id="feedback-type" class="search-input" style="padding: 8px 12px;">
+              <option value="Correction">Propose Summary Correction / Enhancement</option>
+              <option value="Add Repository">Add Official Code Repository URL</option>
+              <option value="Takedown">Request Content Removal / Exclusion (DMCA)</option>
+            </select>
+          </div>
+
+          <div>
+            <label style="display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px;">Details & Specific Notes</label>
+            <textarea id="feedback-notes" class="search-input" rows="4" style="padding: 8px 12px; resize: vertical;" placeholder="Provide specific wording changes, verified GitHub repo link, or reasons for your request..." required></textarea>
+          </div>
+
+          <div id="feedback-status" style="font-size: 0.85rem; display: none;"></div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px;">
+            <button type="button" id="feedback-cancel-btn" class="btn-header">Cancel</button>
+            <button type="submit" id="feedback-submit-btn" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600;">
+              Submit Verification Request
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal for Settings, Local Models & Offline Bundles -->
+    <div id="settings-modal-backdrop" class="modal-backdrop">
+      <div class="modal-box" style="max-width: 720px;">
+        <button id="settings-modal-close" class="modal-close">&times;</button>
+        <div class="modal-header-bar">
+          <span class="modal-title">⚙️ Inference Settings & Offline Agent Tools</span>
+        </div>
+        <div class="markdown-content" style="font-size: 0.9rem;">
+          <h3>🤖 Model Inference Configuration & Test</h3>
+          <p>
+            Choose a pre-configured provider or connect your own local/cloud LLM endpoint. All test pings execute <strong>strictly browser-side</strong> (zero server proxying or credential transmission):
+          </p>
+
+          <div style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin: 12px 0; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div>
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px;">Provider Preset</label>
+                <select id="model-provider-select" class="search-input" style="padding: 6px 10px; font-size: 0.85rem;">
+                  <option value="lmstudio" selected>LM Studio (Local / Windows Tunnel)</option>
+                  <option value="ollama">Local Ollama</option>
+                  <option value="nvidia">NVIDIA NIM (Free Preview)</option>
+                  <option value="kilocode">Kilocode Free Tier</option>
+                  <option value="openrouter">OpenRouter Free Tier</option>
+                  <option value="custom">Custom OpenAI-Compatible API</option>
+                </select>
+              </div>
+              <div>
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px;">Model Name / Tag</label>
+                <input type="text" id="model-name-input" class="search-input" style="padding: 6px 10px; font-size: 0.85rem;" value="huihui-qwythos-9b-claude-mythos-5-1m-abliterated" placeholder="e.g. huihui-qwythos-9b-claude-mythos-5-1m-abliterated">
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 10px;">
+              <div>
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px;">Base URL</label>
+                <input type="text" id="model-base-url" class="search-input" style="padding: 6px 10px; font-size: 0.85rem;" value="http://127.0.0.1:1234/v1" placeholder="http://127.0.0.1:1234/v1">
+              </div>
+              <div>
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px;">API Key (Local Only)</label>
+                <input type="password" id="model-api-key" class="search-input" style="padding: 6px 10px; font-size: 0.85rem;" placeholder="Optional for Ollama">
+              </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 4px;">
+              <div style="font-size: 0.78rem; color: var(--text-secondary);">
+                Catalogs: 
+                <a href="https://openrouter.ai/models?q=free" target="_blank" rel="noopener" style="color: var(--accent); margin-right: 6px;">OpenRouter Free ↗</a>
+                <a href="https://build.nvidia.com/explore/discover" target="_blank" rel="noopener" style="color: var(--accent);">NVIDIA NIM Catalog ↗</a>
+              </div>
+              <button id="btn-test-model" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; padding: 6px 14px;">
+                ⚡ Test Model Endpoint
+              </button>
+            </div>
+            <div id="test-model-result" style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 4px;">
+              Status: Ready to test
+            </div>
+          </div>
+
+          <h3>🔌 Recommended Local Models (Ollama)</h3>
+          <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5;">
+            • <strong>Standard Laptops (8–16 GB RAM):</strong> <code>ollama run qwen2.5:7b-instruct</code> or <code>llama3.1:8b</code><br>
+            • <strong>Low Resource (4–8 GB RAM):</strong> <code>ollama run llama3.2:3b-instruct</code> or <code>qwen2.5:3b</code><br>
+            • <strong>Browser Access Flag:</strong> Ensure Ollama runs with <code>OLLAMA_ORIGINS="*" ollama serve</code> to enable browser requests.
+          </p>
+
+          <h3>📥 Offline Agent Knowledge Bundles</h3>
+          <p>
+            Download pre-indexed bundles for instant offline search in Cursor, Claude Desktop, and OpenClaw without live API calls:
+          </p>
+          <div style="margin: 12px 0;">
+            <a href="data/agntcon2026_bundle.zip" download class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; text-decoration: none; padding: 10px 18px; display: inline-flex; align-items: center; gap: 8px;">
+              💾 Download agntcon2026_bundle.zip (SQLite FTS5 + JSONL)
+            </a>
+          </div>
+          <p style="font-size: 0.82rem; color: var(--text-muted);">
+            Includes: <strong>Pre-indexed SQLite FTS5</strong> (BM25 Lexical Full-Text Search — Zero Local Embedding Dependencies) and pure <code>agntcon2026.jsonl</code>.
+          </p>
+
+          <h3>💻 IDE Integration & MCP Configuration</h3>
+          <p style="margin-bottom: 8px;">
+            For complete step-by-step setup guides in Cursor, Claude Desktop, VS Code (Roo Code / Cline), and OpenClaw, see the <a href="https://github.com/asoshnin/AGNT_MCP_con_2026#mcp-setup" target="_blank" rel="noopener" style="color: var(--accent); font-weight: 600;">AGNT_MCP_con_2026 Documentation ↗</a>.
+          </p>
+          <div class="code-container">
+            <pre><code>{
+  "mcpServers": {
+    "agntcon2026": {
+      "command": "python",
+      "args": ["-m", "mcp_server", "--data", "wiki/agntcon2026.sqlite"],
+      "env": {}
+    }
+  }
+}</code></pre>
+            <button id="btn-copy-mcp-json" class="btn-copy-snippet">📋 Copy</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating Interactive MCP Chat Drawer -->
+    <div class="chat-drawer">
+      <button id="chat-toggle" class="chat-toggle-btn">
+        <span>💬 Ask Conference Assistant</span>
+      </button>
+
+      <div id="chat-panel" class="chat-panel">
+        <div class="chat-header">
+          <span class="chat-title">AGNTCon 2026 AI Assistant</span>
+          <button id="chat-close" class="chat-close">&times;</button>
+        </div>
+        <div id="chat-messages" class="chat-messages">
+          <div class="chat-msg bot">
+            Hello! I am your research assistant for <strong>AGNTCon + MCPCon Europe 2026</strong>.<br><br>
+            Ask me about any presentation, architecture pattern, security boundary, or tool mentioned at the conference. Every answer links directly to the canonical presentation on Sched.
+          </div>
+        </div>
+        <form id="chat-form" class="chat-input-row">
+          <input type="text" id="chat-input" class="chat-input" placeholder="Ask a question about the conference..." maxlength="500" autocomplete="off">
+          <button type="submit" class="chat-send-btn">Send</button>
+        </form>
+      </div>
+    </div>
+
+    <footer>
+      <p>
+        Unofficial Research Archive & MCP Server for AGNTCon + MCPCon Europe 2026.<br>
+        Source code & MCP server: <a href="https://github.com/asoshnin/AGNT_MCP_con_2026" target="_blank" rel="noopener" style="color: var(--accent); font-weight: 500;">asoshnin/AGNT_MCP_con_2026</a>.<br>
+        Event organized by <a href="https://events.linuxfoundation.org/agntcon-mcpcon-europe/" target="_blank" rel="noopener" style="color: var(--accent);">The Linux Foundation</a>.
+        Independent community open-source project.
+      </p>
+    </footer>
+  </div>
+
+  <script src="assets/vendor/marked.min.js"></script>
+  <script src="assets/vendor/purify.min.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

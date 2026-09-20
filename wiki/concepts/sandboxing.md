@@ -1,0 +1,26 @@
+---
+concept: "sandboxing"
+title: "Sandboxing"
+talk_count: 2
+---
+
+# Sandboxing
+
+This concept page synthesizes insights, architectural patterns, and practical recommendations across 2 presentations at AGNTCon + MCPCon Europe 2026.
+
+## Contributing Sessions
+
+### [[2RBBJ]] — [Infrastructure Red Teaming With Abliterated Models: What Actually Stops Agent Attacks](https://agntconmcpconeu26.sched.com/event/2RBBJ/infrastructure-red-teaming-with-abliterated-models-what-actually-stops-agent-attacks-roy-belio-red-hat)
+- **Presented by:** Speaker
+- **Source Essence:** Read the distilled essence in `wiki/sources/2RBBJ.md`.
+
+### [[2RBFQ]] — [Keynote: Building the Internet of Agents in the Open](https://agntconmcpconeu26.sched.com/event/2RBFQ/keynote-building-the-internet-of-agents-in-the-open-mazin-gilbert-executive-director-of-agentic-ai-foundation)
+- **Presented by:** Speaker
+- **Source Essence:** Read the distilled essence in `wiki/sources/2RBFQ.md`.
+
+## Consolidated Verified Resources & Code Repositories
+
+- [OpenClaw OpenShift Red Team](https://github.com/aicatalyst-team/openclaw-openshift-redteam)
+
+---
+*Part of the Unofficial AGNTCon + MCPCon Europe 2026 LLM Wiki.*
