@@ -42,6 +42,12 @@ function initTheme() {
 
 document.addEventListener("DOMContentLoaded", async () => {
   initTheme();
+  // Prevent browser form history from auto-filling into search box
+  const searchInput = document.getElementById("search-input");
+  const searchClear = document.getElementById("search-clear");
+  if (searchInput) searchInput.value = "";
+  if (searchClear) searchClear.style.display = "none";
+
   await loadCatalog();
   setupEventListeners();
   setupChat();
@@ -205,6 +211,8 @@ function setupEventListeners() {
   const viewTableBtn = document.getElementById("view-table-btn");
 
   if (searchInput) {
+    searchInput.value = "";
+    if (searchClear) searchClear.style.display = "none";
     searchInput.addEventListener("input", (e) => {
       if (searchClear) searchClear.style.display = e.target.value.trim() ? "block" : "none";
       renderCards();
