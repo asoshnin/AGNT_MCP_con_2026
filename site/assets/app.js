@@ -226,8 +226,6 @@ async function loadCatalog() {
   }
   renderConceptPills();
   applyViewMode(CURRENT_VIEW_MODE);
-  const totalCountEl = document.getElementById("total-sessions-count");
-  if (totalCountEl) totalCountEl.textContent = ALL_TALKS.length;
   renderCards();
 }
 
@@ -514,9 +512,8 @@ function setupEventListeners() {
     });
   }
 
-  // Unified Filter Tabs (All, My Track, Recommended, Slides, Topic Depth)
+  // Unified Filter Tabs (My Track, Recommended, Slides, Topic Depth)
   const updateFilterTabs = () => {
-    const tabAll = document.getElementById("tab-filter-all");
     const tabTrack = document.getElementById("tab-filter-track");
     const tabRec = document.getElementById("tab-filter-recommended");
     const tabSlides = document.getElementById("tab-filter-slides");
@@ -526,29 +523,7 @@ function setupEventListeners() {
     if (tabRec) tabRec.classList.toggle("active", IS_RECOMMENDED_MODE);
     if (tabSlides) tabSlides.classList.toggle("active", SLIDES_ONLY);
     if (tabDepth) tabDepth.classList.toggle("active", HIGH_RELEVANCE_ONLY);
-
-    const isAnyActive = IS_TRACK_FILTER_ACTIVE || IS_RECOMMENDED_MODE || SLIDES_ONLY || HIGH_RELEVANCE_ONLY || (ACTIVE_TOPIC !== null);
-    if (tabAll) tabAll.classList.toggle("active", !isAnyActive);
-
-    const totalCountEl = document.getElementById("total-sessions-count");
-    if (totalCountEl) totalCountEl.textContent = ALL_TALKS.length;
   };
-
-  const tabAll = document.getElementById("tab-filter-all");
-  if (tabAll) {
-    tabAll.addEventListener("click", () => {
-      IS_TRACK_FILTER_ACTIVE = false;
-      IS_RECOMMENDED_MODE = false;
-      SLIDES_ONLY = false;
-      HIGH_RELEVANCE_ONLY = false;
-      ACTIVE_TOPIC = null;
-      document.querySelectorAll(".concept-pills .pill").forEach(p => p.classList.remove("active"));
-      const allPill = document.querySelector(".concept-pills .pill[data-topic='all']");
-      if (allPill) allPill.classList.add("active");
-      updateFilterTabs();
-      renderCards();
-    });
-  }
 
   const tabTrack = document.getElementById("tab-filter-track");
   if (tabTrack) {
@@ -1451,7 +1426,13 @@ function setupChat() {
     appendMsg(q, "user");
     chatInput.value = "";
 
-    const loadingId = appendMsg("Consulting AGNTCon + MCPCon knowledge base...", "bot");
+    const loadingHtml = `
+      <div class="ai-loading-container">
+        <span class="ai-spinner"></span>
+        <span class="ai-loading-text">Synthesizing answer from conference knowledge base...</span>
+      </div>
+    `;
+    const loadingId = appendMsg(loadingHtml, "bot", true);
     const onlySlides = document.getElementById("chat-slides-only") ? document.getElementById("chat-slides-only").checked : false;
     const breadthSelect = document.getElementById("rag-breadth-select");
     const breadth = breadthSelect ? breadthSelect.value : "auto";
@@ -1630,13 +1611,17 @@ Always cite the session ID (e.g. [[2RBBJ]]) and speaker by name for every claim.
   });
 }
 
-function appendMsg(text, type) {
+function appendMsg(content, type, isHtml = false) {
   const chatMessages = document.getElementById("chat-messages");
   const id = "msg_" + Math.random().toString(36).substring(2, 9);
   const div = document.createElement("div");
   div.id = id;
   div.className = `chat-msg ${type}`;
-  div.textContent = text;
+  if (isHtml) {
+    div.innerHTML = content;
+  } else {
+    div.textContent = content;
+  }
   chatMessages.appendChild(div);
   chatMessages.scrollTop = chatMessages.scrollHeight;
   return id;

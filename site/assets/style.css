@@ -862,6 +862,41 @@ header {
   font-weight: 500;
 }
 
+/* AI Assistant Waiting Spinner & Pulse Animation */
+.ai-loading-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 0;
+}
+
+.ai-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2.5px solid rgba(56, 189, 248, 0.25);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin-ai 0.75s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin-ai {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.ai-loading-text {
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  animation: pulse-ai 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-ai {
+  0% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
 .chat-citations {
   margin-top: 8px;
   padding-top: 8px;
