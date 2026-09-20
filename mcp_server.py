@@ -207,8 +207,19 @@ CRITICAL INVARIANTS:
     profile_snippet = f"\n\n<attendee_profile>\n{user_context.strip()}\n</attendee_profile>" if user_context and user_context.strip() else ""
     user_msg = f"Question: {question}{profile_snippet}\n\n<conference_excerpts>\n{context_str}\n</conference_excerpts>"
     
-    # Cascade configuration: NVIDIA NIM -> OpenRouter Active Free -> Kilocode
+    # Cascade configuration: Google Gemini -> NVIDIA NIM -> OpenRouter Active Free -> Kilocode
     gateways = []
+    gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if gemini_key:
+        gateways.append({
+            "name": "gemini",
+            "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+            "headers": {
+                "Authorization": f"Bearer {gemini_key}",
+                "Content-Type": "application/json"
+            },
+            "model": "gemini-2.5-flash"
+        })
     if os.environ.get("NVIDIA_API_KEY"):
         gateways.append({
             "name": "nvidia",
@@ -217,7 +228,7 @@ CRITICAL INVARIANTS:
                 "Authorization": f"Bearer {os.environ.get('NVIDIA_API_KEY')}",
                 "Content-Type": "application/json"
             },
-            "model": "nvidia/nemotron-3-super-120b-a12b"
+            "model": "meta/llama-3.3-70b-instruct"
         })
     if os.environ.get("OPENROUTER_API_KEY"):
         gateways.append({
@@ -229,7 +240,7 @@ CRITICAL INVARIANTS:
                 "HTTP-Referer": "https://github.com/asoshnin/AGNT_MCP_con_2026",
                 "X-Title": "AGNTCon 2026 Hub"
             },
-            "model": "qwen/qwen3.8-27b:free"
+            "model": "meta-llama/llama-3.3-70b-instruct:free"
         })
     if os.environ.get("KILOCODE_API_KEY"):
         gateways.append({
@@ -240,7 +251,7 @@ CRITICAL INVARIANTS:
                 "Content-Type": "application/json",
                 "X-KILOCODE-FEATURE": "openclaw"
             },
-            "model": "stepfun/step-3.7-flash:free"
+            "model": "kilo-auto/free"
         })
         
     for gw in gateways:
@@ -258,17 +269,17 @@ CRITICAL INVARIANTS:
                 if r.status_code == 200:
                     data = r.json()
                     raw = data["choices"][0]["message"]["content"].strip()
-                    if "<think>" in raw and "</think>" in raw:
-                        raw = raw.split("</think>")[-1].strip()
+                    # Strip any reasoning / think scratchpad tokens
+                    raw = re.sub(r'<think>[\s\S]*?</think>', '', raw).strip()
                     if raw:
                         return {"answer": raw, "citations": citations}
         except Exception:
             continue
             
-    # Fallback if all calls failed
-    summary_lines = [f"- **[[{c['id']}]] [{c['title']}]({c['sched_url']})**: Presentation on this topic." for c in citations]
+    # Zero Fake Answers Invariant: If all cloud providers fail, return an honest status notification
     return {
-        "answer": f"Here are the most relevant conference presentations addressing your question:\n\n" + "\n".join(summary_lines),
+        "error": "gateway_busy",
+        "message": "Public Free Cloud Gateway is currently at capacity or rate-limited. To continue immediately: (1) Connect your local Ollama / LM Studio in Settings, (2) Enter your own free API key (NVIDIA / OpenRouter), or (3) Query offline using our SQLite bundle.",
         "citations": citations
     }
 

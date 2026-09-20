@@ -359,17 +359,16 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
             try:
                 result = asyncio.run(tool_answer_conference(question, breadth=breadth, only_with_slides=only_slides, user_context=user_context))
                 if isinstance(result, dict) and "error" in result:
-                    err_msg = str(result.get("error", ""))
-                    if any(k in err_msg.lower() for k in ["rate", "timeout", "exhausted", "503", "429", "connection"]):
-                        self.send_response(503)
-                        self.send_header("Content-Type", "application/json")
-                        self.send_header("Access-Control-Allow-Origin", "*")
-                        self.end_headers()
-                        self.wfile.write(json.dumps({
-                            "error": "cascade_unavailable",
-                            "message": "All public free-tier models are currently rate-limited or busy."
-                        }).encode("utf-8"))
-                        return
+                    self.send_response(503)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({
+                        "error": result.get("error", "cascade_unavailable"),
+                        "message": result.get("message", "All public free-tier models are currently rate-limited or busy."),
+                        "citations": result.get("citations", [])
+                    }).encode("utf-8"))
+                    return
 
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")

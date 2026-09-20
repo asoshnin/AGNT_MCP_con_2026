@@ -7,6 +7,7 @@ let CURRENT_SORT = "relevance";
 let CURRENT_INFERENCE_TIER = localStorage.getItem("agntcon_inference_tier") || "cloud";
 
 let IS_RECOMMENDED_MODE = false;
+let IS_TRACK_FILTER_ACTIVE = false;
 
 function getUserProfile() {
   const raw = localStorage.getItem("agntcon_user_profile");
@@ -73,10 +74,11 @@ function toggleTrack(id) {
 }
 
 function updateTrackCount() {
+  const track = getTrack();
   const countEl = document.getElementById("track-count");
-  if (countEl) {
-    countEl.textContent = getTrack().length;
-  }
+  const filterCountEl = document.getElementById("track-filter-count");
+  if (countEl) countEl.textContent = track.length;
+  if (filterCountEl) filterCountEl.textContent = track.length;
 }
 
 function initTheme() {
@@ -293,6 +295,18 @@ function setupEventListeners() {
       if (searchClear) searchClear.style.display = e.target.value.trim() ? "block" : "none";
       renderCards();
     });
+
+    // Aggressive autofill guard: clean up accidental browser credential manager insertions
+    const sanitizeSearch = () => {
+      if (searchInput.value.startsWith("http://") || searchInput.value.startsWith("https://") || searchInput.value.includes("1234")) {
+        searchInput.value = "";
+        if (searchClear) searchClear.style.display = "none";
+        renderCards();
+      }
+    };
+    window.addEventListener("pageshow", sanitizeSearch);
+    window.addEventListener("load", sanitizeSearch);
+    searchInput.addEventListener("focus", sanitizeSearch);
   }
 
   if (searchClear && searchInput) {
@@ -423,6 +437,16 @@ function setupEventListeners() {
     });
   }
 
+  // My Track Filter Pill
+  const btnFilterTrack = document.getElementById("btn-filter-track");
+  if (btnFilterTrack) {
+    btnFilterTrack.addEventListener("click", () => {
+      IS_TRACK_FILTER_ACTIVE = !IS_TRACK_FILTER_ACTIVE;
+      btnFilterTrack.classList.toggle("active", IS_TRACK_FILTER_ACTIVE);
+      renderCards();
+    });
+  }
+
   // Export Track
   const btnExportTrack = document.getElementById("btn-export-track");
   const exportModal = document.getElementById("export-modal-backdrop");
@@ -434,15 +458,45 @@ function setupEventListeners() {
       if (listEl) {
         const trackTalks = ALL_TALKS.filter(t => trackIds.includes(t.id));
         if (trackTalks.length === 0) {
-          listEl.innerHTML = '<p style="color: var(--text-secondary); padding: 10px;">Your track is empty. Add sessions to your track first!</p>';
+          listEl.innerHTML = `
+            <div style="text-align: center; padding: 22px 10px;">
+              <p style="color: var(--text-secondary); margin-bottom: 14px; font-size: 0.88rem;">
+                Your track is empty. You can bookmark presentations from the main grid using the <strong>☆ Add to Track</strong> button on any card.
+              </p>
+              <button id="btn-auto-curate-track" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; padding: 8px 16px; font-size: 0.84rem;">
+                ✨ Auto-Curate Track from My Profile
+              </button>
+            </div>
+          `;
+          const btnAuto = document.getElementById("btn-auto-curate-track");
+          if (btnAuto) {
+            btnAuto.addEventListener("click", () => {
+              const profile = getUserProfile();
+              let curated = [];
+              if (profile) {
+                curated = ALL_TALKS.filter(t => calculateProfileFit(t, profile) >= 40).map(t => t.id);
+              }
+              if (curated.length === 0) {
+                curated = ALL_TALKS.slice(0, 5).map(t => t.id);
+              }
+              localStorage.setItem("agntcon_my_track", JSON.stringify(curated));
+              updateTrackCount();
+              renderCards();
+              btnExportTrack.click();
+            });
+          }
         } else {
           listEl.innerHTML = trackTalks.map(t => `
-            <div style="padding: 8px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+            <div style="padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 10px;">
               <div>
-                <strong style="color: var(--accent);">[[${t.id}]]</strong> 
-                <span style="font-size: 0.9rem;">${escapeHtml(t.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, ""))}</span>
+                <a href="#/session/${t.id}" onclick="openEssenceModal('${t.id}')" style="color: var(--accent); font-weight: 700; text-decoration: underline; margin-right: 6px;">[[${t.id}]]</a>
+                <strong style="font-size: 0.88rem; color: var(--text-primary);">${escapeHtml(t.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, ""))}</strong><br>
+                <span style="font-size: 0.78rem; color: var(--text-secondary);">${escapeHtml((t.speakers || []).join(", "))}</span>
               </div>
-              <button class="btn-cite" onclick="toggleTrack('${t.id}'); this.closest('div').remove();" style="padding: 2px 8px; font-size: 0.7rem;">Remove</button>
+              <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0;">
+                <button class="btn-cite" onclick="openEssenceModal('${t.id}')" style="padding: 4px 8px; font-size: 0.75rem;">Essence</button>
+                <button class="btn-cite" onclick="toggleTrack('${t.id}'); document.getElementById('btn-export-track').click();" style="padding: 4px 8px; font-size: 0.75rem; color: #f87171;">✕ Remove</button>
+              </div>
             </div>
           `).join("");
         }
@@ -699,6 +753,7 @@ function renderCards() {
     if (HIGH_RELEVANCE_ONLY && (t.relevance_score || 0) < 0.7) return false;
     if (SLIDES_ONLY && !(t.has_slides || t.file_name)) return false;
     if (ACTIVE_TOPIC && !(t.concepts || []).map((c) => c.toLowerCase()).includes(ACTIVE_TOPIC)) return false;
+    if (IS_TRACK_FILTER_ACTIVE && !getTrack().includes(t.id)) return false;
 
     const profile = getUserProfile();
     t._profileFit = profile ? calculateProfileFit(t, profile) : 0;
@@ -1188,14 +1243,26 @@ Always cite the session ID (e.g. [[2RBBJ]]) and speaker by name for every claim.
           </div>`;
         }
         botEl.innerHTML = html;
-      } else if (res.status === 503 || (data && data.error === "cascade_unavailable")) {
+      } else if (res.status === 503 || (data && (data.error === "cascade_unavailable" || data.error === "gateway_busy"))) {
+        let citationsHtml = "";
+        if (data.citations && data.citations.length > 0) {
+          citationsHtml = `<div class="chat-citations" style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(234, 179, 8, 0.3); font-size: 0.8rem;">
+            <strong>Relevant Presentations Matched by RAG:</strong><br>
+            ${data.citations.map((c) => `
+              <div style="margin-top: 4px;">
+                <strong>[[${escapeHtml(c.id)}]]</strong> <a href="${escapeHtml(c.sched_url)}" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: underline;">${escapeHtml(c.title)}</a>
+              </div>
+            `).join("")}
+          </div>`;
+        }
         botEl.innerHTML = `
           <div style="background: rgba(234, 179, 8, 0.12); border: 1px solid rgba(234, 179, 8, 0.35); border-radius: 8px; padding: 12px; color: var(--text-primary); font-size: 0.85rem; line-height: 1.5;">
-            <strong style="color: #eab308; display: block; margin-bottom: 4px;">⚠️ Public Free Cascade Currently at Capacity</strong>
-            All public free-tier fallbacks (NVIDIA, Kilocode, OpenRouter) are currently busy or rate-limited.<br><br>
-            <strong>To continue immediately:</strong><br>
-            • Connect your own free API key or local Ollama: <button class="btn-header" onclick="document.getElementById('btn-open-settings').click()" style="padding: 2px 8px; font-size: 0.78rem; margin: 2px 0;">⚙️ Open Settings</button><br>
-            • Or download the offline SQLite bundle to query directly via Cursor or Claude Desktop.
+            <strong style="color: #eab308; display: block; margin-bottom: 4px;">⚠️ Public Free Cloud Gateway Currently at Capacity</strong>
+            All public free-tier models are currently busy or rate-limited.<br><br>
+            <strong>To continue immediately without limits:</strong><br>
+            • Connect local Ollama / LM Studio or your own free API key: <button class="btn-header" onclick="document.getElementById('btn-open-settings').click()" style="padding: 2px 8px; font-size: 0.78rem; margin: 2px 0;">⚙️ Open Settings</button><br>
+            • Or query offline using our pre-indexed SQLite bundle.
+            ${citationsHtml}
           </div>
         `;
       } else {
@@ -1626,7 +1693,7 @@ function setupModalsAndSettings() {
         modelNameInput.value = "qwen2.5:7b-instruct";
       } else if (p === "nvidia") {
         baseUrlInput.value = "https://integrate.api.nvidia.com/v1";
-        modelNameInput.value = "nvidia/llama-3.1-nemotron-70b-instruct";
+        modelNameInput.value = "meta/llama-3.3-70b-instruct";
       } else if (p === "kilocode") {
         baseUrlInput.value = "https://api.kilo.ai/v1";
         modelNameInput.value = "kilo-auto/free";

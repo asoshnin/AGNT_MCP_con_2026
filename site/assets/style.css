@@ -614,11 +614,12 @@ header {
   border-color: var(--accent);
   color: var(--accent);
 }
+.btn-track-toggle.active,
 .btn-track-toggle.in-track {
   background: var(--badge-bg);
   border-color: var(--accent);
   color: var(--accent);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .command-bar-container {
