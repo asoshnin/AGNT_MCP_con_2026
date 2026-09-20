@@ -41,12 +41,59 @@ import crm_db
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "agntcon2026admin")
 ADMIN_SESSION_TOKEN = secrets.token_hex(24)
 
+def load_env_file():
+    env_path = os.path.join(HUB_DIR, ".env")
+    if os.path.exists(env_path):
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        k = k.strip()
+                        v = v.strip().strip("'").strip('"')
+                        if k and (k not in os.environ or not os.environ[k]):
+                            os.environ[k] = v
+        except Exception:
+            pass
+
+load_env_file()
+
 def check_admin_auth(headers) -> bool:
     auth_header = headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         token = auth_header.split(" ", 1)[1].strip()
         return token == ADMIN_SESSION_TOKEN
     return False
+
+def dispatch_resend_email(to_email: str, subject: str, html_body: str):
+    api_key = os.environ.get("RESEND_API_KEY")
+    from_email = os.environ.get("RESEND_FROM_EMAIL", "Alexey Soshnin <alex@onexcare.com>")
+    if not api_key or api_key == "YOUR_RESEND_KEY_HERE":
+        sys.stdout.write(f"[INFO] RESEND_API_KEY not configured. Skipping email to {to_email}.\n")
+        return
+
+    try:
+        import urllib.request
+        url = "https://api.resend.com/emails"
+        payload = json.dumps({
+            "from": from_email,
+            "to": [to_email],
+            "subject": subject,
+            "html": html_body
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+        )
+        with urllib.request.urlopen(req, timeout=4.0) as res:
+            sys.stdout.write(f"[✓] Resend email dispatched to {to_email} (HTTP {res.status})\n")
+    except Exception as e:
+        sys.stderr.write(f"[WARN] Failed to dispatch Resend email to {to_email}: {e}\n")
 
 def dispatch_telegram_alert(event_emoji: str, event_type: str, ticket_id: str, sender_name: str, org: str, email: str, profile: str, body: str):
     bot_token = os.environ.get("TOY_PROJECTS_BOT_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -412,6 +459,23 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 body=f"Type: {inquiry_type}\n\n{description}"
             )
 
+            # Dispatch confirmation email to client via Resend
+            public_url = os.environ.get("PUBLIC_URL", "http://127.0.0.1:8088")
+            full_ticket_url = f"{public_url}{ticket_url}"
+            email_html = f"""
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;">
+              <h2 style="color: #0284c7; margin-top: 0;">Inquiry Registered: #{ticket_id}</h2>
+              <p>Hi {name},</p>
+              <p>Thank you for reaching out regarding <strong>AGNTCon + MCPCon Europe 2026</strong>.</p>
+              <p>We have received your message regarding <em>{inquiry_type}</em>. You can track status updates and message the project maintainer directly on your private thread link below:</p>
+              <div style="margin: 24px 0;">
+                <a href="{full_ticket_url}" style="background: #0284c7; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">Open Private Dialogue Thread →</a>
+              </div>
+              <p style="font-size: 0.85rem; color: #64748b; line-height: 1.5;">Direct Link: <a href="{full_ticket_url}" style="color: #0284c7;">{full_ticket_url}</a></p>
+            </div>
+            """
+            dispatch_resend_email(email, f"[#{ticket_id}] Your AGNTCon 2026 Collaboration Inquiry", email_html)
+
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", "*")
@@ -472,6 +536,28 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 return
 
             crm_db.add_message(inquiry_id, "admin", text, is_note, new_status)
+
+            if not is_note:
+                inq = crm_db.get_inquiry_detail(inquiry_id)
+                if inq and inq.get("email"):
+                    public_url = os.environ.get("PUBLIC_URL", "http://127.0.0.1:8088")
+                    client_ticket_url = f"{public_url}/ticket?id={inquiry_id}&key={inq.get('secret_token')}"
+                    reply_html = f"""
+                    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                      <h2 style="color: #0284c7; margin-top: 0;">New Reply on Ticket #{inquiry_id}</h2>
+                      <p>Hi {inq.get('name', 'there')},</p>
+                      <p>The maintainer has posted a response to your inquiry:</p>
+                      <blockquote style="background: #f8fafc; border-left: 4px solid #0284c7; padding: 12px 16px; margin: 16px 0; font-style: italic; color: #1e293b;">
+                        {text.replace(chr(10), '<br>')}
+                      </blockquote>
+                      <div style="margin: 24px 0;">
+                        <a href="{client_ticket_url}" style="background: #0284c7; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">View Full Thread & Reply →</a>
+                      </div>
+                      <p style="font-size: 0.85rem; color: #64748b;">Direct Link: <a href="{client_ticket_url}" style="color: #0284c7;">{client_ticket_url}</a></p>
+                    </div>
+                    """
+                    dispatch_resend_email(inq["email"], f"Re: [#{inquiry_id}] New response from AGNTCon maintainer", reply_html)
+
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -601,6 +687,23 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 profile=profile_url,
                 body=f"Type: {request_type}\n\n{notes}"
             )
+
+            # Dispatch confirmation email to speaker via Resend
+            public_url = os.environ.get("PUBLIC_URL", "http://127.0.0.1:8088")
+            full_ticket_url = f"{public_url}{ticket_url}"
+            email_html = f"""
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;">
+              <h2 style="color: #0284c7; margin-top: 0;">Speaker Request Registered: #{ticket_id}</h2>
+              <p>Hi {name},</p>
+              <p>Thank you for submitting your verification request regarding presentation <strong>[[{session_id}]]</strong>.</p>
+              <p>Our team reviews all speaker requests within 48 hours. You can view progress and communicate directly with the maintainer here:</p>
+              <div style="margin: 24px 0;">
+                <a href="{full_ticket_url}" style="background: #0284c7; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">View Private Dialogue Thread →</a>
+              </div>
+              <p style="font-size: 0.85rem; color: #64748b;">Direct Link: <a href="{full_ticket_url}" style="color: #0284c7;">{full_ticket_url}</a></p>
+            </div>
+            """
+            dispatch_resend_email(email, f"[#{ticket_id}] AGNTCon 2026 Speaker Request: Session [[{session_id}]]", email_html)
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json")

@@ -860,13 +860,36 @@ function setupModalsAndSettings() {
         });
         const result = await res.json();
         if (res.ok && result.status === "ok") {
-          feedbackStatus.style.color = "#22c55e";
-          feedbackStatus.textContent = "✓ Success: " + (result.message || "Feedback queued.");
-          setTimeout(() => {
-            closeFeedback();
-            feedbackForm.reset();
-            feedbackStatus.style.display = "none";
-          }, 3000);
+          const fullLink = `${window.location.origin}${result.ticket_url}`;
+          feedbackModal.querySelector(".modal-box").innerHTML = `
+            <button class="modal-close" onclick="document.getElementById('feedback-modal-backdrop').classList.remove('open'); location.reload();">&times;</button>
+            <div style="text-align: center; padding: 24px 12px;">
+              <div style="font-size: 2.5rem; margin-bottom: 8px;">📝</div>
+              <h2 style="margin: 0 0 6px 0; font-size: 1.3rem;">Speaker Request Registered!</h2>
+              <div style="display: inline-block; font-size: 0.95rem; font-weight: 700; color: var(--accent); background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); padding: 4px 14px; border-radius: 6px; margin-bottom: 16px;">
+                Reference: #${result.ticket_id}
+              </div>
+              <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.6; max-width: 520px; margin: 0 auto 20px auto;">
+                A confirmation email with your private dialogue link has been dispatched to <strong>${escapeHtml(email)}</strong>.<br><br>
+                Our engineering team reviews all speaker requests within 48 hours. You can track progress and communicate with the maintainer below:
+              </p>
+              <div style="display: flex; gap: 8px; justify-content: center; max-width: 520px; margin: 0 auto 24px auto;">
+                <input type="text" class="search-input" value="${fullLink}" readonly style="font-size: 0.82rem; padding: 8px 12px;">
+                <button type="button" id="btn-copy-feedback-link" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; white-space: nowrap;">
+                  📋 Copy Link
+                </button>
+              </div>
+              <button type="button" class="btn-header" onclick="document.getElementById('feedback-modal-backdrop').classList.remove('open'); location.reload();" style="padding: 8px 24px;">
+                Done
+              </button>
+            </div>
+          `;
+          document.getElementById("btn-copy-feedback-link").addEventListener("click", function() {
+            navigator.clipboard.writeText(fullLink).then(() => {
+              this.textContent = "✓ Copied!";
+              setTimeout(() => (this.textContent = "📋 Copy Link"), 2000);
+            });
+          });
         } else {
           feedbackStatus.style.color = "#f87171";
           feedbackStatus.textContent = "Error: " + (result.error || "Submission failed.");
@@ -937,17 +960,36 @@ function setupModalsAndSettings() {
         });
         const result = await res.json();
         if (res.ok && result.status === "ok") {
-          collabStatus.style.color = "#22c55e";
-          let successMsg = "✓ Success: " + (result.message || "Inquiry received!");
-          if (result.ticket_id && result.ticket_url) {
-            successMsg += ` Ref: #${result.ticket_id}. Private link: ${result.ticket_url}`;
-          }
-          collabStatus.textContent = successMsg;
-          setTimeout(() => {
-            closeCollab();
-            collabForm.reset();
-            collabStatus.style.display = "none";
-          }, 4000);
+          const fullLink = `${window.location.origin}${result.ticket_url}`;
+          collabModal.querySelector(".modal-box").innerHTML = `
+            <button class="modal-close" onclick="document.getElementById('collab-modal-backdrop').classList.remove('open'); location.reload();">&times;</button>
+            <div style="text-align: center; padding: 24px 12px;">
+              <div style="font-size: 2.5rem; margin-bottom: 8px;">🎉</div>
+              <h2 style="margin: 0 0 6px 0; font-size: 1.3rem;">Inquiry Successfully Registered!</h2>
+              <div style="display: inline-block; font-size: 0.95rem; font-weight: 700; color: var(--accent); background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); padding: 4px 14px; border-radius: 6px; margin-bottom: 16px;">
+                Reference: #${result.ticket_id}
+              </div>
+              <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.6; max-width: 520px; margin: 0 auto 20px auto;">
+                A confirmation email with your private dialogue link has been dispatched to <strong>${escapeHtml(email)}</strong>.<br><br>
+                You can also bookmark or copy your private thread link below to message the maintainer anytime:
+              </p>
+              <div style="display: flex; gap: 8px; justify-content: center; max-width: 520px; margin: 0 auto 24px auto;">
+                <input type="text" class="search-input" value="${fullLink}" readonly style="font-size: 0.82rem; padding: 8px 12px;">
+                <button type="button" id="btn-copy-collab-link" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; white-space: nowrap;">
+                  📋 Copy Link
+                </button>
+              </div>
+              <button type="button" class="btn-header" onclick="document.getElementById('collab-modal-backdrop').classList.remove('open'); location.reload();" style="padding: 8px 24px;">
+                Done
+              </button>
+            </div>
+          `;
+          document.getElementById("btn-copy-collab-link").addEventListener("click", function() {
+            navigator.clipboard.writeText(fullLink).then(() => {
+              this.textContent = "✓ Copied!";
+              setTimeout(() => (this.textContent = "📋 Copy Link"), 2000);
+            });
+          });
         } else {
           collabStatus.style.color = "#f87171";
           collabStatus.textContent = "Error: " + (result.error || "Submission failed.");
