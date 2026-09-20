@@ -615,7 +615,10 @@
             <div class="track-pane">
               <div class="track-pane-header">
                 <span class="track-pane-title">📋 Current Track (<span id="track-pane-count">0</span>)</span>
-                <div style="display: flex; gap: 6px; align-items: center;">
+                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                  <button type="button" id="btn-curate-track-profile" class="btn-cite" style="background: rgba(56, 189, 248, 0.15); color: var(--accent); font-weight: 600; border-color: rgba(56, 189, 248, 0.4); padding: 2px 8px; font-size: 0.72rem;" title="Auto-curate and re-score track based on your active profile">
+                    ✨ Auto-Curate (AI Fit)
+                  </button>
                   <button type="button" id="btn-track-itinerary-slides" class="btn-cite" style="padding: 2px 8px; font-size: 0.72rem;" title="Filter current track to only sessions with slides">
                     📄 Slides Only
                   </button>

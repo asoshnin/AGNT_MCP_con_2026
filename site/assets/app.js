@@ -99,6 +99,23 @@ function calculateProfileFit(talk, profile) {
   return Math.min(100, Math.max(0, Math.round(score)));
 }
 
+function curateTrackFromProfile(profile) {
+  if (!profile) return [];
+  const scored = ALL_TALKS.map(t => ({
+    id: t.id,
+    fit: calculateProfileFit(t, profile)
+  })).sort((a, b) => b.fit - a.fit);
+
+  // Take all talks with fit >= 60%, clamped to a rich personal track of 6 to 10 talks
+  let matches = scored.filter(s => s.fit >= 60).map(s => s.id);
+  if (matches.length < 4) {
+    matches = scored.slice(0, 6).map(s => s.id);
+  } else if (matches.length > 10) {
+    matches = matches.slice(0, 10);
+  }
+  return matches;
+}
+
 function getTrack() {
   try {
     return JSON.parse(localStorage.getItem("agntcon_my_track") || "[]");
@@ -486,16 +503,23 @@ function setupEventListeners() {
       const focusBoxes = document.querySelectorAll("#profile-focus-checkboxes input[type='checkbox']:checked");
       const focus = Array.from(focusBoxes).map(b => b.value);
 
-      localStorage.setItem("agntcon_user_profile", JSON.stringify({ 
+      const newProfile = { 
         role, 
         focus_areas: focus, 
         objective, 
         custom_notes: notes,
         updated_at: Date.now()
-      }));
+      };
+      localStorage.setItem("agntcon_user_profile", JSON.stringify(newProfile));
       profileModal.classList.remove("open");
       updateProfileUI();
       renderCards();
+
+      // If track studio modal is open, re-render it with new realign recommendations immediately
+      const exportModal = document.getElementById("export-modal-backdrop");
+      if (exportModal && exportModal.classList.contains("open") && typeof window.renderTrackStudio === "function") {
+        window.renderTrackStudio();
+      }
     });
   }
 
@@ -567,6 +591,7 @@ function setupEventListeners() {
   const exportClose = document.getElementById("export-modal-close");
   const btnClearTrack = document.getElementById("btn-clear-track");
   const btnTrackItinerarySlides = document.getElementById("btn-track-itinerary-slides");
+  const btnCurateTrackProfile = document.getElementById("btn-curate-track-profile");
   const trackSearchPicker = document.getElementById("track-search-picker");
   let ACTIVE_TRACK_PICKER_FILTER = "all";
   let TRACK_ITINERARY_SLIDES_ONLY = false;
@@ -631,15 +656,7 @@ function setupEventListeners() {
         const btnAuto = document.getElementById("btn-auto-curate-track");
         if (btnAuto) {
           btnAuto.addEventListener("click", () => {
-            let curated = ALL_TALKS.filter(t => calculateProfileFit(t, profile) >= 65).map(t => t.id);
-            if (curated.length === 0) {
-              const sorted = [...ALL_TALKS].sort((a, b) => {
-                const fitB = calculateProfileFit(b, profile);
-                const fitA = calculateProfileFit(a, profile);
-                return fitB - fitA;
-              });
-              curated = sorted.slice(0, 2).map(t => t.id);
-            }
+            const curated = curateTrackFromProfile(profile);
             localStorage.setItem("agntcon_my_track", JSON.stringify(curated));
             localStorage.setItem("agntcon_track_profile_sync", String(profile.updated_at || Date.now()));
             updateTrackCount();
@@ -652,7 +669,7 @@ function setupEventListeners() {
         let realignBanner = "";
         const lastSync = Number(localStorage.getItem("agntcon_track_profile_sync") || 0);
         const profileUpdated = Number(profile.updated_at || 0);
-        if (profileUpdated > lastSync && lastSync > 0) {
+        if (profileUpdated > lastSync) {
           realignBanner = `
             <div style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; font-size: 0.78rem; display: flex; justify-content: space-between; align-items: center; gap: 6px;">
               <span>💡 Profile updated: recommendations have changed.</span>
@@ -681,11 +698,7 @@ function setupEventListeners() {
         const btnRealign = document.getElementById("btn-realign-track");
         if (btnRealign) {
           btnRealign.addEventListener("click", () => {
-            let curated = ALL_TALKS.filter(t => calculateProfileFit(t, profile) >= 65).map(t => t.id);
-            if (curated.length === 0) {
-              const sorted = [...ALL_TALKS].sort((a, b) => calculateProfileFit(b, profile) - calculateProfileFit(a, profile));
-              curated = sorted.slice(0, 2).map(t => t.id);
-            }
+            const curated = curateTrackFromProfile(profile);
             localStorage.setItem("agntcon_my_track", JSON.stringify(curated));
             localStorage.setItem("agntcon_track_profile_sync", String(profile.updated_at || Date.now()));
             updateTrackCount();
@@ -773,6 +786,24 @@ function setupEventListeners() {
       renderTrackStudio();
     });
   });
+
+  if (btnCurateTrackProfile) {
+    btnCurateTrackProfile.addEventListener("click", () => {
+      const profile = getUserProfile();
+      if (!profile) {
+        if (exportModal) exportModal.classList.remove("open");
+        const btnOpenProf = document.getElementById("btn-open-profile");
+        if (btnOpenProf) btnOpenProf.click();
+        return;
+      }
+      const curated = curateTrackFromProfile(profile);
+      localStorage.setItem("agntcon_my_track", JSON.stringify(curated));
+      localStorage.setItem("agntcon_track_profile_sync", String(profile.updated_at || Date.now()));
+      updateTrackCount();
+      renderCards();
+      renderTrackStudio();
+    });
+  }
 
   if (btnClearTrack) {
     btnClearTrack.addEventListener("click", () => {
