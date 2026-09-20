@@ -207,32 +207,8 @@ CRITICAL INVARIANTS:
     profile_snippet = f"\n\n<attendee_profile>\n{user_context.strip()}\n</attendee_profile>" if user_context and user_context.strip() else ""
     user_msg = f"Question: {question}{profile_snippet}\n\n<conference_excerpts>\n{context_str}\n</conference_excerpts>"
     
-    # Cascade configuration: Google Gemini -> NVIDIA NIM -> OpenRouter Active Free -> Kilocode
+    # Cascade configuration: OpenRouter -> Kilocode -> NVIDIA NIM (Free Endpoints Only)
     gateways = []
-    gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if gemini_key:
-        gateways.append({
-            "name": "gemini",
-            "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-            "headers": {
-                "Authorization": f"Bearer {gemini_key}",
-                "Content-Type": "application/json"
-            },
-            "model": "gemini-2.5-flash",
-            "extra_body": {
-                "reasoning_effort": "none"
-            }
-        })
-    if os.environ.get("NVIDIA_API_KEY"):
-        gateways.append({
-            "name": "nvidia",
-            "url": "https://integrate.api.nvidia.com/v1/chat/completions",
-            "headers": {
-                "Authorization": f"Bearer {os.environ.get('NVIDIA_API_KEY')}",
-                "Content-Type": "application/json"
-            },
-            "model": "nvidia/llama-3.1-nemotron-70b-instruct"
-        })
     if os.environ.get("OPENROUTER_API_KEY"):
         gateways.append({
             "name": "openrouter",
@@ -243,7 +219,7 @@ CRITICAL INVARIANTS:
                 "HTTP-Referer": "https://github.com/asoshnin/AGNT_MCP_con_2026",
                 "X-Title": "AGNTCon 2026 Hub"
             },
-            "model": "meta-llama/llama-3.3-70b-instruct"
+            "model": "openrouter/auto"
         })
     if os.environ.get("KILOCODE_API_KEY"):
         gateways.append({
@@ -256,10 +232,20 @@ CRITICAL INVARIANTS:
             },
             "model": "kilo-auto/free"
         })
+    if os.environ.get("NVIDIA_API_KEY"):
+        gateways.append({
+            "name": "nvidia",
+            "url": "https://integrate.api.nvidia.com/v1/chat/completions",
+            "headers": {
+                "Authorization": f"Bearer {os.environ.get('NVIDIA_API_KEY')}",
+                "Content-Type": "application/json"
+            },
+            "model": "nvidia/llama-3.1-nemotron-70b-instruct"
+        })
         
     for gw in gateways:
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=45.0) as client:
                 req_json = {
                     "model": gw["model"],
                     "messages": [
