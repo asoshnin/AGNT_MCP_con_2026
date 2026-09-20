@@ -118,6 +118,12 @@ function toggleTrack(id) {
   updateTrackCount();
   renderCards(); // Refresh icons on cards
   
+  // If track studio modal is open, re-render it immediately
+  const exportModal = document.getElementById("export-modal-backdrop");
+  if (exportModal && exportModal.classList.contains("open") && typeof window.renderTrackStudio === "function") {
+    window.renderTrackStudio();
+  }
+
   // Also refresh modal toggle if open
   const modalToggle = document.querySelector("#modal-body .btn-track-toggle");
   if (modalToggle) {
@@ -126,6 +132,7 @@ function toggleTrack(id) {
     modalToggle.classList.toggle("active", isBookmarked);
   }
 }
+window.toggleTrack = toggleTrack;
 
 function updateTrackCount() {
   const track = getTrack();
@@ -529,72 +536,157 @@ function setupEventListeners() {
     });
   }
 
+  // Slides Available Filter Pill
+  const btnFilterSlides = document.getElementById("btn-filter-slides");
+  const slidesOnlyCheckbox = document.getElementById("slides-only-toggle");
+  if (btnFilterSlides) {
+    btnFilterSlides.addEventListener("click", () => {
+      SLIDES_ONLY = !SLIDES_ONLY;
+      btnFilterSlides.classList.toggle("active", SLIDES_ONLY);
+      if (slidesOnlyCheckbox) slidesOnlyCheckbox.checked = SLIDES_ONLY;
+      renderCards();
+    });
+  }
+  if (slidesOnlyCheckbox) {
+    slidesOnlyCheckbox.addEventListener("change", (e) => {
+      SLIDES_ONLY = e.target.checked;
+      if (btnFilterSlides) btnFilterSlides.classList.toggle("active", SLIDES_ONLY);
+      renderCards();
+    });
+  }
+
   // Interactive Track Studio
   const btnExportTrack = document.getElementById("btn-export-track");
   const exportModal = document.getElementById("export-modal-backdrop");
   const exportClose = document.getElementById("export-modal-close");
   const btnClearTrack = document.getElementById("btn-clear-track");
+  const btnTrackItinerarySlides = document.getElementById("btn-track-itinerary-slides");
   const trackSearchPicker = document.getElementById("track-search-picker");
   let ACTIVE_TRACK_PICKER_FILTER = "all";
+  let TRACK_ITINERARY_SLIDES_ONLY = false;
 
   function renderTrackStudio() {
+    const profile = getUserProfile();
     const trackIds = getTrack();
     const currentListEl = document.getElementById("export-track-list");
     const candidatesListEl = document.getElementById("track-candidates-list");
     const paneCountEl = document.getElementById("track-pane-count");
 
-    const trackTalks = ALL_TALKS.filter(t => trackIds.includes(t.id));
+    let trackTalks = ALL_TALKS.filter(t => trackIds.includes(t.id));
+    if (TRACK_ITINERARY_SLIDES_ONLY) {
+      trackTalks = trackTalks.filter(t => t.has_slides || t.file_name);
+    }
     if (paneCountEl) paneCountEl.textContent = trackTalks.length;
 
     // 1. Render Current Itinerary (Left Pane)
     if (currentListEl) {
-      if (trackTalks.length === 0) {
+      if (!profile) {
+        // Stage 1: No Profile Yet
         currentListEl.innerHTML = `
-          <div style="text-align: center; padding: 24px 10px;">
-            <p style="color: var(--text-secondary); margin-bottom: 12px; font-size: 0.86rem;">
-              Your track is currently empty.
+          <div style="text-align: center; padding: 24px 12px; background: var(--bg-card); border-radius: 8px; border: 1px dashed var(--border);">
+            <div style="font-size: 1.6rem; margin-bottom: 8px;">👤</div>
+            <strong style="color: var(--text-primary); font-size: 0.92rem; display: block; margin-bottom: 6px;">
+              Set Up Your Profile to Unlock AI Curation
+            </strong>
+            <p style="color: var(--text-secondary); margin-bottom: 14px; font-size: 0.82rem; line-height: 1.45;">
+              Declare your technical role, focus areas, and goals so the AI can automatically curate and rank a personalized conference itinerary for you.
             </p>
-            <button type="button" id="btn-auto-curate-track" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; padding: 7px 14px; font-size: 0.8rem;">
-              ✨ Auto-Curate from My Profile
+            <button type="button" id="btn-setup-profile-from-track" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; padding: 7px 16px; font-size: 0.82rem;">
+              👤 Set Up My Profile First
+            </button>
+          </div>
+        `;
+        const btnSetupProfile = document.getElementById("btn-setup-profile-from-track");
+        if (btnSetupProfile) {
+          btnSetupProfile.addEventListener("click", () => {
+            if (exportModal) exportModal.classList.remove("open");
+            const btnOpenProf = document.getElementById("btn-open-profile");
+            if (btnOpenProf) btnOpenProf.click();
+          });
+        }
+      } else if (trackTalks.length === 0) {
+        // Stage 2: Profile Exists, but Track is Empty
+        currentListEl.innerHTML = `
+          <div style="text-align: center; padding: 22px 12px; background: var(--bg-card); border-radius: 8px; border: 1px solid var(--border);">
+            <div style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.76rem; font-weight: 600; color: var(--accent); background: var(--badge-bg); padding: 3px 10px; border-radius: 12px; margin-bottom: 8px;">
+              🎯 Profile Active: ${escapeHtml(profile.role || "Specialist")}
+            </div>
+            <strong style="color: var(--text-primary); font-size: 0.9rem; display: block; margin-bottom: 6px;">
+              Your Track Is Ready to Curate
+            </strong>
+            <p style="color: var(--text-secondary); margin-bottom: 14px; font-size: 0.8rem; line-height: 1.4;">
+              Focus: ${(profile.focus_areas || []).map(escapeHtml).join(", ") || "General"}
+            </p>
+            <button type="button" id="btn-auto-curate-track" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; padding: 7px 16px; font-size: 0.82rem;">
+              ✨ Curate My Track with AI (Top Matches)
             </button>
           </div>
         `;
         const btnAuto = document.getElementById("btn-auto-curate-track");
         if (btnAuto) {
           btnAuto.addEventListener("click", () => {
-            const profile = getUserProfile();
-            let curated = [];
-            if (profile) {
-              curated = ALL_TALKS.filter(t => calculateProfileFit(t, profile) >= 65).map(t => t.id);
-            }
+            let curated = ALL_TALKS.filter(t => calculateProfileFit(t, profile) >= 65).map(t => t.id);
             if (curated.length === 0) {
               const sorted = [...ALL_TALKS].sort((a, b) => {
-                const fitB = profile ? calculateProfileFit(b, profile) : (b.relevance_score || 0);
-                const fitA = profile ? calculateProfileFit(a, profile) : (a.relevance_score || 0);
+                const fitB = calculateProfileFit(b, profile);
+                const fitA = calculateProfileFit(a, profile);
                 return fitB - fitA;
               });
               curated = sorted.slice(0, 2).map(t => t.id);
             }
             localStorage.setItem("agntcon_my_track", JSON.stringify(curated));
+            localStorage.setItem("agntcon_track_profile_sync", String(profile.updated_at || Date.now()));
             updateTrackCount();
             renderCards();
             renderTrackStudio();
           });
         }
       } else {
-        currentListEl.innerHTML = trackTalks.map(t => `
+        // Stage 3: Track is Populated
+        let realignBanner = "";
+        const lastSync = Number(localStorage.getItem("agntcon_track_profile_sync") || 0);
+        const profileUpdated = Number(profile.updated_at || 0);
+        if (profileUpdated > lastSync && lastSync > 0) {
+          realignBanner = `
+            <div style="background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; font-size: 0.78rem; display: flex; justify-content: space-between; align-items: center; gap: 6px;">
+              <span>💡 Profile updated: recommendations have changed.</span>
+              <button type="button" id="btn-realign-track" class="btn-cite" style="padding: 2px 6px; font-size: 0.72rem; color: var(--accent); font-weight: 600; white-space: nowrap;">
+                🔄 Re-align Track
+              </button>
+            </div>
+          `;
+        }
+
+        currentListEl.innerHTML = realignBanner + trackTalks.map(t => `
           <div class="track-item">
             <div style="min-width: 0;">
               <a href="#/session/${t.id}" onclick="openEssenceModal('${t.id}')" style="color: var(--accent); font-weight: 700; text-decoration: underline; font-size: 0.85rem; margin-right: 4px;">[[${t.id}]]</a>
               <strong style="font-size: 0.84rem; color: var(--text-primary);">${escapeHtml(t.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, ""))}</strong><br>
               <span style="font-size: 0.76rem; color: var(--text-secondary);">${escapeHtml((t.speakers || []).join(", "))}</span>
+              ${(t.has_slides || t.file_name) ? '<span style="font-size: 0.72rem; color: #22c55e; margin-left: 6px;">📄 Slides</span>' : ''}
             </div>
             <div style="display: flex; gap: 4px; align-items: center; flex-shrink: 0;">
               <button type="button" class="btn-cite" onclick="openEssenceModal('${t.id}')" style="padding: 3px 6px; font-size: 0.72rem;">Essence</button>
-              <button type="button" class="btn-cite" onclick="toggleTrack('${t.id}'); renderTrackStudio();" style="padding: 3px 6px; font-size: 0.72rem; color: #ef4444;" title="Remove from track">✕</button>
+              <button type="button" class="btn-cite" onclick="toggleTrack('${t.id}');" style="padding: 3px 6px; font-size: 0.72rem; color: #ef4444;" title="Remove from track">✕</button>
             </div>
           </div>
         `).join("");
+
+        const btnRealign = document.getElementById("btn-realign-track");
+        if (btnRealign) {
+          btnRealign.addEventListener("click", () => {
+            let curated = ALL_TALKS.filter(t => calculateProfileFit(t, profile) >= 65).map(t => t.id);
+            if (curated.length === 0) {
+              const sorted = [...ALL_TALKS].sort((a, b) => calculateProfileFit(b, profile) - calculateProfileFit(a, profile));
+              curated = sorted.slice(0, 2).map(t => t.id);
+            }
+            localStorage.setItem("agntcon_my_track", JSON.stringify(curated));
+            localStorage.setItem("agntcon_track_profile_sync", String(profile.updated_at || Date.now()));
+            updateTrackCount();
+            renderCards();
+            renderTrackStudio();
+          });
+        }
       }
     }
 
@@ -610,10 +702,11 @@ function setupEventListeners() {
         });
       }
 
-      const profile = getUserProfile();
       if (ACTIVE_TRACK_PICKER_FILTER === "profile") {
         candidates = candidates.filter(t => calculateProfileFit(t, profile) >= 40);
         candidates.sort((a, b) => calculateProfileFit(b, profile) - calculateProfileFit(a, profile));
+      } else if (ACTIVE_TRACK_PICKER_FILTER === "slides") {
+        candidates = candidates.filter(t => t.has_slides || t.file_name);
       } else if (ACTIVE_TRACK_PICKER_FILTER === "mcp") {
         candidates = candidates.filter(t => (t.concepts || []).includes("mcp"));
       } else if (ACTIVE_TRACK_PICKER_FILTER === "security") {
@@ -635,15 +728,17 @@ function setupEventListeners() {
                 <span style="font-size: 0.82rem; font-weight: 700; color: var(--accent);">[[${t.id}]]</span>
                 <span style="font-size: 0.82rem; color: var(--text-primary); margin-left: 4px;">${escapeHtml(t.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, ""))}</span><br>
                 <span style="font-size: 0.74rem; color: var(--text-secondary);">${escapeHtml((t.speakers || []).join(", "))}</span>
+                ${(t.has_slides || t.file_name) ? '<span style="font-size: 0.72rem; color: #22c55e; margin-left: 4px;">📄</span>' : ''}
                 <span style="font-size: 0.72rem; color: var(--accent); margin-left: 6px;">Fit: ${fitScore}%</span>
               </div>
-              <button type="button" class="track-add-btn" onclick="toggleTrack('${t.id}'); renderTrackStudio();">+ Add</button>
+              <button type="button" class="track-add-btn" onclick="toggleTrack('${t.id}');">+ Add</button>
             </div>
           `;
         }).join("");
       }
     }
   }
+  window.renderTrackStudio = renderTrackStudio;
 
   if (btnExportTrack) {
     btnExportTrack.addEventListener("click", () => {
@@ -654,6 +749,14 @@ function setupEventListeners() {
 
   if (trackSearchPicker) {
     trackSearchPicker.addEventListener("input", () => renderTrackStudio());
+  }
+
+  if (btnTrackItinerarySlides) {
+    btnTrackItinerarySlides.addEventListener("click", () => {
+      TRACK_ITINERARY_SLIDES_ONLY = !TRACK_ITINERARY_SLIDES_ONLY;
+      btnTrackItinerarySlides.classList.toggle("active", TRACK_ITINERARY_SLIDES_ONLY);
+      renderTrackStudio();
+    });
   }
 
   document.querySelectorAll(".track-filter-chip").forEach(chip => {

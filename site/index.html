@@ -79,6 +79,9 @@
           <button id="btn-filter-recommended" class="pill" style="display: none; background: rgba(56, 189, 248, 0.15); color: var(--accent); font-weight: 600; border: 1px solid rgba(56, 189, 248, 0.4);">
             ✨ Recommended For You (<span id="recommended-count">0</span>)
           </button>
+          <button id="btn-filter-slides" class="pill" style="display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border);">
+            📄 Slides Only
+          </button>
           <div id="concept-pills" class="concept-pills">
             <!-- Dynamically populated with live counts -->
           </div>
@@ -607,9 +610,14 @@
             <div class="track-pane">
               <div class="track-pane-header">
                 <span class="track-pane-title">📋 Current Track (<span id="track-pane-count">0</span>)</span>
-                <button type="button" id="btn-clear-track" class="btn-cite" style="padding: 2px 8px; font-size: 0.72rem; color: #ef4444;" title="Remove all sessions from track">
-                  🗑️ Clear All
-                </button>
+                <div style="display: flex; gap: 6px; align-items: center;">
+                  <button type="button" id="btn-track-itinerary-slides" class="btn-cite" style="padding: 2px 8px; font-size: 0.72rem;" title="Filter current track to only sessions with slides">
+                    📄 Slides Only
+                  </button>
+                  <button type="button" id="btn-clear-track" class="btn-cite" style="padding: 2px 8px; font-size: 0.72rem; color: #ef4444;" title="Remove all sessions from track">
+                    🗑️ Clear All
+                  </button>
+                </div>
               </div>
               <div id="export-track-list" class="track-pane-scroll">
                 <!-- Populated dynamically -->
@@ -625,6 +633,7 @@
               <div class="command-chips" style="justify-content: flex-start; margin-bottom: 6px;">
                 <button type="button" class="command-chip track-filter-chip active" data-track-filter="all">All</button>
                 <button type="button" class="command-chip track-filter-chip" data-track-filter="profile">✨ Profile Fit</button>
+                <button type="button" class="command-chip track-filter-chip" data-track-filter="slides">📄 Slides Only</button>
                 <button type="button" class="command-chip track-filter-chip" data-track-filter="mcp">MCP</button>
                 <button type="button" class="command-chip track-filter-chip" data-track-filter="security">Security</button>
                 <button type="button" class="command-chip track-filter-chip" data-track-filter="ebpf">eBPF</button>
