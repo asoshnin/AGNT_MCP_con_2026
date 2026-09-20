@@ -1573,6 +1573,10 @@ CRITICAL INVARIANTS:
               `).join("")}
             </div>`;
           }
+
+          const responseId = "resp_" + Math.random().toString(36).substring(2, 9);
+          registerBotResponse(responseId, q, answerText, displayedCitations);
+          html += renderBotActionsHtml(responseId);
           botEl.innerHTML = html;
         } else {
           botEl.innerHTML = `<div style="color: #f87171;">Local LLM error (HTTP ${llmRes.status}). Verify model name '${escapeHtml(modelName || "loaded model")}' at ${escapeHtml(completionsUrl)}.</div>`;
@@ -1675,6 +1679,10 @@ CRITICAL INVARIANTS:
             `).join("")}
           </div>`;
         }
+
+        const responseId = "resp_" + Math.random().toString(36).substring(2, 9);
+        registerBotResponse(responseId, q, data.answer, data.citations);
+        html += renderBotActionsHtml(responseId);
         botEl.innerHTML = html;
       } else if (res.status === 429) {
         botEl.innerHTML = `
@@ -1746,6 +1754,188 @@ function appendMsg(content, type, isHtml = false) {
   chatMessages.appendChild(div);
   chatMessages.scrollTop = chatMessages.scrollHeight;
   return id;
+}
+
+// Global response store for copying and exporting assistant answers
+window.BOT_RESPONSES = window.BOT_RESPONSES || {};
+window.LATEST_BOT_RESPONSE = null;
+
+function registerBotResponse(responseId, question, rawMarkdown, citations) {
+  const resp = {
+    id: responseId,
+    question: question || "Conference Inquiry",
+    answer: rawMarkdown || "",
+    citations: citations || [],
+    timestamp: new Date()
+  };
+  window.BOT_RESPONSES[responseId] = resp;
+  window.LATEST_BOT_RESPONSE = resp;
+  return resp;
+}
+
+function renderBotActionsHtml(responseId) {
+  return `
+    <div class="chat-msg-actions" data-response-id="${escapeHtml(responseId)}">
+      <button type="button" class="chat-action-btn" onclick="copyResponseMarkdown('${escapeHtml(responseId)}', this)" title="Copy raw markdown to clipboard">
+        <span>📋</span> <span class="action-text">Copy Markdown</span>
+      </button>
+      <button type="button" class="chat-action-btn" onclick="downloadResponseMarkdown('${escapeHtml(responseId)}')" title="Download response as Markdown file (.md)">
+        <span>⬇️</span> <span>.md</span>
+      </button>
+      <button type="button" class="chat-action-btn" onclick="exportResponsePdf('${escapeHtml(responseId)}')" title="Save or print response as formatted PDF">
+        <span>📄</span> <span>.pdf</span>
+      </button>
+    </div>
+  `;
+}
+
+function copyResponseMarkdown(responseId, btn) {
+  const resp = window.BOT_RESPONSES[responseId] || window.LATEST_BOT_RESPONSE;
+  if (!resp || !resp.answer) return;
+
+  const textToCopy = resp.answer;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      showCopiedFeedback(btn);
+    }).catch(() => fallbackCopy(textToCopy, btn));
+  } else {
+    fallbackCopy(textToCopy, btn);
+  }
+}
+
+function fallbackCopy(text, btn) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand("copy");
+    showCopiedFeedback(btn);
+  } catch (e) {
+    alert("Copy failed. Please select text manually.");
+  }
+  document.body.removeChild(ta);
+}
+
+function showCopiedFeedback(btn) {
+  if (!btn) return;
+  btn.classList.add("copied");
+  const span = btn.querySelector(".action-text") || btn;
+  const originalText = span.textContent;
+  span.textContent = "✓ Copied!";
+  setTimeout(() => {
+    btn.classList.remove("copied");
+    span.textContent = originalText;
+  }, 2000);
+}
+
+function downloadResponseMarkdown(responseId) {
+  const resp = window.BOT_RESPONSES[responseId] || window.LATEST_BOT_RESPONSE;
+  if (!resp || !resp.answer) return;
+
+  const dateStr = new Date(resp.timestamp).toISOString().split("T")[0];
+  let md = `# AGNTCon + MCPCon Europe 2026 — Research Assistant Briefing\n\n`;
+  md += `> **Query:** ${resp.question}\n`;
+  md += `> **Date:** ${dateStr}\n`;
+  md += `> **Source:** Unofficial Community Intelligence Hub (https://agntconmcpconeu26.sched.com/)\n\n`;
+  md += `---\n\n`;
+  md += `${resp.answer.trim()}\n\n`;
+
+  if (resp.citations && resp.citations.length > 0) {
+    md += `---\n\n### Referenced Presentations\n\n`;
+    resp.citations.forEach(c => {
+      md += `- **[${c.id}]** ${c.title} — [Official Sched](${c.sched_url})\n`;
+    });
+  }
+
+  const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const slug = resp.question.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 30) || "response";
+  a.href = url;
+  a.download = `agntcon-briefing-${slug}-${dateStr}.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportResponsePdf(responseId) {
+  const resp = window.BOT_RESPONSES[responseId] || window.LATEST_BOT_RESPONSE;
+  if (!resp || !resp.answer) return;
+
+  const printable = document.getElementById("printable-dossier");
+  if (!printable) {
+    alert("Printable container not found in DOM.");
+    return;
+  }
+
+  const dateStr = new Date(resp.timestamp).toLocaleDateString();
+  const profile = getUserProfile();
+
+  // Strip frontmatter if any
+  const cleanMd = resp.answer.replace(/^---[\s\S]*?---\n*/, "");
+  let formattedAnswerHtml = "";
+  if (typeof marked !== "undefined" && typeof DOMPurify !== "undefined") {
+    formattedAnswerHtml = DOMPurify.sanitize(marked.parse(cleanMd));
+  } else {
+    formattedAnswerHtml = `<div style="white-space: pre-wrap;">${escapeHtml(cleanMd)}</div>`;
+  }
+
+  let citationsHtml = "";
+  if (resp.citations && resp.citations.length > 0) {
+    citationsHtml = `
+      <div class="print-briefing-citations">
+        <h3 style="font-size: 12pt; margin-bottom: 8px;">Referenced Presentations</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 9.5pt;">
+          <thead>
+            <tr style="border-bottom: 2px solid #000;">
+              <th style="text-align: left; padding: 4px;">ID</th>
+              <th style="text-align: left; padding: 4px;">Presentation Title</th>
+              <th style="text-align: left; padding: 4px;">Sched Link</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${resp.citations.map(c => `
+              <tr style="border-bottom: 1px solid #ddd;">
+                <td style="padding: 4px; font-weight: bold;">[${escapeHtml(c.id)}]</td>
+                <td style="padding: 4px;">${escapeHtml(c.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, ""))}</td>
+                <td style="padding: 4px;"><a href="${escapeHtml(c.sched_url)}">${escapeHtml(c.sched_url)}</a></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  printable.innerHTML = `
+    <div class="print-cover" style="padding-bottom: 15px; margin-bottom: 15px;">
+      <h1>AGNTCon + MCPCon Europe 2026</h1>
+      <div class="print-subtitle">Research Assistant Briefing Note</div>
+      <p style="font-size: 9.5pt; color: #555; margin-top: 4px;"><strong>Generated:</strong> ${dateStr} • Unofficial Community Intelligence Hub</p>
+      ${profile ? `
+        <div style="margin-top: 10px; padding: 8px 12px; border: 1px solid #ddd; background: #f9f9f9; font-size: 9.5pt;">
+          <strong>Attendee Profile:</strong> ${escapeHtml(profile.role || "Specialist")} | 
+          <strong>Focus:</strong> ${escapeHtml((profile.focus_areas || []).join(", ") || "All")}
+        </div>
+      ` : ""}
+    </div>
+
+    <div class="print-briefing-q">
+      <strong>User Query:</strong> ${escapeHtml(resp.question)}
+    </div>
+
+    <div class="print-briefing-a">
+      ${formattedAnswerHtml}
+    </div>
+
+    ${citationsHtml}
+  `;
+
+  window.print();
 }
 
 function formatBotMarkdown(text) {

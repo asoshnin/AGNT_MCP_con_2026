@@ -39,15 +39,19 @@
     </header>
 
     <div class="disclaimer-banner">
-      <div style="display: flex; gap: 0.45rem; align-items: center; flex-wrap: wrap;">
-        <span class="disclaimer-pill">Unofficial Community Archive</span>
-        <span class="disclaimer-pill">Academic Fair-Use</span>
-        <span class="disclaimer-pill">Zero-Slide Hosting</span>
-        <span>Organized by <a href="https://events.linuxfoundation.org/agntcon-mcpcon-europe/" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: underline;">The Linux Foundation</a>. Independent open-source syntheses linking to <a href="https://agntconmcpconeu26.sched.com/" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: underline;">Sched</a>.</span>
+      <div class="disclaimer-meta">
+        <span class="disclaimer-badge">ACADEMIC RESEARCH ARCHIVE</span>
+        <span class="disclaimer-text">
+          Organized by <a href="https://events.linuxfoundation.org/agntcon-mcpcon-europe/" target="_blank" rel="noopener">The Linux Foundation</a>. Independent open-source syntheses linking to <a href="https://agntconmcpconeu26.sched.com/" target="_blank" rel="noopener">Sched</a>. Zero slide hosting.
+        </span>
       </div>
-      <div style="display: flex; gap: 8px; align-items: center;">
-        <button id="btn-open-disclaimer-top" class="btn-cite" style="padding: 3px 8px; font-size: 0.76rem; border-color: rgba(234, 179, 8, 0.4); color: #eab308; cursor: pointer;" title="Read non-commercial demonstration disclaimer">⚠️ Read Disclaimer</button>
-        <button id="link-open-legal" style="background: none; border: none; color: var(--accent); cursor: pointer; font-size: 0.82rem; text-decoration: underline;">Legal Policy & Takedowns ↗</button>
+      <div class="disclaimer-actions">
+        <button type="button" id="btn-open-disclaimer-top" class="disclaimer-btn disclaimer-btn-warning" title="Read non-commercial demonstration disclaimer">
+          <span>⚠️</span> Disclaimer
+        </button>
+        <button type="button" id="link-open-legal" class="disclaimer-btn disclaimer-btn-secondary" title="Legal Policy & Takedowns">
+          Legal Policy & Takedowns ↗
+        </button>
       </div>
     </div>
 
