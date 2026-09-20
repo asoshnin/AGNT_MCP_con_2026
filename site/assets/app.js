@@ -1644,25 +1644,31 @@ function appendMsg(text, type) {
 
 function formatBotMarkdown(text) {
   if (!text) return "";
-  let out = escapeHtml(text);
-  // 1. Format standard Markdown links [title](url)
-  out = out.replace(/\[(.*?)\]\((https?:\/\/.*?)\)/g, '<a href="$2" target="_blank" rel="noopener" style="color: var(--accent); font-weight: 500;">$1 ↗</a>');
 
-  // 2. Format parenthesized or bare Sched URLs: (https://agntcon...sched.com/event/...)
-  out = out.replace(/(?:\()?(https?:\/\/agntconmcpconeu26\.sched\.com\/event\/[^\s<)]+)(?:\))?/g, 
-    '<a href="$1" target="_blank" rel="noopener" style="color: var(--accent); font-weight: 600; text-decoration: underline;">[Official Sched ↗]</a>');
+  // 1. Transform wikilinks [[2RBBJ]] into interactive essence links before markdown parsing
+  let processed = text.replace(/\[\[([A-Za-z0-9_-]+)\]\]/g, (match, p1) => {
+    return `<a href="javascript:void(0)" onclick="openEssenceModal('${p1}')" class="wikilink-chat" style="color: var(--accent); font-weight: 700; text-decoration: underline;" title="Open presentation summary">[[${p1}]]</a>`;
+  });
 
-  // 3. Format any remaining bare URLs
-  out = out.replace(/(?:\()?(https?:\/\/[^\s<)"]+)(?:\))?/g, 
-    '<a href="$1" target="_blank" rel="noopener" style="color: var(--accent); font-weight: 500;">[Link ↗]</a>');
+  // 2. Use marked.js + DOMPurify (already loaded vendor libraries)
+  if (typeof marked !== "undefined" && typeof DOMPurify !== "undefined") {
+    const renderer = new marked.Renderer();
+    renderer.link = function(href, title, text) {
+      let h = typeof href === "object" ? href.href : href;
+      let t = typeof href === "object" ? href.text : text;
+      let tit = typeof href === "object" ? href.title : title;
+      return `<a href="${h}" target="_blank" rel="noopener"${tit ? ` title="${tit}"` : ""}>${t} ↗</a>`;
+    };
 
-  // 4. Format wikilinks [[2RBBJ]] as clickable links to open essence modal!
-  out = out.replace(/\[\[([A-Za-z0-9_-]+)\]\]/g, '<a href="javascript:void(0)" onclick="openEssenceModal(\'$1\')" style="color: var(--accent); font-weight: 700; text-decoration: underline; cursor: pointer;" title="Open presentation summary">[[$1]]</a>');
-  
-  // 5. Format bold
+    const rawHtml = marked.parse(processed, { renderer: renderer, breaks: true, gfm: true });
+    return DOMPurify.sanitize(rawHtml, {
+      ADD_ATTR: ["target", "onclick", "class", "style"]
+    });
+  }
+
+  // Safe fallback if vendor libraries are missing
+  let out = escapeHtml(processed);
   out = out.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-  
-  // 6. Replace newlines
   out = out.replace(/\n/g, "<br>");
   return out;
 }

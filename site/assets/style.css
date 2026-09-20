@@ -819,6 +819,49 @@ header {
   color: var(--text-primary);
 }
 
+.chat-msg.bot h1,
+.chat-msg.bot h2,
+.chat-msg.bot h3,
+.chat-msg.bot h4 {
+  margin: 12px 0 6px 0;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.chat-msg.bot h1:first-child,
+.chat-msg.bot h2:first-child,
+.chat-msg.bot h3:first-child {
+  margin-top: 0;
+}
+
+.chat-msg.bot p {
+  margin: 0 0 8px 0;
+  line-height: 1.5;
+}
+
+.chat-msg.bot p:last-child {
+  margin-bottom: 0;
+}
+
+.chat-msg.bot ul,
+.chat-msg.bot ol {
+  margin: 6px 0 10px 20px;
+  padding: 0;
+}
+
+.chat-msg.bot li {
+  margin-bottom: 6px;
+  line-height: 1.45;
+}
+
+.chat-msg.bot a {
+  color: var(--accent);
+  text-decoration: underline;
+  font-weight: 500;
+}
+
 .chat-citations {
   margin-top: 8px;
   padding-top: 8px;
@@ -885,7 +928,12 @@ header {
   display: flex;
   flex-direction: column;
   position: relative;
-  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+html[data-theme='light'] .modal-box {
+  border: 1px solid #94a3b8; /* Crisp, clearly defined slate-400 border */
+  box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.35), 0 0 0 1px rgba(15, 23, 42, 0.12);
 }
 
 .modal-header-bar {
@@ -900,6 +948,10 @@ header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+html[data-theme='light'] .modal-header-bar {
+  border-bottom: 1px solid #cbd5e1;
 }
 
 .modal-title {
