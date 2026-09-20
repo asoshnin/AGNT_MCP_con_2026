@@ -1,0 +1,32 @@
+[Unit]
+Description=AGNTCon + MCPCon Europe 2026 - LLM Wiki & MCP Gateway
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/agntcon-hub
+EnvironmentFile=-/etc/agntcon-hub/hub.env
+ExecStart=/opt/agntcon-hub/.venv/bin/python serve.py --host 127.0.0.1 --port 8088
+Restart=always
+RestartSec=5s
+
+# Security Sandboxing & Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/agntcon-hub/data
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+CapabilityBoundingSet=
+
+# Resource limits (Strict bounds)
+LimitNOFILE=65536
+MemoryMax=1024M
+
+[Install]
+WantedBy=multi-user.target

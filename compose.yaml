@@ -1,0 +1,38 @@
+# AGNTCon + MCPCon Europe 2026 - Docker Compose Service
+name: agntcon-hub
+
+services:
+  hub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: agntcon-hub:latest
+    container_name: agntcon-hub
+    restart: unless-stopped
+    ports:
+      # Bound to localhost for Cloudflare Tunnel / reverse proxy ingestion
+      - "127.0.0.1:8088:8088"
+    environment:
+      - PORT=8088
+      - HOST=0.0.0.0
+      - PUBLIC_URL=${PUBLIC_URL:-http://127.0.0.1:8088}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-changeme_secure_admin_pass}
+      # CRM Email Dispatch (Optional Resend integration)
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-}
+      # Telegram CRM Alerts (Optional notification webhook)
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      # Free Cloud LLM Inference Endpoints (Zero-Cost Invariant)
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - KILOCODE_API_KEY=${KILOCODE_API_KEY:-}
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY:-}
+    volumes:
+      # Persist CRM database and conference sqlite index across restarts
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8088/api/queue-status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
