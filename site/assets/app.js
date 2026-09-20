@@ -4,6 +4,7 @@ let HIGH_RELEVANCE_ONLY = false;
 let SLIDES_ONLY = false;
 let CURRENT_VIEW_MODE = localStorage.getItem("agntcon_view_mode") || "grid";
 let CURRENT_SORT = "relevance";
+let CURRENT_INFERENCE_TIER = localStorage.getItem("agntcon_inference_tier") || "cloud";
 
 function initTheme() {
   const themeSelect = document.getElementById('theme-select');
@@ -588,21 +589,31 @@ function closeModal() {
 
 function updateChatEngineBadge() {
   const badge = document.getElementById("chat-engine-badge");
-  const providerSelect = document.getElementById("model-provider-select");
-  if (!badge || !providerSelect) return;
-  const p = providerSelect.value;
-  if (p === "lmstudio") {
-    badge.textContent = "🟢 LM Studio (Local)";
-    badge.style.background = "rgba(34, 197, 94, 0.15)";
-    badge.style.color = "#22c55e";
-  } else if (p === "ollama") {
-    badge.textContent = "🟢 Ollama (Local)";
-    badge.style.background = "rgba(34, 197, 94, 0.15)";
-    badge.style.color = "#22c55e";
-  } else {
-    badge.textContent = "Cloud Demo";
+  if (!badge) return;
+  const tier = localStorage.getItem("agntcon_inference_tier") || "cloud";
+
+  if (tier === "cloud") {
+    badge.textContent = "☁️ Cloud Demo (Free)";
     badge.style.background = "rgba(56, 189, 248, 0.15)";
     badge.style.color = "var(--accent)";
+  } else {
+    const providerSelect = document.getElementById("model-provider-select");
+    const p = providerSelect ? providerSelect.value : "custom";
+    if (p === "lmstudio") {
+      badge.textContent = "💻 LM Studio (Local)";
+    } else if (p === "ollama") {
+      badge.textContent = "💻 Ollama (Local)";
+    } else if (p === "nvidia") {
+      badge.textContent = "🔑 NVIDIA NIM (BYOM)";
+    } else if (p === "kilocode") {
+      badge.textContent = "🔑 Kilocode (BYOM)";
+    } else if (p === "openrouter") {
+      badge.textContent = "🔑 OpenRouter (BYOM)";
+    } else {
+      badge.textContent = "🔑 Custom (BYOM)";
+    }
+    badge.style.background = "rgba(34, 197, 94, 0.15)";
+    badge.style.color = "#22c55e";
   }
 }
 
@@ -643,11 +654,10 @@ function setupChat() {
     const onlySlides = document.getElementById("chat-slides-only") ? document.getElementById("chat-slides-only").checked : false;
     const breadthSelect = document.getElementById("rag-breadth-select");
     const breadth = breadthSelect ? breadthSelect.value : "auto";
-    const providerSelect = document.getElementById("model-provider-select");
-    const currentProvider = providerSelect ? providerSelect.value : "cloud";
+    const tier = localStorage.getItem("agntcon_inference_tier") || "cloud";
 
-    // 1. Direct Local Execution Path (LM Studio or Ollama)
-    if (currentProvider === "lmstudio" || currentProvider === "ollama") {
+    // 1. BYOM: Direct Browser-Side Execution (Local or Custom Cloud)
+    if (tier === "byom") {
       const baseUrlInput = document.getElementById("model-base-url");
       const modelNameInput = document.getElementById("model-name-input");
       const apiKeyInput = document.getElementById("model-api-key");
@@ -712,27 +722,45 @@ Always cite the session ID (e.g. [[2RBBJ]]) and speaker by name for every claim.
           }
           botEl.innerHTML = html;
         } else {
-          botEl.innerHTML = `<div style="color: #f87171;">Local LLM error (HTTP ${llmRes.status}). Verify model name '${escapeHtml(modelName)}' is loaded in LM Studio.</div>`;
+          botEl.innerHTML = `<div style="color: #f87171;">Local LLM error (HTTP ${llmRes.status}). Verify model name '${escapeHtml(modelName)}' is loaded.</div>`;
         }
       } catch (err) {
         const botEl = document.getElementById(loadingId);
-        botEl.innerHTML = `
-          <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px; color: var(--text-primary); font-size: 0.85rem; line-height: 1.5;">
-            <strong style="color: #ef4444;">✕ Local LM Studio at ${escapeHtml(baseUrl)} is unreachable.</strong><br><br>
-            Ensure your SSH tunnel is active on port 1234, or:
-            <div style="margin-top: 8px;">
-              <button class="btn-header" onclick="document.getElementById('model-provider-select').value='openrouter'; updateChatEngineBadge();" style="font-size: 0.78rem; padding: 4px 10px;">
-                ☁️ Switch to Cloud Demo
-              </button>
+        if (window.location.protocol === "https:" && baseUrl.startsWith("http://")) {
+          botEl.innerHTML = `
+            <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px; color: var(--text-primary); font-size: 0.85rem; line-height: 1.5;">
+              <strong style="color: #ef4444;">🛡️ HTTPS Mixed Content Blocked</strong><br><br>
+              You are accessing this site via HTTPS, but trying to reach a local LLM via <code>http://</code>. Browsers block this by default.<br><br>
+              <strong>Solutions:</strong><br>
+              1. Switch to <strong>Cloud Demo</strong> (Free).<br>
+              2. Use a browser extension to Allow Insecure Content for this origin.<br>
+              3. Access this site via <code>http://</code> instead of <code>https://</code> if available.
+              <div style="margin-top: 12px;">
+                <button class="btn-header" onclick="localStorage.setItem('agntcon_inference_tier', 'cloud'); updateChatEngineBadge(); location.reload();" style="font-size: 0.78rem; padding: 4px 10px;">
+                  ☁️ Switch to Cloud Demo
+                </button>
+              </div>
             </div>
-          </div>
-        `;
+          `;
+        } else {
+          botEl.innerHTML = `
+            <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px; color: var(--text-primary); font-size: 0.85rem; line-height: 1.5;">
+              <strong style="color: #ef4444;">✕ Inference Provider at ${escapeHtml(baseUrl)} is unreachable.</strong><br><br>
+              Ensure your local LLM (LM Studio/Ollama) is running with CORS enabled, or your BYOM API key is valid.
+              <div style="margin-top: 8px;">
+                <button class="btn-header" onclick="localStorage.setItem('agntcon_inference_tier', 'cloud'); updateChatEngineBadge(); location.reload();" style="font-size: 0.78rem; padding: 4px 10px;">
+                  ☁️ Switch to Cloud Demo
+                </button>
+              </div>
+            </div>
+          `;
+        }
       }
       chatMessages.scrollTop = chatMessages.scrollHeight;
       return;
     }
 
-    // 2. Server-Side Cloud Demo Proxy Path (Default)
+    // 2. Cloud Demo: Server-Side Proxy Path (Default)
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -1073,6 +1101,110 @@ function setupModalsAndSettings() {
   const testModelResult = document.getElementById("test-model-result");
   const btnCopyMcp = document.getElementById("btn-copy-mcp-json");
 
+  const checkMixedContent = () => {
+    if (window.location.protocol === "https:") {
+      const warning = document.getElementById("https-mixed-content-warning");
+      if (baseUrlInput && warning) {
+        const url = baseUrlInput.value.trim();
+        if (url.startsWith("http://")) {
+          warning.style.display = "block";
+        } else {
+          warning.style.display = "none";
+        }
+      }
+    }
+  };
+
+  if (baseUrlInput) {
+    baseUrlInput.addEventListener("input", checkMixedContent);
+  }
+
+  // Inference Tier Tabs
+  const tabCloud = document.getElementById("tab-cloud-demo");
+  const tabBYOM = document.getElementById("tab-byom");
+  const panelCloud = document.getElementById("panel-cloud-demo");
+  const panelBYOM = document.getElementById("panel-byom");
+
+  if (tabCloud && tabBYOM && panelCloud && panelBYOM) {
+    const activeTier = localStorage.getItem("agntcon_inference_tier") || "cloud";
+    if (activeTier === "cloud") {
+      tabCloud.classList.add("active");
+      tabBYOM.classList.remove("active");
+      panelCloud.style.display = "block";
+      panelBYOM.style.display = "none";
+    } else {
+      tabBYOM.classList.add("active");
+      tabCloud.classList.remove("active");
+      panelBYOM.style.display = "block";
+      panelCloud.style.display = "none";
+    }
+
+    tabCloud.addEventListener("click", () => {
+      localStorage.setItem("agntcon_inference_tier", "cloud");
+      tabCloud.classList.add("active");
+      tabBYOM.classList.remove("active");
+      panelCloud.style.display = "block";
+      panelBYOM.style.display = "none";
+      updateChatEngineBadge();
+    });
+
+    tabBYOM.addEventListener("click", () => {
+      localStorage.setItem("agntcon_inference_tier", "byom");
+      tabBYOM.classList.add("active");
+      tabCloud.classList.remove("active");
+      panelBYOM.style.display = "block";
+      panelCloud.style.display = "none";
+      checkMixedContent();
+      updateChatEngineBadge();
+    });
+  }
+
+  // Cloud Test button
+  const btnTestCloud = document.getElementById("btn-test-cloud");
+  const testCloudResult = document.getElementById("test-cloud-result");
+  if (btnTestCloud) {
+    btnTestCloud.addEventListener("click", async () => {
+      if (testCloudResult) {
+        testCloudResult.style.color = "var(--text-secondary)";
+        testCloudResult.textContent = "Pinging AGNTCon Cloud Proxy...";
+      }
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: "Ping test", breadth: "focused" })
+        });
+        if (res.ok) {
+          if (testCloudResult) {
+            testCloudResult.style.color = "#22c55e";
+            testCloudResult.textContent = "✓ Cloud Demo Online";
+          }
+        } else {
+          if (testCloudResult) {
+            testCloudResult.style.color = "#f87171";
+            testCloudResult.textContent = "✕ Cloud Demo Offline (HTTP " + res.status + ")";
+          }
+        }
+      } catch (e) {
+        if (testCloudResult) {
+          testCloudResult.style.color = "#f87171";
+          testCloudResult.textContent = "✕ Connection Error";
+        }
+      }
+    });
+  }
+
+  // Forget Key button
+  const btnForgetKey = document.getElementById("btn-forget-key");
+  if (btnForgetKey) {
+    btnForgetKey.addEventListener("click", () => {
+      if (apiKeyInput) apiKeyInput.value = "";
+      localStorage.removeItem("agntcon_custom_key");
+      btnForgetKey.textContent = "✓ Cleared";
+      setTimeout(() => (btnForgetKey.textContent = "Forget Key"), 2000);
+    });
+  }
+
   // Restore saved API key from localStorage if present
   if (apiKeyInput) {
     const savedKey = localStorage.getItem("agntcon_custom_key");
@@ -1094,14 +1226,15 @@ function setupModalsAndSettings() {
         modelNameInput.value = "qwen2.5:7b-instruct";
       } else if (p === "nvidia") {
         baseUrlInput.value = "https://integrate.api.nvidia.com/v1";
-        modelNameInput.value = "meta/llama-3.3-70b-instruct";
+        modelNameInput.value = "nvidia/llama-3.1-nemotron-70b-instruct";
       } else if (p === "kilocode") {
         baseUrlInput.value = "https://api.kilo.ai/v1";
-        modelNameInput.value = "stepfun/step-3.7-flash:free";
+        modelNameInput.value = "kilo-auto/free";
       } else if (p === "openrouter") {
         baseUrlInput.value = "https://openrouter.ai/api/v1";
-        modelNameInput.value = "qwen/qwen3.8-27b:free";
+        modelNameInput.value = "meta-llama/llama-3.3-70b-instruct:free";
       }
+      checkMixedContent();
       updateChatEngineBadge();
     });
   }
