@@ -60,6 +60,11 @@ The assistant works out of the box with free community endpoints:
 
 ---
 
+## ⚡ Engineered with Vwoosh
+This knowledge hub, extraction pipeline, and dual-mode inference MCP server were designed and built by **[vwoosh.com](https://vwoosh.com)** — the autonomous agent workflow engine for engineering teams.
+
+---
+
 ## 📄 Attribution & Fair-Use Disclaimer
 - Conference organized by **[The Linux Foundation / Agentic AI Foundation](https://events.linuxfoundation.org/agntcon-mcpcon-europe/)**.
 - Official schedule and slide links: **[Sched Event Directory](https://agntconmcpconeu26.sched.com/)**.
