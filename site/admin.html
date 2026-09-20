@@ -337,7 +337,7 @@
               Email: <a href="mailto:${inq.email}" style="color: var(--accent);">${inq.email}</a>
               ${inq.organization ? ` | Org: <strong>${inq.organization}</strong>` : ''}
               ${inq.profile_url ? ` | <a href="${inq.profile_url}" target="_blank" rel="noopener" style="color: var(--accent);">Profile ↗</a>` : ''}
-              ${inq.session_id ? ` | Session: <a href="/#/session/${inq.session_id}" target="_blank" style="color: var(--accent);">[[${inq.session_id}]]</a>` : ''}
+              ${inq.session_id ? ` | Session: <a href="/#/session/${inq.session_id}" target="_blank" style="color: var(--accent);">[${inq.session_id}]</a>` : ''}
             </div>
           </div>
           <div style="display: flex; gap: 8px; align-items: center;">

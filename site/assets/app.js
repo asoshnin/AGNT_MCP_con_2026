@@ -666,7 +666,7 @@ function setupEventListeners() {
         currentListEl.innerHTML = realignBanner + trackTalks.map(t => `
           <div class="track-item">
             <div style="min-width: 0;">
-              <a href="#/session/${t.id}" onclick="openEssenceModal('${t.id}')" style="color: var(--accent); font-weight: 700; text-decoration: underline; font-size: 0.85rem; margin-right: 4px;">[[${t.id}]]</a>
+              <a href="#/session/${t.id}" onclick="openEssenceModal('${t.id}')" style="color: var(--accent); font-weight: 700; text-decoration: underline; font-size: 0.85rem; margin-right: 4px;">[${t.id}]</a>
               <strong style="font-size: 0.84rem; color: var(--text-primary);">${escapeHtml(t.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, ""))}</strong><br>
               <span style="font-size: 0.76rem; color: var(--text-secondary);">${escapeHtml((t.speakers || []).join(", "))}</span>
               ${(t.has_slides || t.file_name) ? '<span style="font-size: 0.72rem; color: #22c55e; margin-left: 6px;">📄 Slides</span>' : ''}
@@ -731,7 +731,7 @@ function setupEventListeners() {
           return `
             <div class="track-item">
               <div style="min-width: 0;">
-                <span style="font-size: 0.82rem; font-weight: 700; color: var(--accent);">[[${t.id}]]</span>
+                <span style="font-size: 0.82rem; font-weight: 700; color: var(--accent);">[${t.id}]</span>
                 <span style="font-size: 0.82rem; color: var(--text-primary); margin-left: 4px;">${escapeHtml(t.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, ""))}</span><br>
                 <span style="font-size: 0.74rem; color: var(--text-secondary);">${escapeHtml((t.speakers || []).join(", "))}</span>
                 ${(t.has_slides || t.file_name) ? '<span style="font-size: 0.72rem; color: #22c55e; margin-left: 4px;">📄</span>' : ''}
@@ -963,7 +963,7 @@ function setupEventListeners() {
             return `
               <div class="print-session-card">
                 <div style="display: flex; justify-content: space-between; font-size: 10pt; color: #555;">
-                  <span style="font-weight: bold; color: #000;">[[${t.id}]]</span>
+                  <span style="font-weight: bold; color: #000;">[${t.id}]</span>
                   <span><a href="${escapeHtml(t.sched_url)}">${escapeHtml(t.sched_url)}</a></span>
                 </div>
                 <h2 style="margin: 8px 0 6px 0; font-size: 16pt;">${escapeHtml(cleanTitle)}</h2>
@@ -1173,7 +1173,7 @@ function renderCards() {
     <div class="session-card">
       <div class="card-header">
         <div class="card-meta">
-          <span class="card-id">[[${t.id}]]</span>
+          <span class="card-id">[${t.id}]</span>
           ${scoreBadge}
           ${trackBtn}
         </div>
@@ -1219,7 +1219,7 @@ function renderCards() {
 
         return `
     <tr>
-      <td><a href="#/session/${t.id}" class="card-id" style="text-decoration: none;" onclick="openEssenceModal('${t.id}')">[[${t.id}]]</a></td>
+      <td><a href="#/session/${t.id}" class="card-id" style="text-decoration: none;" onclick="openEssenceModal('${t.id}')">[${t.id}]</a></td>
       <td>
         <strong>${escapeHtml(cleanTitle)}</strong>
         ${badgesHtml}
@@ -1260,7 +1260,7 @@ async function openEssenceModal(sid) {
   const trackBtn = `<button class="btn-track-toggle ${isBookmarked ? "active" : ""}" onclick="toggleTrack('${sid}')">${isBookmarked ? "★ In Track" : "☆ Add to Track"}</button>`;
 
   if (titleEl) {
-    titleEl.innerHTML = `Presentation Essence: <span style="color: var(--accent);">[[${escapeHtml(sid)}]]</span>`;
+    titleEl.innerHTML = `Presentation Essence: <span style="color: var(--accent);">[${escapeHtml(sid)}]</span>`;
   }
   if (trackBtnContainer) {
     trackBtnContainer.innerHTML = trackBtn;
@@ -1285,7 +1285,7 @@ async function openEssenceModal(sid) {
       let processed = rawContent.replace(/\[\[([A-Za-z0-9_-]+)\]\]/g, (match, p1) => {
         const isSession = ALL_TALKS.some((t) => t.id.toLowerCase() === p1.toLowerCase());
         if (isSession) {
-          return `<a href="#/session/${p1}" class="wikilink-pill" data-session-id="${p1}">[[${p1}]]</a>`;
+          return `<a href="#/session/${p1}" class="wikilink-pill" data-session-id="${p1}">[${p1}]</a>`;
         } else {
           return `<span class="card-tag" style="display: inline-block; margin: 2px 4px; font-size: 0.78rem;" onclick="closeModal(); filterByConcept('${escapeHtml(p1)}')">${escapeHtml(p1)}</span>`;
         }
@@ -1458,12 +1458,12 @@ function setupChat() {
         let citations = [];
         topMatches.forEach((m) => {
           citations.push({ id: m.id, title: m.title, sched_url: m.sched_url });
-          contextSnippets.push(`### [[${m.id}]]: ${m.title}\nSpeaker(s): ${(m.speakers || []).join(", ")}\nSummary: ${m.one_paragraph}`);
+          contextSnippets.push(`### [${m.id}]: ${m.title}\nSpeaker(s): ${(m.speakers || []).join(", ")}\nSummary: ${m.one_paragraph}`);
         });
 
         const systemPrompt = `You are the research assistant for AGNTCon + MCPCon Europe 2026.
 Answer clearly, thoroughly, and completely based strictly on the provided conference excerpts.
-Always cite the session ID (e.g. [[2RBBJ]]) and speaker by name for every claim.`;
+Always cite the session ID (e.g. [2RBBJ]) and speaker by name for every claim.`;
 
         const userMsg = `Question: ${q}\n\n<conference_excerpts>\n${contextSnippets.join("\n\n---\n\n")}\n</conference_excerpts>`;
 
@@ -1496,7 +1496,7 @@ Always cite the session ID (e.g. [[2RBBJ]]) and speaker by name for every claim.
               <strong style="color: var(--text-primary);">Referenced Presentations:</strong><br>
               ${citations.map((c) => `
                 <div style="margin-top: 6px; line-height: 1.4;">
-                  <strong>[[${escapeHtml(c.id)}]]</strong> ${escapeHtml(c.title)}<br>
+                  <strong>[${escapeHtml(c.id)}]</strong> ${escapeHtml(c.title)}<br>
                   <span style="font-size: 0.78rem;">
                     <a href="javascript:void(0)" onclick="openEssenceModal('${escapeHtml(c.id)}')" style="color: var(--accent); font-weight: 600; text-decoration: underline; margin-right: 8px;">📖 View Summary / Essence</a>
                     <a href="${escapeHtml(c.sched_url)}" target="_blank" rel="noopener" style="color: var(--text-secondary); text-decoration: underline;">Official Sched ↗</a>
@@ -1568,7 +1568,7 @@ Always cite the session ID (e.g. [[2RBBJ]]) and speaker by name for every claim.
             <strong style="color: var(--text-primary);">Referenced Presentations:</strong><br>
             ${data.citations.map((c) => `
               <div style="margin-top: 6px; line-height: 1.4;">
-                <strong>[[${escapeHtml(c.id)}]]</strong> ${escapeHtml(c.title)}<br>
+                <strong>[${escapeHtml(c.id)}]</strong> ${escapeHtml(c.title)}<br>
                 <span style="font-size: 0.78rem;">
                   <a href="javascript:void(0)" onclick="openEssenceModal('${escapeHtml(c.id)}')" style="color: var(--accent); font-weight: 600; text-decoration: underline; margin-right: 8px;">📖 View Summary / Essence</a>
                   <a href="${escapeHtml(c.sched_url)}" target="_blank" rel="noopener" style="color: var(--text-secondary); text-decoration: underline;">Official Sched ↗</a>
@@ -1585,7 +1585,7 @@ Always cite the session ID (e.g. [[2RBBJ]]) and speaker by name for every claim.
             <strong>Relevant Presentations Matched by RAG:</strong><br>
             ${data.citations.map((c) => `
               <div style="margin-top: 4px;">
-                <strong>[[${escapeHtml(c.id)}]]</strong> <a href="${escapeHtml(c.sched_url)}" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: underline;">${escapeHtml(c.title)}</a>
+                <strong>[${escapeHtml(c.id)}]</strong> <a href="${escapeHtml(c.sched_url)}" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: underline;">${escapeHtml(c.title)}</a>
               </div>
             `).join("")}
           </div>`;
@@ -1630,9 +1630,18 @@ function appendMsg(content, type, isHtml = false) {
 function formatBotMarkdown(text) {
   if (!text) return "";
 
-  // 1. Transform wikilinks [[2RBBJ]] into interactive essence links before markdown parsing
+  // 1. Transform [[2RBBJ]] or [2RBBJ] into interactive essence links with single brackets [2RBBJ]
   let processed = text.replace(/\[\[([A-Za-z0-9_-]+)\]\]/g, (match, p1) => {
-    return `<a href="javascript:void(0)" onclick="openEssenceModal('${p1}')" class="wikilink-chat" style="color: var(--accent); font-weight: 700; text-decoration: underline;" title="Open presentation summary">[[${p1}]]</a>`;
+    return `<a href="javascript:void(0)" onclick="openEssenceModal('${p1}')" class="wikilink-chat" style="color: var(--accent); font-weight: 700; text-decoration: underline;" title="Open presentation summary">[${p1}]</a>`;
+  });
+
+  // Also match standalone [2RBBJ] (where 2RBBJ is a session ID) not followed by markdown link parens
+  processed = processed.replace(/\[([A-Za-z0-9]{4,6})\](?!\s*[\(\[])/g, (match, p1) => {
+    const isSession = ALL_TALKS.some(t => t.id.toLowerCase() === p1.toLowerCase());
+    if (isSession) {
+      return `<a href="javascript:void(0)" onclick="openEssenceModal('${p1}')" class="wikilink-chat" style="color: var(--accent); font-weight: 700; text-decoration: underline;" title="Open presentation summary">[${p1}]</a>`;
+    }
+    return match;
   });
 
   // 2. Use marked.js + DOMPurify (already loaded vendor libraries)
@@ -1695,7 +1704,7 @@ function setupModalsAndSettings() {
     closeLegal();
     if (feedbackSessionSelect && ALL_TALKS.length > 0) {
       feedbackSessionSelect.innerHTML = '<option value="">-- Select Session --</option>' +
-        ALL_TALKS.map(t => `<option value="${t.id}" ${prefillSid === t.id ? 'selected' : ''}>[[${t.id}]] ${(t.title || '').replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, '').substring(0, 60)}...</option>`).join('');
+        ALL_TALKS.map(t => `<option value="${t.id}" ${prefillSid === t.id ? 'selected' : ''}>[${t.id}] ${(t.title || '').replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, '').substring(0, 60)}...</option>`).join('');
     }
     if (feedbackModal) feedbackModal.classList.add("open");
   };

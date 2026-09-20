@@ -198,7 +198,7 @@ async def tool_answer_conference(question: str, breadth: str = "auto", only_with
 Answer the user's question clearly, thoroughly, and completely based strictly on the provided conference excerpts.
 
 CRITICAL INVARIANTS:
-1. Every major claim or practice described MUST cite the session ID (e.g. [[2RBBJ]]) and include an outbound Markdown link to the canonical Sched presentation: [Presentation Title](https://agntconmcpconeu26.sched.com/event/...).
+1. Every major claim or practice described MUST cite the session ID (e.g. [2RBBJ]) and include an outbound Markdown link to the canonical Sched presentation: [Presentation Title](https://agntconmcpconeu26.sched.com/event/...).
 2. If the user asks for a list, ranking, or comparison of multiple talks, enumerate all matching candidates using a structured numbered list or Markdown table. Complete all requested points in full without truncation.
 3. If the topic was not discussed in the provided excerpts, state: "This topic was not covered in the conference sessions."
 4. Always cite speakers by name.
