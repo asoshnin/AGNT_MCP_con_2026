@@ -91,17 +91,21 @@ header {
   color: var(--accent);
 }
 
-.header-actions {
+.header-actions,
+.nav-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .btn-header {
+  height: 36px !important;
+  white-space: nowrap !important;
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.4rem 0.75rem;
+  gap: 6px;
+  padding: 0 12px;
   font-size: 0.82rem;
   border-radius: 6px;
   border: 1px solid var(--border);
@@ -109,6 +113,8 @@ header {
   color: var(--text-primary);
   cursor: pointer;
   text-decoration: none;
+  box-sizing: border-box;
+  line-height: 1;
   transition: all 0.15s ease;
 }
 
@@ -118,8 +124,31 @@ header {
 }
 
 .theme-select {
+  height: 36px !important;
+  white-space: nowrap !important;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 0.82rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-primary);
   outline: none;
   cursor: pointer;
+  box-sizing: border-box;
+}
+
+.track-badge-pill {
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  line-height: 1;
+  display: inline-block;
+  margin-left: 2px;
 }
 
 .theme-selector button.active {
@@ -722,6 +751,7 @@ header {
   flex: 1;
   padding: 16px;
   overflow-y: auto;
+  overflow-x: hidden !important;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -732,7 +762,15 @@ header {
   border-radius: 8px;
   font-size: 0.85rem;
   max-width: 90%;
-  line-height: 1.4;
+  line-height: 1.45;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+}
+
+.chat-msg,
+.chat-msg * {
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
 }
 
 .chat-msg.user {
@@ -1040,6 +1078,88 @@ footer {
   color: var(--text-secondary);
   border-top: 1px solid var(--border);
   margin-top: 40px;
+}
+
+/* Track Studio Dual-Pane Layout */
+.track-studio-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 16px;
+  margin: 14px 0;
+}
+
+@media (max-width: 768px) {
+  .track-studio-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.track-pane {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  min-height: 380px;
+  max-height: 480px;
+}
+
+.track-pane-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.track-pane-title {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--text-primary);
+}
+
+.track-pane-scroll {
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding-right: 4px;
+}
+
+.track-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.15s ease;
+}
+
+.track-item:hover {
+  border-color: var(--accent);
+}
+
+.track-add-btn {
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  color: #22c55e;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.76rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.track-add-btn:hover {
+  background: #22c55e;
+  color: #fff;
 }
 
 @media print {

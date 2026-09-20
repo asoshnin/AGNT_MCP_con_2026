@@ -319,7 +319,7 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
             # 3. Parse Body & Input Clamping
             try:
                 content_length = int(self.headers.get("Content-Length", 0))
-                if content_length > 2048:
+                if content_length > 4096:
                     self.send_response(400)
                     self.end_headers()
                     self.wfile.write(json.dumps({"error": "Payload exceeds maximum allowed size."}).encode("utf-8"))
@@ -336,7 +336,10 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                     role = str(user_profile.get("role", "")).strip()
                     focus = ", ".join(user_profile.get("focus_areas", []))
                     obj = str(user_profile.get("objective", "")).strip()
+                    notes = str(user_profile.get("custom_notes", "")).strip()
                     user_context = f"Role: {role} | Focus: {focus} | Objective: {obj}"
+                    if notes:
+                        user_context += f" | Technical Goals/Questions: {notes}"
             except Exception:
                 self.send_response(400)
                 self.end_headers()

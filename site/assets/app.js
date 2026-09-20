@@ -19,30 +19,84 @@ function getUserProfile() {
   }
 }
 
+const TAXONOMY_MAP = {
+  "mcp protocol & tools": ["mcp", "tools", "protocol", "connectivity"],
+  "agent sandboxing & containment": ["sandboxing", "security", "containment", "isolation", "red-teaming"],
+  "ebpf & kernel monitoring": ["ebpf", "kernel", "observability", "monitoring"],
+  "rag & context architecture": ["rag", "memory", "context", "compaction"],
+  "llm evaluation & benchmarking": ["evaluation", "benchmarks", "metrics", "red-teaming"],
+  "multi-agent orchestration": ["orchestration", "agents", "multi-agent", "consensus"]
+};
+
 function calculateProfileFit(talk, profile) {
   if (!profile) return 0;
 
-  // Focus Areas overlap
-  const profileFocus = (profile.focus_areas || []);
-  const talkConcepts = (talk.concepts || []).map(c => c.toLowerCase());
-  const intersection = profileFocus.filter(c => talkConcepts.includes(c.toLowerCase()));
-  const s_tags = (intersection.length / Math.max(1, profileFocus.length)) * 100;
+  // 1. Focus Areas Match (normalized canonical concepts)
+  const profileFocus = (profile.focus_areas || []).map(f => f.toLowerCase().trim());
+  const talkConcepts = (talk.concepts || []).map(c => c.toLowerCase().trim());
+  
+  let matchedFocusCount = 0;
+  profileFocus.forEach(f => {
+    const canonicalSlugs = TAXONOMY_MAP[f] || [f];
+    if (canonicalSlugs.some(slug => talkConcepts.includes(slug))) {
+      matchedFocusCount++;
+    }
+  });
+  const s_tags = profileFocus.length > 0 ? (matchedFocusCount / profileFocus.length) * 100 : 0;
 
-  // Role match
-  const roleStr = (profile.role || "").toLowerCase();
+  // 2. Custom Notes Keyword Match (0 - 100)
+  const notesStr = (profile.custom_notes || "").toLowerCase();
   const titleStr = (talk.title || "").toLowerCase();
   const essenceStr = (talk.one_paragraph || "").toLowerCase();
-  const roleTokens = roleStr.split(/\s+/).filter(t => t.length > 2);
-  let s_role = 30;
-  if (roleTokens.some(t => titleStr.includes(t) || essenceStr.includes(t))) {
-    s_role = 100;
+  const combinedText = `${titleStr} ${essenceStr} ${talkConcepts.join(" ")}`;
+
+  const stopWords = new Set(["the", "and", "for", "with", "that", "this", "from", "about", "what", "how", "are", "you", "your", "only", "also", "want", "more"]);
+  const noteTokens = notesStr
+    .split(/[^a-z0-9_-]+/)
+    .filter(t => t.length > 3 && !stopWords.has(t));
+
+  let s_notes = 0;
+  if (noteTokens.length > 0) {
+    const matchedTokens = noteTokens.filter(t => combinedText.includes(t));
+    if (matchedTokens.length >= 2) s_notes = 100;
+    else if (matchedTokens.length === 1) s_notes = 60;
   }
 
-  // Topic depth
+  // 3. Role Match (targeted non-generic keywords)
+  const roleStr = (profile.role || "").toLowerCase();
+  let s_role = 0;
+  if (roleStr.includes("security") || roleStr.includes("red team")) {
+    if (talkConcepts.some(c => ["security", "sandboxing", "red-teaming"].includes(c)) || combinedText.includes("attack") || combinedText.includes("vulnerability") || combinedText.includes("jailbreak")) {
+      s_role = 100;
+    }
+  } else if (roleStr.includes("architect") || roleStr.includes("infrastructure")) {
+    if (combinedText.includes("kubernetes") || combinedText.includes("infrastructure") || combinedText.includes("scale") || combinedText.includes("production") || talkConcepts.includes("ebpf")) {
+      s_role = 100;
+    }
+  } else if (roleStr.includes("engineer") || roleStr.includes("developer")) {
+    if (combinedText.includes("code") || combinedText.includes("tool") || combinedText.includes("framework") || talkConcepts.includes("mcp") || talkConcepts.includes("tool-use")) {
+      s_role = 100;
+    }
+  } else if (roleStr.includes("executive") || roleStr.includes("founder")) {
+    if (combinedText.includes("strategy") || combinedText.includes("governance") || combinedText.includes("ecosystem") || talk.kind === "keynote") {
+      s_role = 100;
+    }
+  }
+
+  // 4. Topic Depth baseline
   const s_depth = (talk.relevance_score || 0.8) * 100;
 
-  const result = Math.min(100, Math.round(0.50 * s_tags + 0.30 * s_role + 0.20 * s_depth));
-  return result;
+  // Composite Discriminative Formula (Base 0)
+  let score = 0;
+  if (noteTokens.length > 0) {
+    score = (0.40 * s_tags) + (0.30 * s_notes) + (0.15 * s_role) + (0.15 * s_depth);
+  } else if (profileFocus.length > 0) {
+    score = (0.55 * s_tags) + (0.25 * s_role) + (0.20 * s_depth);
+  } else {
+    score = (0.50 * s_role) + (0.50 * s_depth);
+  }
+
+  return Math.min(100, Math.max(0, Math.round(score)));
 }
 
 function getTrack() {
@@ -379,7 +433,7 @@ function setupEventListeners() {
     if (profile) {
       if (recommendedBtn) recommendedBtn.style.display = "inline-flex";
       if (recommendedCount) {
-        const matches = ALL_TALKS.filter(t => calculateProfileFit(t, profile) >= 50).length;
+        const matches = ALL_TALKS.filter(t => calculateProfileFit(t, profile) >= 60).length;
         recommendedCount.textContent = matches;
       }
     } else {
@@ -391,12 +445,28 @@ function setupEventListeners() {
     }
   };
 
+  const notesTextarea = document.getElementById("profile-custom-notes");
+  const notesCountSpan = document.getElementById("profile-notes-count");
+  if (notesTextarea && notesCountSpan) {
+    notesTextarea.addEventListener("input", () => {
+      notesCountSpan.textContent = notesTextarea.value.length;
+    });
+  }
+
   if (btnOpenProfile) {
     btnOpenProfile.addEventListener("click", () => {
       const profile = getUserProfile();
       if (profile) {
-        if (document.getElementById("profile-role")) document.getElementById("profile-role").value = profile.role || "";
-        if (document.getElementById("profile-focus")) document.getElementById("profile-focus").value = (profile.focus_areas || []).join(", ");
+        if (document.getElementById("profile-role")) document.getElementById("profile-role").value = profile.role || "AI Engineer / Agent Dev";
+        if (document.getElementById("profile-objective")) document.getElementById("profile-objective").value = profile.objective || "Hands-on Code & Implementations";
+        if (notesTextarea) {
+          notesTextarea.value = profile.custom_notes || "";
+          if (notesCountSpan) notesCountSpan.textContent = notesTextarea.value.length;
+        }
+        const userFocus = (profile.focus_areas || []);
+        document.querySelectorAll("#profile-focus-checkboxes input[type='checkbox']").forEach(b => {
+          b.checked = userFocus.includes(b.value);
+        });
       }
       if (profileModal) profileModal.classList.add("open");
     });
@@ -407,9 +477,19 @@ function setupEventListeners() {
   if (profileForm) {
     profileForm.addEventListener("submit", (e) => {
       e.preventDefault();
-      const role = document.getElementById("profile-role").value.trim();
-      const focus = document.getElementById("profile-focus").value.split(",").map(s => s.trim()).filter(Boolean);
-      localStorage.setItem("agntcon_user_profile", JSON.stringify({ role, focus_areas: focus }));
+      const role = document.getElementById("profile-role") ? document.getElementById("profile-role").value : "";
+      const objective = document.getElementById("profile-objective") ? document.getElementById("profile-objective").value : "";
+      const notes = notesTextarea ? notesTextarea.value.trim() : "";
+      const focusBoxes = document.querySelectorAll("#profile-focus-checkboxes input[type='checkbox']:checked");
+      const focus = Array.from(focusBoxes).map(b => b.value);
+
+      localStorage.setItem("agntcon_user_profile", JSON.stringify({ 
+        role, 
+        focus_areas: focus, 
+        objective, 
+        custom_notes: notes,
+        updated_at: Date.now()
+      }));
       profileModal.classList.remove("open");
       updateProfileUI();
       renderCards();
@@ -419,8 +499,10 @@ function setupEventListeners() {
   if (btnClearProfile) {
     btnClearProfile.addEventListener("click", () => {
       localStorage.removeItem("agntcon_user_profile");
-      if (document.getElementById("profile-role")) document.getElementById("profile-role").value = "";
-      if (document.getElementById("profile-focus")) document.getElementById("profile-focus").value = "";
+      if (document.getElementById("profile-role")) document.getElementById("profile-role").value = "AI Engineer / Agent Dev";
+      if (notesTextarea) notesTextarea.value = "";
+      if (notesCountSpan) notesCountSpan.textContent = "0";
+      document.querySelectorAll("#profile-focus-checkboxes input[type='checkbox']").forEach(b => b.checked = false);
       profileModal.classList.remove("open");
       updateProfileUI();
       renderCards();
@@ -447,63 +529,151 @@ function setupEventListeners() {
     });
   }
 
-  // Export Track
+  // Interactive Track Studio
   const btnExportTrack = document.getElementById("btn-export-track");
   const exportModal = document.getElementById("export-modal-backdrop");
   const exportClose = document.getElementById("export-modal-close");
-  if (btnExportTrack) {
-    btnExportTrack.addEventListener("click", () => {
-      const trackIds = getTrack();
-      const listEl = document.getElementById("export-track-list");
-      if (listEl) {
-        const trackTalks = ALL_TALKS.filter(t => trackIds.includes(t.id));
-        if (trackTalks.length === 0) {
-          listEl.innerHTML = `
-            <div style="text-align: center; padding: 22px 10px;">
-              <p style="color: var(--text-secondary); margin-bottom: 14px; font-size: 0.88rem;">
-                Your track is empty. You can bookmark presentations from the main grid using the <strong>☆ Add to Track</strong> button on any card.
-              </p>
-              <button id="btn-auto-curate-track" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; padding: 8px 16px; font-size: 0.84rem;">
-                ✨ Auto-Curate Track from My Profile
-              </button>
+  const btnClearTrack = document.getElementById("btn-clear-track");
+  const trackSearchPicker = document.getElementById("track-search-picker");
+  let ACTIVE_TRACK_PICKER_FILTER = "all";
+
+  function renderTrackStudio() {
+    const trackIds = getTrack();
+    const currentListEl = document.getElementById("export-track-list");
+    const candidatesListEl = document.getElementById("track-candidates-list");
+    const paneCountEl = document.getElementById("track-pane-count");
+
+    const trackTalks = ALL_TALKS.filter(t => trackIds.includes(t.id));
+    if (paneCountEl) paneCountEl.textContent = trackTalks.length;
+
+    // 1. Render Current Itinerary (Left Pane)
+    if (currentListEl) {
+      if (trackTalks.length === 0) {
+        currentListEl.innerHTML = `
+          <div style="text-align: center; padding: 24px 10px;">
+            <p style="color: var(--text-secondary); margin-bottom: 12px; font-size: 0.86rem;">
+              Your track is currently empty.
+            </p>
+            <button type="button" id="btn-auto-curate-track" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; padding: 7px 14px; font-size: 0.8rem;">
+              ✨ Auto-Curate from My Profile
+            </button>
+          </div>
+        `;
+        const btnAuto = document.getElementById("btn-auto-curate-track");
+        if (btnAuto) {
+          btnAuto.addEventListener("click", () => {
+            const profile = getUserProfile();
+            let curated = [];
+            if (profile) {
+              curated = ALL_TALKS.filter(t => calculateProfileFit(t, profile) >= 65).map(t => t.id);
+            }
+            if (curated.length === 0) {
+              const sorted = [...ALL_TALKS].sort((a, b) => {
+                const fitB = profile ? calculateProfileFit(b, profile) : (b.relevance_score || 0);
+                const fitA = profile ? calculateProfileFit(a, profile) : (a.relevance_score || 0);
+                return fitB - fitA;
+              });
+              curated = sorted.slice(0, 2).map(t => t.id);
+            }
+            localStorage.setItem("agntcon_my_track", JSON.stringify(curated));
+            updateTrackCount();
+            renderCards();
+            renderTrackStudio();
+          });
+        }
+      } else {
+        currentListEl.innerHTML = trackTalks.map(t => `
+          <div class="track-item">
+            <div style="min-width: 0;">
+              <a href="#/session/${t.id}" onclick="openEssenceModal('${t.id}')" style="color: var(--accent); font-weight: 700; text-decoration: underline; font-size: 0.85rem; margin-right: 4px;">[[${t.id}]]</a>
+              <strong style="font-size: 0.84rem; color: var(--text-primary);">${escapeHtml(t.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, ""))}</strong><br>
+              <span style="font-size: 0.76rem; color: var(--text-secondary);">${escapeHtml((t.speakers || []).join(", "))}</span>
+            </div>
+            <div style="display: flex; gap: 4px; align-items: center; flex-shrink: 0;">
+              <button type="button" class="btn-cite" onclick="openEssenceModal('${t.id}')" style="padding: 3px 6px; font-size: 0.72rem;">Essence</button>
+              <button type="button" class="btn-cite" onclick="toggleTrack('${t.id}'); renderTrackStudio();" style="padding: 3px 6px; font-size: 0.72rem; color: #ef4444;" title="Remove from track">✕</button>
+            </div>
+          </div>
+        `).join("");
+      }
+    }
+
+    // 2. Render Candidates Picker (Right Pane)
+    if (candidatesListEl) {
+      const searchVal = (trackSearchPicker ? trackSearchPicker.value : "").trim().toLowerCase();
+      let candidates = ALL_TALKS.filter(t => !trackIds.includes(t.id));
+
+      if (searchVal) {
+        candidates = candidates.filter(t => {
+          const blob = `${t.id} ${t.title} ${(t.speakers || []).join(" ")} ${(t.concepts || []).join(" ")}`.toLowerCase();
+          return blob.includes(searchVal);
+        });
+      }
+
+      const profile = getUserProfile();
+      if (ACTIVE_TRACK_PICKER_FILTER === "profile") {
+        candidates = candidates.filter(t => calculateProfileFit(t, profile) >= 40);
+        candidates.sort((a, b) => calculateProfileFit(b, profile) - calculateProfileFit(a, profile));
+      } else if (ACTIVE_TRACK_PICKER_FILTER === "mcp") {
+        candidates = candidates.filter(t => (t.concepts || []).includes("mcp"));
+      } else if (ACTIVE_TRACK_PICKER_FILTER === "security") {
+        candidates = candidates.filter(t => (t.concepts || []).some(c => ["security", "sandboxing", "red-teaming"].includes(c)));
+      } else if (ACTIVE_TRACK_PICKER_FILTER === "ebpf") {
+        candidates = candidates.filter(t => (t.concepts || []).includes("ebpf"));
+      } else if (ACTIVE_TRACK_PICKER_FILTER === "rag") {
+        candidates = candidates.filter(t => (t.concepts || []).some(c => ["rag", "memory"].includes(c)));
+      }
+
+      if (candidates.length === 0) {
+        candidatesListEl.innerHTML = `<div style="text-align: center; padding: 20px 10px; color: var(--text-secondary); font-size: 0.82rem;">No additional matching sessions found.</div>`;
+      } else {
+        candidatesListEl.innerHTML = candidates.map(t => {
+          const fitScore = profile ? calculateProfileFit(t, profile) : Math.round((t.relevance_score || 0.8) * 100);
+          return `
+            <div class="track-item">
+              <div style="min-width: 0;">
+                <span style="font-size: 0.82rem; font-weight: 700; color: var(--accent);">[[${t.id}]]</span>
+                <span style="font-size: 0.82rem; color: var(--text-primary); margin-left: 4px;">${escapeHtml(t.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, ""))}</span><br>
+                <span style="font-size: 0.74rem; color: var(--text-secondary);">${escapeHtml((t.speakers || []).join(", "))}</span>
+                <span style="font-size: 0.72rem; color: var(--accent); margin-left: 6px;">Fit: ${fitScore}%</span>
+              </div>
+              <button type="button" class="track-add-btn" onclick="toggleTrack('${t.id}'); renderTrackStudio();">+ Add</button>
             </div>
           `;
-          const btnAuto = document.getElementById("btn-auto-curate-track");
-          if (btnAuto) {
-            btnAuto.addEventListener("click", () => {
-              const profile = getUserProfile();
-              let curated = [];
-              if (profile) {
-                curated = ALL_TALKS.filter(t => calculateProfileFit(t, profile) >= 40).map(t => t.id);
-              }
-              if (curated.length === 0) {
-                curated = ALL_TALKS.slice(0, 5).map(t => t.id);
-              }
-              localStorage.setItem("agntcon_my_track", JSON.stringify(curated));
-              updateTrackCount();
-              renderCards();
-              btnExportTrack.click();
-            });
-          }
-        } else {
-          listEl.innerHTML = trackTalks.map(t => `
-            <div style="padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 10px;">
-              <div>
-                <a href="#/session/${t.id}" onclick="openEssenceModal('${t.id}')" style="color: var(--accent); font-weight: 700; text-decoration: underline; margin-right: 6px;">[[${t.id}]]</a>
-                <strong style="font-size: 0.88rem; color: var(--text-primary);">${escapeHtml(t.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, ""))}</strong><br>
-                <span style="font-size: 0.78rem; color: var(--text-secondary);">${escapeHtml((t.speakers || []).join(", "))}</span>
-              </div>
-              <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0;">
-                <button class="btn-cite" onclick="openEssenceModal('${t.id}')" style="padding: 4px 8px; font-size: 0.75rem;">Essence</button>
-                <button class="btn-cite" onclick="toggleTrack('${t.id}'); document.getElementById('btn-export-track').click();" style="padding: 4px 8px; font-size: 0.75rem; color: #f87171;">✕ Remove</button>
-              </div>
-            </div>
-          `).join("");
-        }
+        }).join("");
       }
+    }
+  }
+
+  if (btnExportTrack) {
+    btnExportTrack.addEventListener("click", () => {
+      renderTrackStudio();
       if (exportModal) exportModal.classList.add("open");
     });
   }
+
+  if (trackSearchPicker) {
+    trackSearchPicker.addEventListener("input", () => renderTrackStudio());
+  }
+
+  document.querySelectorAll(".track-filter-chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      document.querySelectorAll(".track-filter-chip").forEach(c => c.classList.remove("active"));
+      chip.classList.add("active");
+      ACTIVE_TRACK_PICKER_FILTER = chip.getAttribute("data-track-filter") || "all";
+      renderTrackStudio();
+    });
+  });
+
+  if (btnClearTrack) {
+    btnClearTrack.addEventListener("click", () => {
+      localStorage.removeItem("agntcon_my_track");
+      updateTrackCount();
+      renderCards();
+      renderTrackStudio();
+    });
+  }
+
   if (exportClose) exportClose.addEventListener("click", () => exportModal.classList.remove("open"));
 
   // Obsidian Export
@@ -1291,13 +1461,24 @@ function appendMsg(text, type) {
 function formatBotMarkdown(text) {
   if (!text) return "";
   let out = escapeHtml(text);
-  // Format markdown links [title](url)
+  // 1. Format standard Markdown links [title](url)
   out = out.replace(/\[(.*?)\]\((https?:\/\/.*?)\)/g, '<a href="$2" target="_blank" rel="noopener" style="color: var(--accent); font-weight: 500;">$1 ↗</a>');
-  // Format wikilinks [[2RBBJ]] as clickable links to open essence modal!
+
+  // 2. Format parenthesized or bare Sched URLs: (https://agntcon...sched.com/event/...)
+  out = out.replace(/(?:\()?(https?:\/\/agntconmcpconeu26\.sched\.com\/event\/[^\s<)]+)(?:\))?/g, 
+    '<a href="$1" target="_blank" rel="noopener" style="color: var(--accent); font-weight: 600; text-decoration: underline;">[Official Sched ↗]</a>');
+
+  // 3. Format any remaining bare URLs
+  out = out.replace(/(?:\()?(https?:\/\/[^\s<)"]+)(?:\))?/g, 
+    '<a href="$1" target="_blank" rel="noopener" style="color: var(--accent); font-weight: 500;">[Link ↗]</a>');
+
+  // 4. Format wikilinks [[2RBBJ]] as clickable links to open essence modal!
   out = out.replace(/\[\[([A-Za-z0-9_-]+)\]\]/g, '<a href="javascript:void(0)" onclick="openEssenceModal(\'$1\')" style="color: var(--accent); font-weight: 700; text-decoration: underline; cursor: pointer;" title="Open presentation summary">[[$1]]</a>');
-  // Format bold
+  
+  // 5. Format bold
   out = out.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-  // Replace newlines
+  
+  // 6. Replace newlines
   out = out.replace(/\n/g, "<br>");
   return out;
 }

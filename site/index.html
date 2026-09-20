@@ -32,11 +32,12 @@
             <option value="conference">Conference Palette</option>
           </select>
           <a href="https://github.com/asoshnin/AGNT_MCP_con_2026" target="_blank" rel="noopener" class="btn-header">⭐ Star on GitHub</a>
-          <button id="btn-open-profile" class="btn-header" style="display: inline-flex; align-items: center; gap: 4px;">
+          <button id="btn-open-profile" class="btn-header">
             👤 My Profile
           </button>
-          <button id="btn-export-track" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
-            📦 My Track (<span id="track-count">0</span>)
+          <button id="btn-export-track" class="btn-header">
+            <span>📦 My Track</span>
+            <span class="track-badge-pill" id="track-count">0</span>
           </button>
           <button id="btn-open-settings" class="btn-header">⚙️ Settings & MCP</button>
           <button id="btn-open-collab" class="btn-header" style="border-color: rgba(56, 189, 248, 0.4); font-weight: 600;">💼 Interest in Collaboration</button>
@@ -569,6 +570,14 @@
               </select>
             </div>
 
+            <div style="margin-bottom: 14px;">
+              <label style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 4px;">4. Specific Technical Goals & Questions (Optional, max 500 chars)</label>
+              <textarea id="profile-custom-notes" class="search-input" rows="3" maxlength="500" style="width: 100%; padding: 8px 12px; font-size: 0.85rem; resize: vertical;" placeholder="e.g. Focused on eBPF kernel tracing, memory poisoning protection (OWASP ASI06), and OpenClaw container isolation..."></textarea>
+              <div style="font-size: 0.75rem; color: var(--text-secondary); text-align: right; margin-top: 2px;">
+                <span id="profile-notes-count">0</span> / 500
+              </div>
+            </div>
+
             <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 20px;">
               <button type="button" id="btn-clear-profile" class="btn-header" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.4); padding: 8px 14px; font-size: 0.82rem;">
                 🗑️ Clear Profile
@@ -583,21 +592,51 @@
     </div>
 
     <div id="export-modal-backdrop" class="modal-backdrop">
-      <div class="modal-box" style="max-width: 680px;">
+      <div class="modal-box" style="max-width: 840px;">
         <button id="export-modal-close" class="modal-close">&times;</button>
         <div class="modal-header-bar">
-          <span class="modal-title">📦 My Curated Conference Track</span>
+          <span class="modal-title">📦 My Track Studio — Interactive Planner & Exporter</span>
         </div>
         <div class="markdown-content" style="font-size: 0.9rem;">
-          <p style="font-size: 0.84rem; color: var(--text-secondary); margin-bottom: 14px;">
-            Export your bookmarked sessions into Obsidian Markdown notes or a Single Printable PDF Executive Briefing.
+          <p style="font-size: 0.84rem; color: var(--text-secondary); margin-bottom: 10px;">
+            Curate your personal conference itinerary. Add sessions from the live search picker or auto-curate from your profile, then export to Obsidian or PDF.
           </p>
 
-          <div id="export-track-list" style="max-height: 240px; overflow-y: auto; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
-            <!-- Populated dynamically -->
+          <div class="track-studio-grid">
+            <!-- Left Pane: Current Itinerary -->
+            <div class="track-pane">
+              <div class="track-pane-header">
+                <span class="track-pane-title">📋 Current Track (<span id="track-pane-count">0</span>)</span>
+                <button type="button" id="btn-clear-track" class="btn-cite" style="padding: 2px 8px; font-size: 0.72rem; color: #ef4444;" title="Remove all sessions from track">
+                  🗑️ Clear All
+                </button>
+              </div>
+              <div id="export-track-list" class="track-pane-scroll">
+                <!-- Populated dynamically -->
+              </div>
+            </div>
+
+            <!-- Right Pane: Add Sessions Picker -->
+            <div class="track-pane">
+              <div class="track-pane-header">
+                <span class="track-pane-title">➕ Add Sessions to Track</span>
+              </div>
+              <input type="search" id="track-search-picker" class="search-input" placeholder="Search sessions to add..." style="padding: 6px 10px; font-size: 0.82rem; width: 100%; margin-bottom: 6px;" autocomplete="off">
+              <div class="command-chips" style="justify-content: flex-start; margin-bottom: 6px;">
+                <button type="button" class="command-chip track-filter-chip active" data-track-filter="all">All</button>
+                <button type="button" class="command-chip track-filter-chip" data-track-filter="profile">✨ Profile Fit</button>
+                <button type="button" class="command-chip track-filter-chip" data-track-filter="mcp">MCP</button>
+                <button type="button" class="command-chip track-filter-chip" data-track-filter="security">Security</button>
+                <button type="button" class="command-chip track-filter-chip" data-track-filter="ebpf">eBPF</button>
+                <button type="button" class="command-chip track-filter-chip" data-track-filter="rag">RAG</button>
+              </div>
+              <div id="track-candidates-list" class="track-pane-scroll">
+                <!-- Candidate sessions populated dynamically with [+ Add to Track] buttons -->
+              </div>
+            </div>
           </div>
 
-          <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end;">
+          <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);">
             <button type="button" id="btn-export-pdf-dossier" class="btn-header" style="background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-primary); font-weight: 600; padding: 10px 18px; display: inline-flex; align-items: center; gap: 6px;">
               📄 Save / Print Single PDF Dossier
             </button>
