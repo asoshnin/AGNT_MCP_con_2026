@@ -153,7 +153,7 @@ window.filterByConcept = function(concept) {
   }
 };
 
-window.copyCitation = function(sid) {
+window.copyCitation = function(sid, btn) {
   const t = ALL_TALKS.find((x) => x.id === sid);
   if (!t) return;
   const speaker = (t.speakers && t.speakers.length > 0) ? t.speakers[0] : "Speaker";
@@ -161,10 +161,18 @@ window.copyCitation = function(sid) {
   const citation = `${speaker} (2026). "${cleanTitle}". AGNTCon + MCPCon Europe 2026. ${t.sched_url}`;
   if (navigator.clipboard) {
     navigator.clipboard.writeText(citation).then(() => {
-      alert("✓ Citation copied to clipboard:\n\n" + citation);
+      if (btn) {
+        const orig = btn.innerHTML;
+        btn.innerHTML = "✓ Copied!";
+        btn.style.borderColor = "#22c55e";
+        btn.style.color = "#22c55e";
+        setTimeout(() => {
+          btn.innerHTML = orig;
+          btn.style.borderColor = "";
+          btn.style.color = "";
+        }, 2000);
+      }
     });
-  } else {
-    prompt("Copy citation:", citation);
   }
 };
 
@@ -411,7 +419,7 @@ function renderCards() {
           <a class="btn-sched" href="${escapeHtml(t.sched_url)}" target="_blank" rel="noopener">Official Sched ↗</a>
           ${directSlideBtn}
           <button class="btn-view-essence" onclick="openEssenceModal('${t.id}')">View Essence</button>
-          <button class="btn-cite" onclick="copyCitation('${t.id}')" title="Copy formatted citation">📋 Cite</button>
+          <button class="btn-cite" onclick="copyCitation('${t.id}', this)" title="Copy academic/blog citation to clipboard">📋 Citation</button>
         </div>
       </div>
     </div>
@@ -455,7 +463,7 @@ function renderCards() {
         <div style="display: inline-flex; gap: 6px;">
           <a class="btn-sched" href="${escapeHtml(t.sched_url)}" target="_blank" rel="noopener" style="padding: 4px 8px; font-size: 0.78rem;">Sched ↗</a>
           <button class="btn-view-essence" onclick="openEssenceModal('${t.id}')" style="padding: 4px 8px; font-size: 0.78rem;">View</button>
-          <button class="btn-cite" onclick="copyCitation('${t.id}')" style="padding: 4px 8px; font-size: 0.78rem;" title="Copy citation">📋</button>
+          <button class="btn-cite" onclick="copyCitation('${t.id}', this)" style="padding: 4px 8px; font-size: 0.78rem;" title="Copy academic citation to clipboard">📋 Citation</button>
         </div>
       </td>
     </tr>
