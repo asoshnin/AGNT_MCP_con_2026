@@ -6,6 +6,8 @@
       "Roy Belio"
     ],
     "sched_url": "https://agntconmcpconeu26.sched.com/event/2RBBJ/infrastructure-red-teaming-with-abliterated-models-what-actually-stops-agent-attacks-roy-belio-red-hat",
+    "has_slides": true,
+    "slide_url": "https://hosted-files.sched.co/agntconmcpconeu26/35/redteaming-v2.pdf",
     "concepts": [
       "sandboxing",
       "security",

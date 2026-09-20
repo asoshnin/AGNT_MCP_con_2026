@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inquiry Status & Dialogue — AGNTCon 2026</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <style>
+    body { background: var(--bg-primary); color: var(--text-primary); font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 20px; }
+    .ticket-container { max-width: 760px; margin: 30px auto; background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+    .ticket-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .ticket-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; min-height: 250px; }
+    .msg-bubble { max-width: 85%; padding: 12px 16px; border-radius: 8px; line-height: 1.5; font-size: 0.9rem; }
+    .msg-client { align-self: flex-start; background: var(--bg-secondary); border: 1px solid var(--border); }
+    .msg-admin { align-self: flex-end; background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.4); }
+    .ticket-composer { padding: 20px 24px; border-top: 1px solid var(--border); background: var(--bg-secondary); display: flex; flex-direction: column; gap: 10px; }
+  </style>
+</head>
+<body>
+
+  <div class="ticket-container">
+    <div class="ticket-header">
+      <div>
+        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">Private Inquiry Thread</div>
+        <h2 id="ticket-title" style="margin: 0; font-size: 1.2rem;">Loading ticket...</h2>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <span id="ticket-status-badge" style="font-size: 0.8rem; padding: 4px 10px; border-radius: 6px; background: var(--bg-secondary); border: 1px solid var(--border);">Status: ...</span>
+        <a href="/" class="btn-header" style="text-decoration: none; font-size: 0.8rem;">Hub Home</a>
+      </div>
+    </div>
+
+    <div class="ticket-body" id="ticket-messages">
+      <div style="text-align: center; color: var(--text-secondary); margin: auto;">Connecting to communication server...</div>
+    </div>
+
+    <div class="ticket-composer" id="composer-box" style="display: none;">
+      <label style="font-size: 0.82rem; font-weight: 600;">Post Follow-Up Message or Update</label>
+      <textarea id="client-reply-text" class="search-input" rows="3" style="padding: 10px 14px; resize: vertical;" placeholder="Type your response to the maintainer..."></textarea>
+      <div style="display: flex; justify-content: flex-end;">
+        <button id="btn-client-reply" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; padding: 8px 16px;">
+          Send Follow-Up →
+        </button>
+      </div>
+      <div id="reply-status" style="font-size: 0.8rem; color: #22c55e; display: none;"></div>
+    </div>
+  </div>
+
+  <script>
+    // Extract ticket id and key from URL search params or hash
+    const params = new URLSearchParams(window.location.search);
+    const ticketId = params.get("id");
+    const secretKey = params.get("key");
+
+    const titleEl = document.getElementById("ticket-title");
+    const statusEl = document.getElementById("ticket-status-badge");
+    const messagesEl = document.getElementById("ticket-messages");
+    const composerBox = document.getElementById("composer-box");
+    const replyBtn = document.getElementById("btn-client-reply");
+    const replyInput = document.getElementById("client-reply-text");
+    const replyStatus = document.getElementById("reply-status");
+
+    if (!ticketId || !secretKey) {
+      titleEl.textContent = "Invalid or Missing Ticket Credentials";
+      messagesEl.innerHTML = `<div style="text-align: center; color: #f87171;">This private thread requires a valid ticket ID and secret key in the link.</div>`;
+    } else {
+      loadTicket();
+    }
+
+    async function loadTicket() {
+      try {
+        const res = await fetch(`/api/ticket/${ticketId}?key=${encodeURIComponent(secretKey)}`);
+        if (!res.ok) {
+          titleEl.textContent = "Ticket Not Found";
+          messagesEl.innerHTML = `<div style="text-align: center; color: #f87171;">Inquiry #${ticketId} was not found or access key is invalid.</div>`;
+          return;
+        }
+
+        const data = await res.json();
+        titleEl.textContent = `#${data.id} — ${data.title || data.type}`;
+        statusEl.textContent = `Status: ${data.status.toUpperCase()}`;
+        statusEl.style.color = data.status === 'resolved' ? '#22c55e' : 'var(--accent)';
+        composerBox.style.display = "flex";
+
+        if (!data.messages || data.messages.length === 0) {
+          messagesEl.innerHTML = `<div style="text-align: center; color: var(--text-secondary);">No messages yet.</div>`;
+          return;
+        }
+
+        messagesEl.innerHTML = data.messages.map(m => {
+          const isAdmin = m.sender_type === "admin";
+          return `
+            <div class="msg-bubble ${isAdmin ? 'msg-admin' : 'msg-client'}">
+              <div style="font-size: 0.75rem; opacity: 0.75; margin-bottom: 4px; display: flex; justify-content: space-between;">
+                <strong>${isAdmin ? 'Project Maintainer' : data.name}</strong>
+                <span>${m.created_at}</span>
+              </div>
+              <div>${m.body.replace(/\\n/g, '<br>')}</div>
+            </div>
+          `;
+        }).join("");
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      } catch (err) {
+        messagesEl.innerHTML = `<div style="text-align: center; color: #f87171;">Failed to communicate with ticket server.</div>`;
+      }
+    }
+
+    replyBtn.addEventListener("click", async () => {
+      const text = replyInput.value.trim();
+      if (!text) return;
+
+      replyBtn.disabled = true;
+      replyBtn.textContent = "Sending...";
+      replyStatus.style.display = "none";
+
+      try {
+        const res = await fetch(`/api/ticket/${ticketId}/reply`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: secretKey, body: text })
+        });
+        const result = await res.json();
+        if (res.ok && result.status === "ok") {
+          replyInput.value = "";
+          replyStatus.textContent = "✓ Message delivered to maintainer!";
+          replyStatus.style.display = "block";
+          loadTicket();
+          setTimeout(() => { replyStatus.style.display = "none"; }, 4000);
+        } else {
+          alert("Error: " + (result.error || "Failed to submit message."));
+        }
+      } catch (err) {
+        alert("Connection failure to ticket server.");
+      } finally {
+        replyBtn.disabled = false;
+        replyBtn.textContent = "Send Follow-Up →";
+      }
+    });
+  </script>
+</body>
+</html>

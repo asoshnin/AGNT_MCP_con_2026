@@ -506,6 +506,58 @@ header {
   color: var(--accent);
 }
 
+.btn-cite {
+  font-size: 0.82rem;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-cite:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-collab-starter {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-collab-starter:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-disclaimer-badge {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+  font-weight: 700;
+  font-size: 0.8rem;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-disclaimer-badge:hover {
+  background: rgba(239, 68, 68, 0.22);
+  border-color: #ef4444;
+}
+
 /* Floating Chat Drawer */
 .chat-drawer {
   position: fixed;

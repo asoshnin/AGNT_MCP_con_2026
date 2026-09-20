@@ -32,7 +32,7 @@
           </select>
           <a href="https://github.com/asoshnin/AGNT_MCP_con_2026" target="_blank" rel="noopener" class="btn-header">⭐ Star on GitHub</a>
           <button id="btn-open-settings" class="btn-header">⚙️ Settings & MCP</button>
-          <button id="btn-open-legal" class="btn-header">⚖️ Legal Policy</button>
+          <button id="btn-open-collab" class="btn-header" style="border-color: rgba(56, 189, 248, 0.4); font-weight: 600;">💼 Interest in Collaboration</button>
         </div>
       </div>
     </header>
@@ -63,6 +63,11 @@
             <label class="toggle-label">
               <input type="checkbox" id="relevance-toggle">
               <span>High Topic Depth (≥ 70%)</span>
+            </label>
+
+            <label class="toggle-label">
+              <input type="checkbox" id="slides-only-toggle">
+              <span>📄 Slides Attached Only</span>
             </label>
 
             <select id="sort-select" class="btn-header" style="padding: 5px 8px; font-size: 0.8rem;" title="Sort order">
@@ -147,19 +152,19 @@
           </p>
           <div style="margin-top: 1.5rem; text-align: center;">
             <button id="btn-open-feedback-from-legal" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; padding: 10px 18px;">
-              📝 Open Speaker Correction & Takedown Portal
+              📝 Open Speaker Correction & Takedown Form
             </button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Modal for Speaker Feedback & Correction Portal -->
+    <!-- Modal for Speaker Feedback & Correction Form -->
     <div id="feedback-modal-backdrop" class="modal-backdrop">
       <div class="modal-box" style="max-width: 650px;">
         <button id="feedback-modal-close" class="modal-close">&times;</button>
         <div class="modal-header-bar">
-          <span class="modal-title">📝 Speaker Correction & Takedown Portal</span>
+          <span class="modal-title">📝 Speaker Correction & Takedown Form</span>
         </div>
         <form id="author-feedback-form" style="display: flex; flex-direction: column; gap: 14px;">
           <p style="font-size: 0.85rem; color: var(--text-secondary);">
@@ -218,7 +223,120 @@
       </div>
     </div>
 
-    <!-- Modal for Settings, Local Models & Offline Bundles -->
+    <!-- Modal for Collaboration Inquiry Form -->
+    <div id="collab-modal-backdrop" class="modal-backdrop">
+      <div class="modal-box" style="max-width: 680px;">
+        <button id="collab-modal-close" class="modal-close">&times;</button>
+        <div class="modal-header-bar">
+          <span class="modal-title">💼 Collaboration & Custom Build Inquiry</span>
+        </div>
+        <form id="collab-form" style="display: flex; flex-direction: column; gap: 14px;">
+          <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5;">
+            Interested in deploying an internal conference/knowledge wiki for your enterprise, building custom MCP agent integrations, or sponsoring compute? Submit your project details below:
+          </p>
+
+          <!-- Honeypot anti-spam field -->
+          <input type="text" id="collab-hp" name="website_hp" style="display:none !important;" tabindex="-1" autocomplete="off">
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div>
+              <label style="display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px;">Full Name *</label>
+              <input type="text" id="collab-name" class="search-input" style="padding: 8px 12px;" placeholder="Alex Johnson" required>
+            </div>
+            <div>
+              <label style="display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px;">Work Email *</label>
+              <input type="email" id="collab-email" class="search-input" style="padding: 8px 12px;" placeholder="alex@company.com" required>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div>
+              <label style="display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px;">Organization / Company</label>
+              <input type="text" id="collab-org" class="search-input" style="padding: 8px 12px;" placeholder="Enterprise, Lab, or Startup">
+            </div>
+            <div>
+              <label style="display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px;">LinkedIn or GitHub Profile</label>
+              <input type="url" id="collab-profile" class="search-input" style="padding: 8px 12px;" placeholder="https://linkedin.com/in/... or https://github.com/...">
+            </div>
+          </div>
+
+          <div>
+            <label style="display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 4px;">Inquiry Type *</label>
+            <select id="collab-type" class="search-input" style="padding: 8px 12px;" required>
+              <option value="Enterprise Knowledge Wiki">Enterprise Knowledge Wiki (Custom internal deployment)</option>
+              <option value="Conference & Event Wiki">Conference & Event Wiki (Turnkey wiki for your event)</option>
+              <option value="Custom MCP Development">Custom MCP Server & Agent Harness Development</option>
+              <option value="Compute Sponsorship">Sponsorship & Compute Partner (NVIDIA NIM / Cloud Credits)</option>
+              <option value="Consulting Advisory">Consulting / Architecture Advisory</option>
+              <option value="Open Source Contribution">Open Source Contribution / Other</option>
+            </select>
+          </div>
+
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label style="font-size: 0.82rem; font-weight: 600;">Project Scope & Description *</label>
+              <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                <button type="button" class="btn-collab-starter" data-starter="We want to deploy an internal conference knowledge hub for our engineering organization.">🏢 Enterprise Wiki</button>
+                <button type="button" class="btn-collab-starter" data-starter="We are looking for consulting on Model Context Protocol (MCP) server architecture and agent tool-calling.">⚡ Custom MCP</button>
+                <button type="button" class="btn-collab-starter" data-starter="We are interested in providing GPU or API compute sponsorship for this open-source tool.">🤝 Compute Sponsor</button>
+              </div>
+            </div>
+            <textarea id="collab-description" class="search-input" rows="4" style="padding: 8px 12px; resize: vertical;" placeholder="Describe your team's requirements, target timeline, or collaboration ideas..." required></textarea>
+          </div>
+
+          <div id="collab-status" style="font-size: 0.85rem; display: none;"></div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px;">
+            <button type="button" id="collab-cancel-btn" class="btn-header">Cancel</button>
+            <button type="submit" id="collab-submit-btn" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600;">
+              Send Collaboration Inquiry →
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal for Non-Commercial Disclaimer & Expectation Boundary -->
+    <div id="disclaimer-modal-backdrop" class="modal-backdrop">
+      <div class="modal-box" style="max-width: 650px;">
+        <button id="disclaimer-modal-close" class="modal-close">&times;</button>
+        <div class="modal-header-bar">
+          <span class="modal-title">⚠️ Non-Commercial Demonstration & Disclaimer</span>
+        </div>
+        <div class="markdown-content" style="font-size: 0.9rem; line-height: 1.6;">
+          <p>
+            This website is an <strong>independent open-source research and engineering demonstration</strong> developed for the global AI and developer community.
+          </p>
+
+          <h3>1. Independent Community Project</h3>
+          <p>
+            This project is created independently and is not affiliated with, endorsed by, or sponsored by The Linux Foundation, Sched.com, or event sponsors.
+          </p>
+
+          <h3>2. No Commercial Maintenance or 24/7 SLA Guarantee</h3>
+          <p>
+            This demonstration is provided <em>as-is</em> for research and exploration. The author does not operate it as a commercial SaaS product and does not guarantee continuous 24/7 uptime or ongoing commercial service level agreements (SLAs).
+          </p>
+
+          <h3>3. Speaker Rights & Rapid Remedies</h3>
+          <p>
+            We deeply respect intellectual property and speaker goodwill. If you are an author or speaker and wish to propose improvements, append verified code repositories, or request exclusion, please submit our verified form.
+          </p>
+
+          <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; justify-content: center;">
+            <button id="btn-open-speaker-from-disclaimer" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600;">
+              📝 Open Speaker Correction Form
+            </button>
+            <button id="btn-open-collab-from-disclaimer" class="btn-header">
+              💼 Submit Collaboration Inquiry
+            </button>
+            <button id="btn-open-legal-from-disclaimer" class="btn-header">
+              ⚖️ View Full Legal Policy
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
     <div id="settings-modal-backdrop" class="modal-backdrop">
       <div class="modal-box" style="max-width: 720px;">
         <button id="settings-modal-close" class="modal-close">&times;</button>
@@ -250,15 +368,25 @@
               </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 10px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
               <div>
                 <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px;">Base URL</label>
                 <input type="text" id="model-base-url" class="search-input" style="padding: 6px 10px; font-size: 0.85rem;" value="http://127.0.0.1:1234/v1" placeholder="http://127.0.0.1:1234/v1">
               </div>
               <div>
-                <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px;">API Key (Local Only)</label>
-                <input type="password" id="model-api-key" class="search-input" style="padding: 6px 10px; font-size: 0.85rem;" placeholder="Optional for Ollama">
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px;">RAG Retrieval Breadth</label>
+                <select id="rag-breadth-select" class="search-input" style="padding: 6px 10px; font-size: 0.85rem;">
+                  <option value="auto" selected>🤖 Auto-Detect (Adapts to query)</option>
+                  <option value="focused">⚡ Fast / Focused (Top 3 Talks)</option>
+                  <option value="balanced">🧠 Balanced (Top 6 Talks)</option>
+                  <option value="deep">📚 Deep Survey (Top 12 Talks)</option>
+                </select>
               </div>
+            </div>
+
+            <div>
+              <label style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px;">API Key (Local or Custom Cloud)</label>
+              <input type="password" id="model-api-key" class="search-input" style="padding: 6px 10px; font-size: 0.85rem;" placeholder="Optional for LM Studio / Ollama">
             </div>
 
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 4px;">
@@ -324,14 +452,27 @@
 
       <div id="chat-panel" class="chat-panel">
         <div class="chat-header">
-          <span class="chat-title">AGNTCon 2026 AI Assistant</span>
-          <button id="chat-close" class="chat-close">&times;</button>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="chat-title">AGNTCon AI Assistant</span>
+            <span id="chat-engine-badge" style="font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; background: rgba(56, 189, 248, 0.15); color: var(--accent); font-weight: 600;">Cloud Demo</span>
+          </div>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <button type="button" id="chat-reset" class="btn-header" style="padding: 3px 8px; font-size: 0.75rem;" title="Reset chat conversation">🔄 New</button>
+            <button id="chat-close" class="chat-close">&times;</button>
+          </div>
         </div>
         <div id="chat-messages" class="chat-messages">
           <div class="chat-msg bot">
             Hello! I am your research assistant for <strong>AGNTCon + MCPCon Europe 2026</strong>.<br><br>
             Ask me about any presentation, architecture pattern, security boundary, or tool mentioned at the conference. Every answer links directly to the canonical presentation on Sched.
           </div>
+        </div>
+        <div style="padding: 6px 12px; background: var(--bg-secondary); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; font-size: 0.78rem;">
+          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-secondary);">
+            <input type="checkbox" id="chat-slides-only" checked>
+            <span>Grounded in Slides Only</span>
+          </label>
+          <span id="chat-queue-indicator" style="color: var(--accent); font-weight: 500; display: none;">Queue: Ready</span>
         </div>
         <form id="chat-form" class="chat-input-row">
           <input type="text" id="chat-input" class="chat-input" placeholder="Ask a question about the conference..." maxlength="500" autocomplete="off">
@@ -341,6 +482,11 @@
     </div>
 
     <footer>
+      <div style="margin-bottom: 12px;">
+        <button id="btn-open-disclaimer" class="btn-disclaimer-badge">
+          ⚠️ READ DISCLAIMER
+        </button>
+      </div>
       <p>
         Unofficial Research Archive & MCP Server for AGNTCon + MCPCon Europe 2026.<br>
         Source code & MCP server: <a href="https://github.com/asoshnin/AGNT_MCP_con_2026" target="_blank" rel="noopener" style="color: var(--accent); font-weight: 500;">asoshnin/AGNT_MCP_con_2026</a>.<br>

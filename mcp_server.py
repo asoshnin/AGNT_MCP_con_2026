@@ -11,6 +11,9 @@ import json
 import re
 import argparse
 import asyncio
+import sqlite3
+import struct
+import math
 import httpx
 
 HUB_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -18,11 +21,49 @@ WIKI_DIR = os.path.join(HUB_DIR, "wiki")
 SOURCES_DIR = os.path.join(WIKI_DIR, "sources")
 CONCEPTS_DIR = os.path.join(WIKI_DIR, "concepts")
 INDEX_JSON = os.path.join(WIKI_DIR, "index.json")
+SQLITE_PATH = os.path.join(WIKI_DIR, "agntcon2026.sqlite")
 
 SCHED_BASE_URL = "https://agntconmcpconeu26.sched.com"
 
+# Optional FastEmbed Hybrid Search (bge-small-en-v1.5)
+try:
+    from fastembed import TextEmbedding
+    _embed_model = TextEmbedding("BAAI/bge-small-en-v1.5")
+    HAS_FASTEMBED = True
+except Exception:
+    _embed_model = None
+    HAS_FASTEMBED = False
+
+def cosine_similarity(v1, v2) -> float:
+    dot = sum(a * b for a, b in zip(v1, v2))
+    norm1 = math.sqrt(sum(a * a for a in v1))
+    norm2 = math.sqrt(sum(b * b for b in v2))
+    if norm1 == 0 or norm2 == 0:
+        return 0.0
+    return dot / (norm1 * norm2)
+
+def get_vector_scores(query: str) -> dict:
+    if not HAS_FASTEMBED or not _embed_model or not query or not os.path.exists(SQLITE_PATH):
+        return {}
+    try:
+        q_vec = list(_embed_model.embed([query]))[0]
+        conn = sqlite3.connect(SQLITE_PATH)
+        cur = conn.cursor()
+        cur.execute("SELECT talk_id, dimension, vector FROM talk_embeddings")
+        rows = cur.fetchall()
+        conn.close()
+
+        scores = {}
+        for talk_id, dim, blob in rows:
+            vec = struct.unpack(f"{dim}f", blob)
+            sim = cosine_similarity(q_vec, vec)
+            scores[talk_id] = max(0.0, sim)
+        return scores
+    except Exception:
+        return {}
+
 # Tool 1: search_talks
-def tool_search_talks(query: str, topic: str = None) -> list:
+def tool_search_talks(query: str, topic: str = None, only_with_slides: bool = False, limit: int = 15) -> list:
     """Search conference sessions by query, keywords, speaker, or topic tag."""
     if not os.path.exists(INDEX_JSON):
         return [{"error": "Wiki index not yet compiled. Run harvester pipeline first."}]
@@ -32,9 +73,13 @@ def tool_search_talks(query: str, topic: str = None) -> list:
         
     q_tokens = [w.lower() for w in re.findall(r"\b\w+\b", query)] if query else []
     topic_clean = topic.lower().strip() if topic else None
+    vector_scores = get_vector_scores(query) if query else {}
     
     scored = []
     for talk in catalog:
+        if only_with_slides and not (talk.get("has_slides") or talk.get("file_name")):
+            continue
+
         text_blob = f"{talk.get('id', '')} {talk.get('title', '')} {' '.join(talk.get('speakers', []))} {' '.join(talk.get('concepts', []))} {talk.get('one_paragraph', '')}".lower()
         score = 0
         
@@ -46,21 +91,27 @@ def tool_search_talks(query: str, topic: str = None) -> list:
                 score += 1
                 if tok in talk.get("title", "").lower():
                     score += 2
+
+        vec_sim = vector_scores.get(talk["id"], 0.0)
+        hybrid_score = score + (vec_sim * 4.0)
                     
-        if not q_tokens or score > 0:
+        if not q_tokens or score > 0 or vec_sim > 0.4:
             scored.append({
                 "score": score,
+                "vector_sim": round(vec_sim, 3),
+                "hybrid_score": round(hybrid_score, 3),
                 "id": talk["id"],
                 "title": talk["title"],
                 "speakers": talk.get("speakers", []),
                 "relevance_score": talk.get("relevance_score", 0.0),
                 "sched_url": talk.get("sched_url", f"{SCHED_BASE_URL}/event/{talk['id']}/"),
                 "concepts": talk.get("concepts", []),
+                "has_slides": bool(talk.get("has_slides") or talk.get("file_name")),
                 "one_paragraph": talk.get("one_paragraph", "")
             })
             
-    scored.sort(key=lambda x: (x["score"], x["relevance_score"]), reverse=True)
-    return scored[:15]
+    scored.sort(key=lambda x: (x["hybrid_score"], x["relevance_score"]), reverse=True)
+    return scored[:limit]
 
 # Tool 2: get_page
 def tool_get_page(page_type: str, name_or_id: str) -> dict:
@@ -90,47 +141,71 @@ def tool_get_page(page_type: str, name_or_id: str) -> dict:
     }
 
 # Tool 3: answer_conference
-async def tool_answer_conference(question: str) -> dict:
-    """Answer questions about AGNTCon + MCPCon Europe 2026 with citations and canonical Sched links."""
-    results = tool_search_talks(question)
+async def tool_answer_conference(question: str, breadth: str = "auto", only_with_slides: bool = False) -> dict:
+    """Answer questions about AGNTCon + MCPCon Europe 2026 using Two-Tier Adaptive RAG DAG with citations."""
+    
+    # 1. Parse Cardinality & Scope (Wave 1 of DAG)
+    requested_k = 3
+    q_lower = question.lower()
+    k_match = re.search(r'\b(?:top|give me|list|find|best)\s*(\d{1,2})\b', q_lower)
+    if k_match:
+        requested_k = int(k_match.group(1))
+    elif any(w in q_lower for w in ["all", "compare", "overview", "landscape", "survey"]):
+        requested_k = 10
+    elif breadth == "deep":
+        requested_k = 12
+    elif breadth == "balanced":
+        requested_k = 6
+    elif breadth == "focused":
+        requested_k = 3
+        
+    # SEC-04 Guardrail: Clamp K between 3 and 12
+    k = min(max(requested_k, 3), 12)
+    
+    results = tool_search_talks(question, only_with_slides=only_with_slides, limit=k)
     if not results or "error" in results[0]:
         return {
-            "answer": "The conference archive index is currently empty or being compiled.",
+            "answer": "The conference archive index is currently empty or no sessions matched your criteria.",
             "citations": []
         }
         
-    top_matches = results[:3]
     context_blocks = []
     citations = []
-    for t in top_matches:
+    
+    # 2. Wave 2: Point Query vs Broad Survey Routing
+    for idx, t in enumerate(results, start=1):
         sid = t["id"]
         title = t["title"]
         sched_url = t["sched_url"]
         citations.append({"id": sid, "title": title, "sched_url": sched_url})
         
-        src_path = os.path.join(SOURCES_DIR, f"{sid}.md")
-        if os.path.exists(src_path):
-            with open(src_path, "r", encoding="utf-8") as sf:
-                body = sf.read()
+        # If focused (<= 3), hydrate full source markdown; if broad survey, use compact essence (DOM-02 & COM-02)
+        if k <= 3:
+            src_path = os.path.join(SOURCES_DIR, f"{sid}.md")
+            if os.path.exists(src_path):
+                with open(src_path, "r", encoding="utf-8") as sf:
+                    body = sf.read()
+            else:
+                body = t.get("one_paragraph", "")
         else:
             body = t.get("one_paragraph", "")
             
-        context_blocks.append(f"### Presentation [[{sid}]]: {title}\nSched Canonical Link: {sched_url}\n{body}")
+        context_blocks.append(f'<candidate index="{idx}" id="{sid}">\nTitle: {title}\nSpeakers: {", ".join(t.get("speakers", []))}\nSched URL: {sched_url}\nSummary: {body}\n</candidate>')
         
-    context_str = "\n\n---\n\n".join(context_blocks)
+    context_str = "\n\n".join(context_blocks)
     
     system_prompt = """You are the research assistant for AGNTCon + MCPCon Europe 2026.
-Answer the user's question clearly and concisely based strictly on the provided conference presentation excerpts.
+Answer the user's question clearly and concisely based strictly on the provided conference excerpts.
 
-CRITICAL CITATION RULES:
+CRITICAL INVARIANTS:
 1. Every major claim or practice described MUST cite the session ID (e.g. [[2RBBJ]]) and include an outbound Markdown link to the canonical Sched presentation: [Presentation Title](https://agntconmcpconeu26.sched.com/event/...).
-2. If the topic was not discussed in the provided excerpts, state: "This topic was not covered in the conference sessions."
-3. Always provide actionable takeaways and cite the speakers by name.
-"""
+2. If the user asks for a list, ranking, or comparison of multiple talks, enumerate all matching candidates using a structured numbered list or Markdown table.
+3. If the topic was not discussed in the provided excerpts, state: "This topic was not covered in the conference sessions."
+4. Always cite speakers by name."""
 
-    user_msg = f"Question: {question}\n\nConference Presentation Excerpts:\n{context_str}"
+    user_msg = f"Question: {question}\n\n<conference_excerpts>\n{context_str}\n</conference_excerpts>"
     
-    # Cascade configuration: NVIDIA NIM -> OpenRouter -> Kilocode
+    # Cascade configuration: NVIDIA NIM -> OpenRouter Active Free -> Kilocode
     gateways = []
     if os.environ.get("NVIDIA_API_KEY"):
         gateways.append({
@@ -148,9 +223,11 @@ CRITICAL CITATION RULES:
             "url": "https://openrouter.ai/api/v1/chat/completions",
             "headers": {
                 "Authorization": f"Bearer {os.environ.get('OPENROUTER_API_KEY')}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://github.com/asoshnin/AGNT_MCP_con_2026",
+                "X-Title": "AGNTCon 2026 Hub"
             },
-            "model": "deepseek/deepseek-v4-flash-0731:free"
+            "model": "qwen/qwen3.8-27b:free"
         })
     if os.environ.get("KILOCODE_API_KEY"):
         gateways.append({

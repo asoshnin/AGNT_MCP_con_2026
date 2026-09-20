@@ -1,6 +1,7 @@
 let ALL_TALKS = [];
 let ACTIVE_TOPIC = null;
 let HIGH_RELEVANCE_ONLY = false;
+let SLIDES_ONLY = false;
 let CURRENT_VIEW_MODE = localStorage.getItem("agntcon_view_mode") || "grid";
 let CURRENT_SORT = "relevance";
 
@@ -152,6 +153,21 @@ window.filterByConcept = function(concept) {
   }
 };
 
+window.copyCitation = function(sid) {
+  const t = ALL_TALKS.find((x) => x.id === sid);
+  if (!t) return;
+  const speaker = (t.speakers && t.speakers.length > 0) ? t.speakers[0] : "Speaker";
+  const cleanTitle = (t.title || "").replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, "").trim();
+  const citation = `${speaker} (2026). "${cleanTitle}". AGNTCon + MCPCon Europe 2026. ${t.sched_url}`;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(citation).then(() => {
+      alert("✓ Citation copied to clipboard:\n\n" + citation);
+    });
+  } else {
+    prompt("Copy citation:", citation);
+  }
+};
+
 function applyViewMode(mode) {
   CURRENT_VIEW_MODE = mode;
   localStorage.setItem("agntcon_view_mode", mode);
@@ -225,6 +241,14 @@ function setupEventListeners() {
     });
   }
 
+  const slidesOnlyToggle = document.getElementById("slides-only-toggle");
+  if (slidesOnlyToggle) {
+    slidesOnlyToggle.addEventListener("change", (e) => {
+      SLIDES_ONLY = e.target.checked;
+      renderCards();
+    });
+  }
+
   // Modal close
   const modalClose = document.getElementById("modal-close");
   const modalBackdrop = document.getElementById("modal-backdrop");
@@ -293,6 +317,7 @@ function renderCards() {
 
   let filtered = ALL_TALKS.filter((t) => {
     if (HIGH_RELEVANCE_ONLY && (t.relevance_score || 0) < 0.7) return false;
+    if (SLIDES_ONLY && !(t.has_slides || t.file_name)) return false;
     if (ACTIVE_TOPIC && !(t.concepts || []).map((c) => c.toLowerCase()).includes(ACTIVE_TOPIC)) return false;
     if (!q) {
       t._matchScore = null;
@@ -360,6 +385,12 @@ function renderCards() {
           ? `<span class="relevance-score match-active" title="Dynamic search query match score based on title, speaker, tags, and summary">🎯 Match: ${t._matchScore}%</span>`
           : `<span class="relevance-score" title="Intrinsic conference topic depth (Agent Harnesses, MCP, Security, Tool-Use)">⭐ Topic Depth: ${Math.round((t.relevance_score || 0) * 100)}%</span>`;
 
+        let directSlideBtn = "";
+        if (hasSlides) {
+          const slideHref = t.slide_url || t.sched_url;
+          directSlideBtn = `<a class="btn-view-essence" href="${escapeHtml(slideHref)}" target="_blank" rel="noopener" style="text-decoration: none;" title="View official presentation slides">📄 Slides ↗</a>`;
+        }
+
         return `
     <div class="session-card">
       <div class="card-header">
@@ -378,7 +409,9 @@ function renderCards() {
         </div>
         <div class="card-actions">
           <a class="btn-sched" href="${escapeHtml(t.sched_url)}" target="_blank" rel="noopener">Official Sched ↗</a>
+          ${directSlideBtn}
           <button class="btn-view-essence" onclick="openEssenceModal('${t.id}')">View Essence</button>
+          <button class="btn-cite" onclick="copyCitation('${t.id}')" title="Copy formatted citation">📋 Cite</button>
         </div>
       </div>
     </div>
@@ -422,6 +455,7 @@ function renderCards() {
         <div style="display: inline-flex; gap: 6px;">
           <a class="btn-sched" href="${escapeHtml(t.sched_url)}" target="_blank" rel="noopener" style="padding: 4px 8px; font-size: 0.78rem;">Sched ↗</a>
           <button class="btn-view-essence" onclick="openEssenceModal('${t.id}')" style="padding: 4px 8px; font-size: 0.78rem;">View</button>
+          <button class="btn-cite" onclick="copyCitation('${t.id}')" style="padding: 4px 8px; font-size: 0.78rem;" title="Copy citation">📋</button>
         </div>
       </td>
     </tr>
@@ -536,13 +570,47 @@ function closeModal() {
   }
 }
 
+function updateChatEngineBadge() {
+  const badge = document.getElementById("chat-engine-badge");
+  const providerSelect = document.getElementById("model-provider-select");
+  if (!badge || !providerSelect) return;
+  const p = providerSelect.value;
+  if (p === "lmstudio") {
+    badge.textContent = "🟢 LM Studio (Local)";
+    badge.style.background = "rgba(34, 197, 94, 0.15)";
+    badge.style.color = "#22c55e";
+  } else if (p === "ollama") {
+    badge.textContent = "🟢 Ollama (Local)";
+    badge.style.background = "rgba(34, 197, 94, 0.15)";
+    badge.style.color = "#22c55e";
+  } else {
+    badge.textContent = "Cloud Demo";
+    badge.style.background = "rgba(56, 189, 248, 0.15)";
+    badge.style.color = "var(--accent)";
+  }
+}
+
 function setupChat() {
   const toggleBtn = document.getElementById("chat-toggle");
   const chatPanel = document.getElementById("chat-panel");
   const chatClose = document.getElementById("chat-close");
+  const chatReset = document.getElementById("chat-reset");
   const chatForm = document.getElementById("chat-form");
   const chatInput = document.getElementById("chat-input");
   const chatMessages = document.getElementById("chat-messages");
+
+  updateChatEngineBadge();
+
+  if (chatReset) {
+    chatReset.addEventListener("click", () => {
+      chatMessages.innerHTML = `
+        <div class="chat-msg bot">
+          Hello! I am your research assistant for <strong>AGNTCon + MCPCon Europe 2026</strong>.<br><br>
+          Ask me about any presentation, architecture pattern, security boundary, or tool mentioned at the conference. Every answer links directly to the canonical presentation on Sched.
+        </div>
+      `;
+    });
+  }
 
   toggleBtn.addEventListener("click", () => chatPanel.classList.toggle("open"));
   chatClose.addEventListener("click", () => chatPanel.classList.remove("open"));
@@ -556,12 +624,95 @@ function setupChat() {
     chatInput.value = "";
 
     const loadingId = appendMsg("Consulting AGNTCon + MCPCon knowledge base...", "bot");
+    const onlySlides = document.getElementById("chat-slides-only") ? document.getElementById("chat-slides-only").checked : false;
+    const breadthSelect = document.getElementById("rag-breadth-select");
+    const breadth = breadthSelect ? breadthSelect.value : "auto";
+    const providerSelect = document.getElementById("model-provider-select");
+    const currentProvider = providerSelect ? providerSelect.value : "cloud";
 
+    // 1. Direct Local Execution Path (LM Studio or Ollama)
+    if (currentProvider === "lmstudio" || currentProvider === "ollama") {
+      const baseUrlInput = document.getElementById("model-base-url");
+      const modelNameInput = document.getElementById("model-name-input");
+      const apiKeyInput = document.getElementById("model-api-key");
+      const baseUrl = (baseUrlInput ? baseUrlInput.value.trim() : "http://127.0.0.1:1234/v1").replace(/\/+$/, "");
+      const modelName = modelNameInput ? modelNameInput.value.trim() : "huihui-qwythos-9b-claude-mythos-5-1m-abliterated";
+      const apiKey = apiKeyInput ? apiKeyInput.value.trim() : "";
+
+      try {
+        // Fetch RAG context from local search endpoint
+        const searchRes = await fetch(`/api/search?q=${encodeURIComponent(q)}&only_with_slides=${onlySlides ? "1" : "0"}`);
+        const searchData = await searchRes.json();
+        const topMatches = (Array.isArray(searchData) ? searchData : (searchData.results || [])).slice(0, 6);
+
+        let contextSnippets = [];
+        let citations = [];
+        topMatches.forEach((m) => {
+          citations.push({ id: m.id, title: m.title, sched_url: m.sched_url });
+          contextSnippets.push(`### [[${m.id}]]: ${m.title}\nSpeaker(s): ${(m.speakers || []).join(", ")}\nSummary: ${m.one_paragraph}`);
+        });
+
+        const systemPrompt = `You are the research assistant for AGNTCon + MCPCon Europe 2026.
+Answer clearly and concisely based strictly on the provided conference excerpts.
+Always cite the session ID (e.g. [[2RBBJ]]) and speaker by name for every claim.`;
+
+        const userMsg = `Question: ${q}\n\n<conference_excerpts>\n${contextSnippets.join("\n\n---\n\n")}\n</conference_excerpts>`;
+
+        const headers = { "Content-Type": "application/json" };
+        if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+
+        const llmRes = await fetch(`${baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify({
+            model: modelName,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userMsg }
+            ],
+            max_tokens: 1000,
+            temperature: 0.2
+          })
+        });
+
+        const botEl = document.getElementById(loadingId);
+        if (llmRes.ok) {
+          const llmData = await llmRes.json();
+          const answerText = (llmData.choices && llmData.choices[0] && llmData.choices[0].message) ? llmData.choices[0].message.content : "No response content.";
+          let html = `<div>${formatBotMarkdown(answerText)}</div>`;
+          if (citations.length > 0) {
+            html += `<div class="chat-citations"><strong>Canonical Sched Sources (Local LM Studio):</strong><br>${citations
+              .map((c) => `• <a href="${escapeHtml(c.sched_url)}" target="_blank" rel="noopener" style="color: var(--accent);">[[${escapeHtml(c.id)}]] ${escapeHtml(c.title)}</a>`)
+              .join("<br>")}</div>`;
+          }
+          botEl.innerHTML = html;
+        } else {
+          botEl.innerHTML = `<div style="color: #f87171;">Local LLM error (HTTP ${llmRes.status}). Verify model name '${escapeHtml(modelName)}' is loaded in LM Studio.</div>`;
+        }
+      } catch (err) {
+        const botEl = document.getElementById(loadingId);
+        botEl.innerHTML = `
+          <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px; color: var(--text-primary); font-size: 0.85rem; line-height: 1.5;">
+            <strong style="color: #ef4444;">✕ Local LM Studio at ${escapeHtml(baseUrl)} is unreachable.</strong><br><br>
+            Ensure your SSH tunnel is active on port 1234, or:
+            <div style="margin-top: 8px;">
+              <button class="btn-header" onclick="document.getElementById('model-provider-select').value='openrouter'; updateChatEngineBadge();" style="font-size: 0.78rem; padding: 4px 10px;">
+                ☁️ Switch to Cloud Demo
+              </button>
+            </div>
+          </div>
+        `;
+      }
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+      return;
+    }
+
+    // 2. Server-Side Cloud Demo Proxy Path (Default)
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: jsonSafe({ question: q }),
+        body: jsonSafe({ question: q, only_with_slides: onlySlides, breadth: breadth }),
       });
 
       const data = await res.json();
@@ -719,6 +870,121 @@ function setupModalsAndSettings() {
     });
   }
 
+  // Collaboration Inquiry Modal
+  const collabModal = document.getElementById("collab-modal-backdrop");
+  const btnOpenCollab = document.getElementById("btn-open-collab");
+  const collabClose = document.getElementById("collab-modal-close");
+  const collabCancel = document.getElementById("collab-cancel-btn");
+  const collabForm = document.getElementById("collab-form");
+  const collabStatus = document.getElementById("collab-status");
+
+  const openCollab = () => collabModal && collabModal.classList.add("open");
+  const closeCollab = () => collabModal && collabModal.classList.remove("open");
+
+  if (btnOpenCollab) btnOpenCollab.addEventListener("click", openCollab);
+  if (collabClose) collabClose.addEventListener("click", closeCollab);
+  if (collabCancel) collabCancel.addEventListener("click", closeCollab);
+  if (collabModal) collabModal.addEventListener("click", (e) => { if (e.target === collabModal) closeCollab(); });
+
+  // Collaboration preset starters
+  document.querySelectorAll(".btn-collab-starter").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const text = btn.getAttribute("data-starter");
+      const descArea = document.getElementById("collab-description");
+      if (descArea && text) {
+        descArea.value = text;
+        descArea.focus();
+      }
+    });
+  });
+
+  if (collabForm) {
+    collabForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const hp = document.getElementById("collab-hp").value;
+      const name = document.getElementById("collab-name").value.trim();
+      const email = document.getElementById("collab-email").value.trim();
+      const org = document.getElementById("collab-org").value.trim();
+      const profile = document.getElementById("collab-profile").value.trim();
+      const type = document.getElementById("collab-type").value;
+      const description = document.getElementById("collab-description").value.trim();
+
+      collabStatus.style.display = "block";
+      collabStatus.style.color = "var(--text-secondary)";
+      collabStatus.textContent = "Transmitting inquiry...";
+
+      try {
+        const res = await fetch("/api/collaboration-interest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            website_hp: hp,
+            name: name,
+            email: email,
+            organization: org,
+            profile_url: profile,
+            inquiry_type: type,
+            description: description
+          })
+        });
+        const result = await res.json();
+        if (res.ok && result.status === "ok") {
+          collabStatus.style.color = "#22c55e";
+          let successMsg = "✓ Success: " + (result.message || "Inquiry received!");
+          if (result.ticket_id && result.ticket_url) {
+            successMsg += ` Ref: #${result.ticket_id}. Private link: ${result.ticket_url}`;
+          }
+          collabStatus.textContent = successMsg;
+          setTimeout(() => {
+            closeCollab();
+            collabForm.reset();
+            collabStatus.style.display = "none";
+          }, 4000);
+        } else {
+          collabStatus.style.color = "#f87171";
+          collabStatus.textContent = "Error: " + (result.error || "Submission failed.");
+        }
+      } catch (err) {
+        collabStatus.style.color = "#f87171";
+        collabStatus.textContent = "Connection error: Failed to reach /api/collaboration-interest.";
+      }
+    });
+  }
+
+  // Disclaimer Modal
+  const disclaimerModal = document.getElementById("disclaimer-modal-backdrop");
+  const btnOpenDisclaimer = document.getElementById("btn-open-disclaimer");
+  const disclaimerClose = document.getElementById("disclaimer-modal-close");
+  const btnSpeakerFromDisclaimer = document.getElementById("btn-open-speaker-from-disclaimer");
+  const btnCollabFromDisclaimer = document.getElementById("btn-open-collab-from-disclaimer");
+  const btnLegalFromDisclaimer = document.getElementById("btn-open-legal-from-disclaimer");
+
+  const openDisclaimer = () => disclaimerModal && disclaimerModal.classList.add("open");
+  const closeDisclaimer = () => disclaimerModal && disclaimerModal.classList.remove("open");
+
+  if (btnOpenDisclaimer) btnOpenDisclaimer.addEventListener("click", openDisclaimer);
+  if (disclaimerClose) disclaimerClose.addEventListener("click", closeDisclaimer);
+  if (disclaimerModal) disclaimerModal.addEventListener("click", (e) => { if (e.target === disclaimerModal) closeDisclaimer(); });
+
+  if (btnSpeakerFromDisclaimer) {
+    btnSpeakerFromDisclaimer.addEventListener("click", () => {
+      closeDisclaimer();
+      openFeedback();
+    });
+  }
+  if (btnCollabFromDisclaimer) {
+    btnCollabFromDisclaimer.addEventListener("click", () => {
+      closeDisclaimer();
+      openCollab();
+    });
+  }
+  if (btnLegalFromDisclaimer) {
+    btnLegalFromDisclaimer.addEventListener("click", () => {
+      closeDisclaimer();
+      openLegal();
+    });
+  }
+
   // Settings & Model Test Modal
   const settingsModal = document.getElementById("settings-modal-backdrop");
   const btnOpenSettings = document.getElementById("btn-open-settings");
@@ -758,8 +1024,9 @@ function setupModalsAndSettings() {
         modelNameInput.value = "stepfun/step-3.7-flash:free";
       } else if (p === "openrouter") {
         baseUrlInput.value = "https://openrouter.ai/api/v1";
-        modelNameInput.value = "deepseek/deepseek-v4-flash:free";
+        modelNameInput.value = "qwen/qwen3.8-27b:free";
       }
+      updateChatEngineBadge();
     });
   }
 

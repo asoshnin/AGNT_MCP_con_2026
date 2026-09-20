@@ -9,7 +9,8 @@ if fuser "${PORT}/tcp" >/dev/null 2>&1; then
 fi
 
 echo "[+] Starting AGNTCon Hub on http://127.0.0.1:${PORT}..."
-nohup "${SCRIPT_DIR}/serve.py" --host 127.0.0.1 --port "${PORT}" > /tmp/agntcon_hub.log 2>&1 &
+# SEC-02 Invariant: Scrub ambient development keys from shell environment
+nohup env -u NVIDIA_API_KEY -u OPENROUTER_API_KEY -u KILOCODE_API_KEY "${SCRIPT_DIR}/serve.py" --host 127.0.0.1 --port "${PORT}" > /tmp/agntcon_hub.log 2>&1 &
 sleep 1
 
 if curl -s "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1; then
