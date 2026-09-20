@@ -2,33 +2,33 @@
   "conference_name": "AGNTCon + MCPCon Europe 2026",
   "dates": "17-18 September 2026",
   "location": "RAI Amsterdam",
-  "total_sessions": 3,
+  "total_sessions": 113,
   "macro_focus": "Productionizing Agentic AI, Model Context Protocol (MCP) standardization, and Linux container security.",
   "top_themes": [
     {
       "name": "Model Context Protocol (MCP)",
       "slug": "mcp",
-      "session_count": 13
+      "session_count": 101
     },
     {
       "name": "Agent Containment & Security",
       "slug": "security",
-      "session_count": 18
+      "session_count": 80
     },
     {
       "name": "Multi-Agent Orchestration",
       "slug": "orchestration",
-      "session_count": 10
+      "session_count": 104
     },
     {
       "name": "Context Engineering & RAG",
       "slug": "rag",
-      "session_count": 9
+      "session_count": 18
     },
     {
       "name": "LLM Evaluation & Benchmarking",
       "slug": "evaluation",
-      "session_count": 9
+      "session_count": 51
     }
   ],
   "brand_palette": {

@@ -35,12 +35,12 @@ except Exception:
     HAS_FASTEMBED = False
 
 def cosine_similarity(v1, v2) -> float:
-    dot = sum(a * b for a, b in zip(v1, v2))
-    norm1 = math.sqrt(sum(a * a for a in v1))
-    norm2 = math.sqrt(sum(b * b for b in v2))
+    dot = sum(float(a) * float(b) for a, b in zip(v1, v2))
+    norm1 = math.sqrt(sum(float(a) * float(a) for a in v1))
+    norm2 = math.sqrt(sum(float(b) * float(b) for b in v2))
     if norm1 == 0 or norm2 == 0:
         return 0.0
-    return dot / (norm1 * norm2)
+    return float(dot / (norm1 * norm2))
 
 def get_vector_scores(query: str) -> dict:
     if not HAS_FASTEMBED or not _embed_model or not query or not os.path.exists(SQLITE_PATH):
@@ -57,13 +57,13 @@ def get_vector_scores(query: str) -> dict:
         for talk_id, dim, blob in rows:
             vec = struct.unpack(f"{dim}f", blob)
             sim = cosine_similarity(q_vec, vec)
-            scores[talk_id] = max(0.0, sim)
+            scores[talk_id] = float(max(0.0, sim))
         return scores
     except Exception:
         return {}
 
 # Tool 1: search_talks
-def tool_search_talks(query: str, topic: str = None, only_with_slides: bool = False, limit: int = 15) -> list:
+def tool_search_talks(query: str, topic: str = None, only_with_slides: bool = False, limit: int = 200) -> list:
     """Search conference sessions by query, keywords, speaker, or topic tag."""
     if not os.path.exists(INDEX_JSON):
         return [{"error": "Wiki index not yet compiled. Run harvester pipeline first."}]
@@ -92,18 +92,18 @@ def tool_search_talks(query: str, topic: str = None, only_with_slides: bool = Fa
                 if tok in talk.get("title", "").lower():
                     score += 2
 
-        vec_sim = vector_scores.get(talk["id"], 0.0)
-        hybrid_score = score + (vec_sim * 4.0)
+        vec_sim = float(vector_scores.get(talk["id"], 0.0))
+        hybrid_score = float(score + (vec_sim * 4.0))
                     
         if not q_tokens or score > 0 or vec_sim > 0.4:
             scored.append({
-                "score": score,
+                "score": int(score),
                 "vector_sim": round(vec_sim, 3),
                 "hybrid_score": round(hybrid_score, 3),
                 "id": talk["id"],
                 "title": talk["title"],
                 "speakers": talk.get("speakers", []),
-                "relevance_score": talk.get("relevance_score", 0.0),
+                "relevance_score": float(talk.get("relevance_score", 0.0)),
                 "sched_url": talk.get("sched_url", f"{SCHED_BASE_URL}/event/{talk['id']}/"),
                 "concepts": talk.get("concepts", []),
                 "has_slides": bool(talk.get("has_slides") or talk.get("file_name")),

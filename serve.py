@@ -187,7 +187,8 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
             q = query_params.get("q", [""])[0][:MAX_QUERY_CHARS]
             topic = query_params.get("topic", [None])[0]
             only_slides = query_params.get("only_with_slides", ["0"])[0] in ("1", "true", "True")
-            results = tool_search_talks(q, topic=topic, only_with_slides=only_slides)
+            limit_val = int(query_params.get("limit", ["200"])[0])
+            results = tool_search_talks(q, topic=topic, only_with_slides=only_slides, limit=limit_val)
             
             self.send_response(200)
             self.send_header("Content-Type", "application/json")

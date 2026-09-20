@@ -1,7 +1,7 @@
 ---
 id: "2RBBJ"
-title: "Infrastructure Red Teaming With Abliterated Models: What Actually Stops Agent Attacks"
-speakers: ["Roy Belio"]
+title: "AGNTCon + MCPCon Europe 2026: Infrastructure Red Teaming With Ablitera..."
+speakers: ["Roy Belio", "Read More \u2192"]
 sched_url: "https://agntconmcpconeu26.sched.com/event/2RBBJ/infrastructure-red-teaming-with-abliterated-models-what-actually-stops-agent-attacks-roy-belio-red-hat"
 concepts: ["sandboxing", "security", "evaluation", "memory", "tool-use"]
 relevance_score: 0.95
@@ -11,10 +11,10 @@ resources:
     label: "OpenClaw OpenShift Red Team"
 ---
 
-# Infrastructure Red Teaming With Abliterated Models: What Actually Stops Agent Attacks
+# AGNTCon + MCPCon Europe 2026: Infrastructure Red Teaming With Ablitera...
 
-**Canonical Presentation on Sched:** [Infrastructure Red Teaming With Abliterated Models: What Actually Stops Agent Attacks](https://agntconmcpconeu26.sched.com/event/2RBBJ/infrastructure-red-teaming-with-abliterated-models-what-actually-stops-agent-attacks-roy-belio-red-hat)  
-**Speakers:** Roy Belio (Senior Software Engineer, Red Hat)  
+**Canonical Presentation on Sched:** [AGNTCon + MCPCon Europe 2026: Infrastructure Red Teaming With Ablitera...](https://agntconmcpconeu26.sched.com/event/2RBBJ/infrastructure-red-teaming-with-abliterated-models-what-actually-stops-agent-attacks-roy-belio-red-hat)  
+**Speakers:** Roy Belio (Senior Software Engineer, Red Hat), Read More →  
 **Relevance Score:** `0.95`
 
 ## Essence
@@ -34,8 +34,8 @@ Model refusal is not a containment boundary: a successful prompt injection bypas
 
 ## Related Concepts
 
-- sandboxing
-- security
-- evaluation
-- memory
-- tool-use
+- [[sandboxing]]
+- [[security]]
+- [[evaluation]]
+- [[memory]]
+- [[tool-use]]

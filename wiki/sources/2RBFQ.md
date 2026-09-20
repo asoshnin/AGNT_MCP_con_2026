@@ -1,7 +1,7 @@
 ---
 id: "2RBFQ"
-title: "Keynote: Building the Internet of Agents in the Open"
-speakers: ["Mazin Gilbert"]
+title: "AGNTCon + MCPCon Europe 2026: Keynote: Building the Internet of Agents..."
+speakers: ["Mazin Gilbert", "Read More \u2192"]
 sched_url: "https://agntconmcpconeu26.sched.com/event/2RBFQ/keynote-building-the-internet-of-agents-in-the-open-mazin-gilbert-executive-director-of-agentic-ai-foundation"
 concepts: ["mcp", "security", "sandboxing", "observability", "evaluation"]
 relevance_score: 0.68
@@ -9,10 +9,10 @@ relevance_rationale: "The synthesis captures the talk’s focus on open agent in
 resources:
 ---
 
-# Keynote: Building the Internet of Agents in the Open
+# AGNTCon + MCPCon Europe 2026: Keynote: Building the Internet of Agents...
 
-**Canonical Presentation on Sched:** [Keynote: Building the Internet of Agents in the Open](https://agntconmcpconeu26.sched.com/event/2RBFQ/keynote-building-the-internet-of-agents-in-the-open-mazin-gilbert-executive-director-of-agentic-ai-foundation)  
-**Speakers:** Mazin Gilbert (Executive Director of Agentic AI Foundation)  
+**Canonical Presentation on Sched:** [AGNTCon + MCPCon Europe 2026: Keynote: Building the Internet of Agents...](https://agntconmcpconeu26.sched.com/event/2RBFQ/keynote-building-the-internet-of-agents-in-the-open-mazin-gilbert-executive-director-of-agentic-ai-foundation)  
+**Speakers:** Mazin Gilbert (Executive Director, AAIF, The Linux Foundation), Read More →  
 **Relevance Score:** `0.68`
 
 ## Essence
@@ -31,8 +31,8 @@ The keynote framed the 'Internet of Agents' as an open, interoperable ecosystem 
 
 ## Related Concepts
 
-- mcp
-- security
-- sandboxing
-- observability
-- evaluation
+- [[mcp]]
+- [[security]]
+- [[sandboxing]]
+- [[observability]]
+- [[evaluation]]

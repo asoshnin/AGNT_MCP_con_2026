@@ -1,7 +1,7 @@
 ---
 id: "2RBMy"
-title: "Keynote: MCP and the Era of Connectivity"
-speakers: ["David Soria Parra"]
+title: "AGNTCon + MCPCon Europe 2026: Keynote: MCP and the Era of Connectivity..."
+speakers: ["David Soria Parra", "Read More \u2192"]
 sched_url: "https://agntconmcpconeu26.sched.com/event/2RBMy/keynote-mcp-and-the-era-of-connectivity-david-soria-parra-co-creator-of-mcp-anthropic"
 concepts: []
 relevance_score: 0.93
@@ -9,10 +9,10 @@ relevance_rationale: "Directly addresses the role of open connectivity standards
 resources:
 ---
 
-# Keynote: MCP and the Era of Connectivity
+# AGNTCon + MCPCon Europe 2026: Keynote: MCP and the Era of Connectivity...
 
-**Canonical Presentation on Sched:** [Keynote: MCP and the Era of Connectivity](https://agntconmcpconeu26.sched.com/event/2RBMy/keynote-mcp-and-the-era-of-connectivity-david-soria-parra-co-creator-of-mcp-anthropic)  
-**Speakers:** David Soria Parra (Co-creator of MCP, Anthropic)  
+**Canonical Presentation on Sched:** [AGNTCon + MCPCon Europe 2026: Keynote: MCP and the Era of Connectivity...](https://agntconmcpconeu26.sched.com/event/2RBMy/keynote-mcp-and-the-era-of-connectivity-david-soria-parra-co-creator-of-mcp-anthropic)  
+**Speakers:** David Soria Parra (Co-creator, Model Context Protocol (MCP), Anthropic), Read More →  
 **Relevance Score:** `0.93`
 
 ## Essence
@@ -29,4 +29,4 @@ The keynote argues that as AI models grow more capable, they require reliable, s
 
 ## Related Concepts
 
-- general-agent-architecture
+- [[general-agent-architecture]]
