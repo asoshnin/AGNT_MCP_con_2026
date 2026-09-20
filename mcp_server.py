@@ -219,7 +219,7 @@ CRITICAL INVARIANTS:
                 "HTTP-Referer": "https://github.com/asoshnin/AGNT_MCP_con_2026",
                 "X-Title": "AGNTCon 2026 Hub"
             },
-            "model": "openrouter/auto"
+            "model": "openrouter/free"
         })
     if os.environ.get("KILOCODE_API_KEY"):
         gateways.append({
