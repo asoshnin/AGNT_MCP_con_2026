@@ -70,6 +70,18 @@
             <button class="crm-tab" data-filter="new">New</button>
             <button class="crm-tab" data-filter="in_progress">In Progress</button>
             <button class="crm-tab" data-filter="resolved">Resolved</button>
+            <button class="crm-tab" data-filter="archived">📦 Archived</button>
+          </div>
+        </div>
+        <div id="bulk-action-bar" style="display: none; align-items: center; justify-content: space-between; padding: 8px 14px; background: var(--bg-secondary); border-bottom: 1px solid var(--border); font-size: 0.8rem;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" id="select-all-checkbox" title="Select all" onclick="toggleSelectAll(this.checked)">
+            <span id="bulk-count">0 selected</span>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <button id="btn-bulk-archive" class="btn-header" style="font-size: 0.72rem; padding: 2px 8px;" onclick="executeBulkAction('archive')">📦 Archive</button>
+            <button id="btn-bulk-restore" class="btn-header" style="font-size: 0.72rem; padding: 2px 8px; display: none;" onclick="executeBulkAction('restore')">♻️ Restore</button>
+            <button id="btn-bulk-delete" class="btn-header" style="font-size: 0.72rem; padding: 2px 8px; background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.4); color: #ef4444; display: none;" onclick="executeBulkAction('delete')">🗑️ Delete</button>
           </div>
         </div>
         <ul id="crm-inbox-list" class="crm-list">
@@ -90,6 +102,7 @@
     let ACTIVE_TICKET_ID = null;
     let ALL_INQUIRIES = [];
     let CURRENT_STATUS_FILTER = "all";
+    let SELECTED_IDS = new Set();
 
     const loginSec = document.getElementById("login-section");
     const crmMain = document.getElementById("crm-main");
@@ -142,7 +155,8 @@
     async function fetchInquiries() {
       const token = localStorage.getItem("agntcon_admin_token");
       try {
-        const res = await fetch("/api/admin/inquiries", {
+        const url = CURRENT_STATUS_FILTER === "archived" ? "/api/admin/inquiries?status=archived" : "/api/admin/inquiries";
+        const res = await fetch(url, {
           headers: { "Authorization": `Bearer ${token}` }
         });
         if (res.status === 401) {
@@ -151,6 +165,8 @@
           return;
         }
         ALL_INQUIRIES = await res.json();
+        SELECTED_IDS.clear();
+        updateBulkBar();
         renderInbox();
       } catch (err) {
         inboxList.innerHTML = `<li style="padding: 20px; color: #f87171;">Failed to load inquiries.</li>`;
@@ -160,33 +176,120 @@
     function renderInbox() {
       const q = (document.getElementById("crm-search").value || "").toLowerCase().trim();
       let filtered = ALL_INQUIRIES.filter(inq => {
-        if (CURRENT_STATUS_FILTER !== "all" && inq.status !== CURRENT_STATUS_FILTER) return false;
+        if (CURRENT_STATUS_FILTER !== "all" && CURRENT_STATUS_FILTER !== "archived" && inq.status !== CURRENT_STATUS_FILTER) return false;
+        if (CURRENT_STATUS_FILTER === "archived" && inq.status !== "archived") return false;
         if (!q) return true;
         return `${inq.id} ${inq.name} ${inq.email} ${inq.organization} ${inq.type} ${inq.title}`.toLowerCase().includes(q);
       });
 
       if (filtered.length === 0) {
-        inboxList.innerHTML = `<li style="padding: 20px; text-align: center; color: var(--text-secondary);">No inquiries found.</li>`;
+        inboxList.innerHTML = `<li style="padding: 20px; text-align: center; color: var(--text-secondary);">No inquiries in this folder.</li>`;
         return;
       }
 
       inboxList.innerHTML = filtered.map(inq => {
         const isSelected = inq.id === ACTIVE_TICKET_ID;
+        const isChecked = SELECTED_IDS.has(inq.id);
         const typeEmoji = inq.type === 'speaker_dispute' || inq.type === 'Correction' ? '🚨' : '💼';
         return `
           <li class="crm-card ${isSelected ? 'selected' : ''}" onclick="selectInquiry('${inq.id}')">
-            <div class="crm-card-title">
-              <span>${typeEmoji} ${inq.name}</span>
-              <span style="font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; background: var(--bg-secondary); border: 1px solid var(--border);">${inq.status}</span>
-            </div>
-            <div class="crm-card-meta">
-              <span>#${inq.id}</span>
-              <span>•</span>
-              <span>${inq.organization || inq.type}</span>
+            <div style="display: flex; align-items: flex-start; gap: 10px;">
+              <input type="checkbox" ${isChecked ? 'checked' : ''} onclick="event.stopPropagation(); toggleSelect('${inq.id}');" style="margin-top: 3px; cursor: pointer;">
+              <div style="flex: 1;">
+                <div class="crm-card-title">
+                  <span>${typeEmoji} ${inq.name}</span>
+                  <span style="font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; background: var(--bg-secondary); border: 1px solid var(--border);">${inq.status}</span>
+                </div>
+                <div class="crm-card-meta">
+                  <span>#${inq.id}</span>
+                  <span>•</span>
+                  <span>${inq.organization || inq.type}</span>
+                </div>
+              </div>
             </div>
           </li>
         `;
       }).join("");
+    }
+
+    function toggleSelect(id) {
+      if (SELECTED_IDS.has(id)) {
+        SELECTED_IDS.delete(id);
+      } else {
+        SELECTED_IDS.add(id);
+      }
+      updateBulkBar();
+      renderInbox();
+    }
+
+    function toggleSelectAll(checked) {
+      if (checked) {
+        ALL_INQUIRIES.forEach(i => SELECTED_IDS.add(i.id));
+      } else {
+        SELECTED_IDS.clear();
+      }
+      updateBulkBar();
+      renderInbox();
+    }
+
+    function updateBulkBar() {
+      const bar = document.getElementById("bulk-action-bar");
+      const countEl = document.getElementById("bulk-count");
+      const btnArch = document.getElementById("btn-bulk-archive");
+      const btnRest = document.getElementById("btn-bulk-restore");
+      const btnDel = document.getElementById("btn-bulk-delete");
+      const selectAll = document.getElementById("select-all-checkbox");
+
+      if (SELECTED_IDS.size > 0) {
+        bar.style.display = "flex";
+        countEl.textContent = `${SELECTED_IDS.size} selected`;
+        selectAll.checked = SELECTED_IDS.size === ALL_INQUIRIES.length && ALL_INQUIRIES.length > 0;
+
+        if (CURRENT_STATUS_FILTER === "archived") {
+          btnArch.style.display = "none";
+          btnRest.style.display = "inline-block";
+          btnDel.style.display = "inline-block";
+        } else {
+          btnArch.style.display = "inline-block";
+          btnRest.style.display = "none";
+          btnDel.style.display = "none";
+        }
+      } else {
+        bar.style.display = "none";
+        selectAll.checked = false;
+      }
+    }
+
+    async function executeBulkAction(action) {
+      const ids = Array.from(SELECTED_IDS);
+      if (ids.length === 0) return;
+
+      if (action === "delete") {
+        if (!confirm(`Are you sure you want to permanently delete ${ids.length} inquiry(s)? This action cannot be undone.`)) {
+          return;
+        }
+      }
+
+      const token = localStorage.getItem("agntcon_admin_token");
+      try {
+        const res = await fetch("/api/admin/inquiries/bulk-action", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+          body: JSON.stringify({ action: action, ids: ids })
+        });
+        if (res.ok) {
+          SELECTED_IDS.clear();
+          if (ids.includes(ACTIVE_TICKET_ID)) {
+            ACTIVE_TICKET_ID = null;
+            threadPane.innerHTML = `<div style="padding: 60px; text-align: center; color: var(--text-secondary); margin: auto;">Select an inquiry from the inbox to inspect messages and reply.</div>`;
+          }
+          await fetchInquiries();
+        } else {
+          alert("Bulk action failed.");
+        }
+      } catch (err) {
+        alert("Connection error during bulk action.");
+      }
     }
 
     async function selectInquiry(id) {
@@ -238,12 +341,19 @@
             </div>
           </div>
           <div style="display: flex; gap: 8px; align-items: center;">
-            <label style="font-size: 0.8rem;">Status:</label>
-            <select id="thread-status-select" class="btn-header" style="padding: 4px 8px; font-size: 0.8rem;" onchange="updateStatus('${inq.id}', this.value)">
-              <option value="new" ${inq.status === 'new' ? 'selected' : ''}>New</option>
-              <option value="in_progress" ${inq.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
-              <option value="resolved" ${inq.status === 'resolved' ? 'selected' : ''}>Resolved</option>
-            </select>
+            ${inq.status === 'archived' ? `
+              <span style="font-size: 0.8rem; background: var(--bg-secondary); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border); color: var(--text-secondary);">Archived</span>
+              <button class="btn-header" style="font-size: 0.78rem; padding: 4px 10px;" onclick="singleAction('${inq.id}', 'restore')">♻️ Restore</button>
+              <button class="btn-header" style="font-size: 0.78rem; padding: 4px 10px; background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.4); color: #ef4444;" onclick="singleAction('${inq.id}', 'delete')">🗑️ Delete</button>
+            ` : `
+              <label style="font-size: 0.8rem;">Status:</label>
+              <select id="thread-status-select" class="btn-header" style="padding: 4px 8px; font-size: 0.8rem;" onchange="updateStatus('${inq.id}', this.value)">
+                <option value="new" ${inq.status === 'new' ? 'selected' : ''}>New</option>
+                <option value="in_progress" ${inq.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
+                <option value="resolved" ${inq.status === 'resolved' ? 'selected' : ''}>Resolved</option>
+              </select>
+              <button class="btn-header" style="font-size: 0.78rem; padding: 4px 10px;" onclick="singleAction('${inq.id}', 'archive')">📦 Archive</button>
+            `}
           </div>
         </div>
 
@@ -306,6 +416,31 @@
       }
     }
 
+    async function singleAction(inquiryId, action) {
+      if (action === "delete") {
+        if (!confirm(`Are you sure you want to permanently delete ticket #${inquiryId}? This action cannot be undone.`)) return;
+      }
+      const token = localStorage.getItem("agntcon_admin_token");
+      try {
+        const res = await fetch("/api/admin/inquiries/bulk-action", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+          body: JSON.stringify({ action: action, ids: [inquiryId] })
+        });
+        if (res.ok) {
+          if (action === "delete" || action === "archive") {
+            ACTIVE_TICKET_ID = null;
+            threadPane.innerHTML = `<div style="padding: 60px; text-align: center; color: var(--text-secondary); margin: auto;">Ticket #${inquiryId} was ${action}d. Select an inquiry from the inbox.</div>`;
+          } else {
+            selectInquiry(inquiryId);
+          }
+          await fetchInquiries();
+        }
+      } catch (err) {
+        alert("Action failed.");
+      }
+    }
+
     async function updateStatus(inquiryId, newStatus) {
       const token = localStorage.getItem("agntcon_admin_token");
       try {
@@ -323,7 +458,7 @@
         document.querySelectorAll(".crm-tab").forEach(t => t.classList.remove("active"));
         tab.classList.add("active");
         CURRENT_STATUS_FILTER = tab.getAttribute("data-filter");
-        renderInbox();
+        fetchInquiries();
       });
     });
 

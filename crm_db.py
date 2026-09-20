@@ -89,13 +89,44 @@ def get_inquiries_list(status_filter: str = None) -> list:
     init_crm_db()
     conn = get_db()
     cur = conn.cursor()
-    if status_filter and status_filter != "all":
+    if status_filter == "archived":
+        cur.execute("SELECT * FROM inquiries WHERE status = 'archived' ORDER BY updated_at DESC")
+    elif status_filter and status_filter != "all":
         cur.execute("SELECT * FROM inquiries WHERE status = ? ORDER BY updated_at DESC", (status_filter,))
     else:
-        cur.execute("SELECT * FROM inquiries ORDER BY updated_at DESC")
+        # Default 'all' inbox: show all active non-archived inquiries
+        cur.execute("SELECT * FROM inquiries WHERE status != 'archived' ORDER BY updated_at DESC")
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     return rows
+
+def bulk_update_status(inquiry_ids: list[str], new_status: str) -> int:
+    init_crm_db()
+    if not inquiry_ids:
+        return 0
+    conn = get_db()
+    cur = conn.cursor()
+    now = time.strftime("%Y-%m-%d %H:%M:%S")
+    placeholders = ",".join("?" * len(inquiry_ids))
+    cur.execute(f"UPDATE inquiries SET status = ?, updated_at = ? WHERE id IN ({placeholders})", [new_status, now] + inquiry_ids)
+    affected = cur.rowcount
+    conn.commit()
+    conn.close()
+    return affected
+
+def bulk_delete_inquiries(inquiry_ids: list[str]) -> int:
+    init_crm_db()
+    if not inquiry_ids:
+        return 0
+    conn = get_db()
+    cur = conn.cursor()
+    placeholders = ",".join("?" * len(inquiry_ids))
+    cur.execute(f"DELETE FROM thread_messages WHERE inquiry_id IN ({placeholders})", inquiry_ids)
+    cur.execute(f"DELETE FROM inquiries WHERE id IN ({placeholders})", inquiry_ids)
+    affected = cur.rowcount
+    conn.commit()
+    conn.close()
+    return affected
 
 def get_inquiry_detail(inquiry_id: str) -> dict | None:
     init_crm_db()

@@ -513,6 +513,49 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": "Invalid operator password"}).encode("utf-8"))
             return
 
+        # Admin Bulk Action Endpoint (Archive, Restore, Delete)
+        if path == "/api/admin/inquiries/bulk-action":
+            if not check_admin_auth(self.headers):
+                self.send_response(401)
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Unauthorized"}).encode("utf-8"))
+                return
+            try:
+                content_length = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(content_length).decode("utf-8")
+                payload = json.loads(body)
+                action = str(payload.get("action", "")).strip().lower()
+                ids = payload.get("ids", [])
+            except Exception:
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Invalid request payload"}).encode("utf-8"))
+                return
+
+            if not ids or not isinstance(ids, list):
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "No inquiry IDs provided."}).encode("utf-8"))
+                return
+
+            if action == "archive":
+                affected = crm_db.bulk_update_status(ids, "archived")
+            elif action == "restore":
+                affected = crm_db.bulk_update_status(ids, "in_progress")
+            elif action == "delete":
+                affected = crm_db.bulk_delete_inquiries(ids)
+            else:
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": f"Unknown action '{action}'"}).encode("utf-8"))
+                return
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ok", "action": action, "affected": affected}).encode("utf-8"))
+            return
+
         # Admin Reply Endpoint
         if path.startswith("/api/admin/inquiries/") and path.endswith("/reply"):
             if not check_admin_auth(self.headers):
