@@ -513,6 +513,142 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
             }).encode("utf-8"))
             return
 
+        # Speaker Feedback / Dispute Endpoint
+        if path == "/api/author-feedback":
+            try:
+                content_length = int(self.headers.get("Content-Length", 0))
+                if content_length > 4096:
+                    self.send_response(400)
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": "Payload too large."}).encode("utf-8"))
+                    return
+
+                body = self.rfile.read(content_length).decode("utf-8")
+                payload = json.loads(body)
+            except Exception:
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Invalid JSON request body."}).encode("utf-8"))
+                return
+
+            # Honeypot spam trap
+            if payload.get("website_hp"):
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "ok", "message": "Feedback received."}).encode("utf-8"))
+                return
+
+            session_id = str(payload.get("session_id", "")).strip()
+            name = str(payload.get("name", "")).strip()
+            email = str(payload.get("email", "")).strip()
+            profile_url = str(payload.get("profile_url", "")).strip()
+            request_type = str(payload.get("request_type", "Correction")).strip()
+            notes = str(payload.get("notes", "")).strip()
+
+            if not (session_id and name and email and profile_url and notes):
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "All fields (session_id, name, email, profile_url, notes) are required."}).encode("utf-8"))
+                return
+
+            inq = crm_db.create_inquiry(
+                inquiry_type="speaker_dispute",
+                name=name,
+                email=email,
+                org="",
+                profile=profile_url,
+                session_id=session_id,
+                title=f"{request_type}: Session [[{session_id}]]",
+                initial_message=notes
+            )
+            ticket_id = inq["id"]
+            secret_key = inq["secret_token"]
+            ticket_url = f"/ticket?id={ticket_id}&key={secret_key}"
+
+            # Log to append-only JSONL
+            feedback_dir = os.path.join(HUB_DIR, "data")
+            os.makedirs(feedback_dir, exist_ok=True)
+            log_entry = {
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "ticket_id": ticket_id,
+                "ip": client_ip,
+                "session_id": session_id,
+                "name": name,
+                "email": email,
+                "profile_url": profile_url,
+                "request_type": request_type,
+                "notes": notes,
+            }
+            with open(os.path.join(feedback_dir, "author_feedback.jsonl"), "a", encoding="utf-8") as f:
+                f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+
+            # Dispatch non-blocking Telegram alert to ToyProjectsBot
+            dispatch_telegram_alert(
+                event_emoji="🚨",
+                event_type="NEW SPEAKER DISPUTE",
+                ticket_id=ticket_id,
+                sender_name=name,
+                org=f"Session [[{session_id}]]",
+                email=email,
+                profile=profile_url,
+                body=f"Type: {request_type}\n\n{notes}"
+            )
+
+            # Dispatch confirmation email to speaker via Resend
+            public_url = os.environ.get("PUBLIC_URL", "http://127.0.0.1:8088")
+            full_ticket_url = f"{public_url}{ticket_url}"
+            email_html = f"""
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;">
+              <h2 style="color: #0284c7; margin-top: 0;">Speaker Request Registered: #{ticket_id}</h2>
+              <p>Hi {name},</p>
+              <p>Thank you for submitting your verification request regarding presentation <strong>[[{session_id}]]</strong>.</p>
+              <p>Our team reviews all speaker requests within 48 hours. You can view progress and communicate directly with the maintainer here:</p>
+              <div style="margin: 24px 0;">
+                <a href="{full_ticket_url}" style="background: #0284c7; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">View Private Dialogue Thread →</a>
+              </div>
+              <p style="font-size: 0.85rem; color: #64748b;">Direct Link: <a href="{full_ticket_url}" style="color: #0284c7;">{full_ticket_url}</a></p>
+            </div>
+            """
+            dispatch_resend_email(email, f"[#{ticket_id}] AGNTCon 2026 Speaker Request: Session [[{session_id}]]", email_html)
+
+            # Also notify maintainer by email
+            maintainer_email = os.environ.get("MAINTAINER_NOTIFICATION_EMAIL") or os.environ.get("RESEND_MAINTAINER_EMAIL", "alex@onexcare.com")
+            if maintainer_email and maintainer_email != email:
+                maintainer_html = f"""
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                  <h2 style="color: #ef4444; margin-top: 0;">🚨 New Speaker Dispute: #{ticket_id}</h2>
+                  <p><strong>Session:</strong> [[{session_id}]]</p>
+                  <p><strong>Author/Speaker:</strong> {name}</p>
+                  <p><strong>Email:</strong> <a href="mailto:{email}">{email}</a></p>
+                  <p><strong>Profile:</strong> <a href="{profile_url}">{profile_url}</a></p>
+                  <p><strong>Type:</strong> {request_type}</p>
+                  <blockquote style="background: #f8fafc; border-left: 4px solid #ef4444; padding: 12px 16px; margin: 16px 0; color: #1e293b;">
+                    {notes.replace(chr(10), '<br>')}
+                  </blockquote>
+                  <div style="margin: 20px 0;">
+                    <a href="{full_ticket_url}" style="background: #0284c7; color: #ffffff; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">Open Client Thread →</a>
+                    <a href="{public_url}/admin#ticket={ticket_id}" style="background: #475569; color: #ffffff; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block; margin-left: 8px;">Open in CRM Dashboard →</a>
+                  </div>
+                </div>
+                """
+                dispatch_resend_email(maintainer_email, f"🚨 [Speaker Dispute] #{ticket_id} for [[{session_id}]] from {name}", maintainer_html)
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "ok",
+                "message": "Thank you. Your feedback has been safely received and queued for review within 48 hours.",
+                "ticket_id": ticket_id,
+                "ticket_url": ticket_url
+            }).encode("utf-8"))
+            return
+
         # Admin Login Endpoint
         if path == "/api/admin/login":
             try:
