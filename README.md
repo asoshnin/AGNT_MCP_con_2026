@@ -1,6 +1,7 @@
 # AGNTCon + MCPCon Europe 2026 — Intelligence Hub & Native MCP Server
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-agntcon--demo.vwoosh.com-emerald.svg)](https://agntcon-demo.vwoosh.com)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
 [![MCP Standard](https://img.shields.io/badge/MCP-2024--11--05-brightgreen.svg)](https://modelcontextprotocol.io/)
 [![SQLite FTS5](https://img.shields.io/badge/SQLite-FTS5%20%2B%20Vector-orange.svg)](https://www.sqlite.org/)
