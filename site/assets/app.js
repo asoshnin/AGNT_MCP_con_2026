@@ -1371,7 +1371,8 @@ function renderCards() {
 }
 
 async function openEssenceModal(sid) {
-  sendTelemetry("talk_opened", { talk_id: sid });
+  const talkObj = (typeof ALL_TALKS !== "undefined" && ALL_TALKS.length > 0) ? ALL_TALKS.find(t => t.id === sid) : null;
+  sendTelemetry("talk_opened", { talk_id: sid, title: talkObj ? talkObj.title : sid });
   const modalBackdrop = document.getElementById("modal-backdrop");
   const modalBody = document.getElementById("modal-body");
   const titleEl = document.getElementById("essence-modal-title");

@@ -65,7 +65,7 @@ def _resolve_talk_title(talk_id: str) -> str:
     title = talk_id
     if os.path.exists(TALKS_DB_PATH):
         try:
-            conn = sqlite3.connect(TALKS_DB_PATH)
+            conn = sqlite3.connect(f"file:{os.path.abspath(TALKS_DB_PATH)}?mode=ro", uri=True)
             cur = conn.cursor()
             cur.execute("SELECT title FROM talks WHERE id = ? LIMIT 1;", (talk_id,))
             row = cur.fetchone()
@@ -217,7 +217,9 @@ def get_analytics_summary(db_path: str | None = None) -> dict[str, Any]:
     try:
         cur.execute(
             """
-            SELECT json_extract(metadata, '$.talk_id') AS tid, COUNT(*) AS cnt
+            SELECT json_extract(metadata, '$.talk_id') AS tid,
+                   COALESCE(json_extract(metadata, '$.title'), '') AS meta_title,
+                   COUNT(*) AS cnt
             FROM events
             WHERE event_type = 'talk_opened' AND metadata IS NOT NULL AND json_extract(metadata, '$.talk_id') IS NOT NULL
             GROUP BY tid
@@ -227,22 +229,27 @@ def get_analytics_summary(db_path: str | None = None) -> dict[str, Any]:
         )
         for r in cur.fetchall():
             tid = str(r["tid"])
-            title = _resolve_talk_title(tid)
+            raw_meta_title = str(r["meta_title"]).strip()
+            title = raw_meta_title if raw_meta_title else _resolve_talk_title(tid)
             top_talks.append({"talk_id": tid, "title": title, "count": r["cnt"]})
     except Exception:
         # Fallback if json_extract failed
         cur.execute("SELECT metadata FROM events WHERE event_type = 'talk_opened' AND metadata IS NOT NULL;")
         talk_freq: dict[str, int] = {}
+        talk_titles: dict[str, str] = {}
         for r in cur.fetchall():
             try:
                 m = json.loads(r[0])
                 tid = m.get("talk_id")
                 if tid:
                     talk_freq[tid] = talk_freq.get(tid, 0) + 1
+                    if m.get("title"):
+                        talk_titles[tid] = m["title"]
             except Exception:
                 continue
         for tid, cnt in sorted(talk_freq.items(), key=lambda x: x[1], reverse=True)[:5]:
-            top_talks.append({"talk_id": tid, "title": _resolve_talk_title(tid), "count": cnt})
+            title = talk_titles.get(tid) or _resolve_talk_title(tid)
+            top_talks.append({"talk_id": tid, "title": title, "count": cnt})
 
     # 5. Top Search Queries
     top_searches: list[dict[str, Any]] = []
