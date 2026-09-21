@@ -544,6 +544,15 @@
 }</code></pre>
             <button id="btn-copy-mcp-json" class="btn-copy-snippet">📋 Copy</button>
           </div>
+
+          <!-- Internal Traffic & Analytics Exclusion -->
+          <div style="margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--border);">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; cursor: pointer;">
+              <input type="checkbox" id="toggle-ignore-analytics">
+              <span style="font-weight: 600;">🚫 Exclude this browser from analytics (Internal Mode)</span>
+            </label>
+            <div id="analytics-exclusion-status" style="font-size: 0.74rem; color: var(--text-secondary); margin-left: 24px; margin-top: 2px;"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -762,6 +771,6 @@
   <script src="assets/vendor/marked.min.js"></script>
   <script src="assets/vendor/purify.min.js"></script>
   <script src="assets/jszip.min.js"></script>
-  <script src="assets/app.js?v=20260921-v1.1.0"></script>
+  <script src="assets/app.js?v=20260921-v1.3.0"></script>
 </body>
 </html>

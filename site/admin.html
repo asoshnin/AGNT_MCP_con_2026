@@ -524,6 +524,37 @@
       }
     }
 
+    async function confirmResetAnalytics() {
+      if (!confirm("Are you sure you want to permanently purge all test events in the analytics database? This cannot be undone.")) {
+        return;
+      }
+      const token = localStorage.getItem("agntcon_admin_token");
+      try {
+        const res = await fetch("/api/admin/analytics-reset", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          }
+        });
+        if (res.status === 401) {
+          alert("Unauthorized or session expired. Please log in again.");
+          localStorage.removeItem("agntcon_admin_token");
+          location.reload();
+          return;
+        }
+        const data = await res.json();
+        if (res.ok && data.status === "ok") {
+          alert(`Successfully purged ${data.deleted_rows || 0} test analytics events.`);
+          loadAnalytics();
+        } else {
+          alert(`Failed to reset analytics: ${data.error || "Unknown error"}`);
+        }
+      } catch (err) {
+        alert("Connection error: Failed to reach /api/admin/analytics-reset.");
+      }
+    }
+
     function switchAdminView(view) {
       const crmTab = document.getElementById("nav-tab-crm");
       const analyticsTab = document.getElementById("nav-tab-analytics");
@@ -645,8 +676,10 @@
             ${geo.map(g => `
               <tr>
                 <td>
-                  <span style="font-size: 1.1rem; margin-right: 6px;">${getCountryFlag(g.country)}</span>
-                  <strong>${g.country}</strong>
+                  <span style="display: inline-flex; align-items: center; gap: 6px; background: var(--bg-secondary); border: 1px solid var(--border); padding: 2px 8px; border-radius: 6px;">
+                    <span style="font-size: 1.1rem;">${getCountryFlag(g.country)}</span>
+                    <strong style="color: var(--text-primary); font-size: 0.85rem;">${g.country}</strong>
+                  </span>
                 </td>
                 <td style="text-align: right; font-weight: 600;">${g.visitors}</td>
                 <td style="text-align: right; color: var(--text-secondary);">${g.events}</td>
@@ -705,6 +738,7 @@
           <div style="display: flex; align-items: center; gap: 10px;">
             <span style="font-size: 0.75rem; color: var(--text-secondary);">Updated: ${data.generated_at}</span>
             <button class="btn-header" style="font-size: 0.8rem; padding: 6px 12px;" onclick="loadAnalytics()">🔄 Refresh</button>
+            <button class="btn-header" style="border-color: rgba(239, 68, 68, 0.4); color: #f87171; font-size: 0.8rem;" onclick="confirmResetAnalytics()">🗑️ Reset Test Data</button>
           </div>
         </div>
 

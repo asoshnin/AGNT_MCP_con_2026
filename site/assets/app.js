@@ -12,6 +12,15 @@ let IS_TRACK_FILTER_ACTIVE = false;
 // ── Zero-PII Non-Blocking Engagement Telemetry Beacon ──────────────
 function sendTelemetry(eventType, metadata = {}) {
   try {
+    const isAdmin = !!localStorage.getItem("agntcon_admin_token");
+    const isIgnored = localStorage.getItem("agntcon_ignore_telemetry") === "true";
+    const dnt = (typeof navigator !== "undefined" && navigator.doNotTrack === "1") ||
+                (typeof window !== "undefined" && window.doNotTrack === "1");
+
+    if (isAdmin || isIgnored || dnt) {
+      return;
+    }
+
     const payload = JSON.stringify({ event_type: eventType, metadata: metadata });
     if (typeof navigator !== "undefined" && navigator.sendBeacon) {
       const blob = new Blob([payload], { type: "application/json" });
@@ -249,7 +258,18 @@ function initTheme() {
   }
 }
 
+function initApp() {
+  if (typeof window !== "undefined" && window.location) {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("internal") === "1" || urlParams.get("debug") === "admin") {
+      localStorage.setItem("agntcon_ignore_telemetry", "true");
+      console.log("[Analytics] Browser marked as internal tester. Telemetry disabled.");
+    }
+  }
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
+  initApp();
   initTheme();
   sendTelemetry("page_view");
   // Prevent browser form history from auto-filling into search box
@@ -2604,6 +2624,57 @@ function setupModalsAndSettings() {
           }
         }
       }
+    });
+  }
+
+  // Internal Traffic & Analytics Exclusion Toggle
+  const toggleIgnoreAnalytics = document.getElementById("toggle-ignore-analytics");
+  const analyticsExclusionStatus = document.getElementById("analytics-exclusion-status");
+
+  const updateAnalyticsExclusionUI = () => {
+    const isAdmin = !!localStorage.getItem("agntcon_admin_token");
+    const isIgnored = localStorage.getItem("agntcon_ignore_telemetry") === "true";
+    const dnt = (typeof navigator !== "undefined" && navigator.doNotTrack === "1") ||
+                (typeof window !== "undefined" && window.doNotTrack === "1");
+
+    if (toggleIgnoreAnalytics) {
+      toggleIgnoreAnalytics.checked = isIgnored || isAdmin;
+      if (isAdmin) {
+        toggleIgnoreAnalytics.disabled = true;
+      }
+    }
+    if (analyticsExclusionStatus) {
+      if (isAdmin) {
+        analyticsExclusionStatus.innerHTML = "🔒 <strong>Admin Session Active:</strong> Telemetry is permanently muted for this browser.";
+        analyticsExclusionStatus.style.color = "#38bdf8";
+      } else if (isIgnored) {
+        analyticsExclusionStatus.innerHTML = "✓ <strong>Excluded:</strong> No beacons or usage events will be sent from this browser.";
+        analyticsExclusionStatus.style.color = "#22c55e";
+      } else if (dnt) {
+        analyticsExclusionStatus.innerHTML = "ℹ️ <strong>Do Not Track Active:</strong> Respected by client. Telemetry muted.";
+        analyticsExclusionStatus.style.color = "var(--text-secondary)";
+      } else {
+        analyticsExclusionStatus.innerHTML = "Standard mode: Anonymous Zero-PII engagement events enabled.";
+        analyticsExclusionStatus.style.color = "var(--text-secondary)";
+      }
+    }
+  };
+
+  if (toggleIgnoreAnalytics) {
+    updateAnalyticsExclusionUI();
+    toggleIgnoreAnalytics.addEventListener("change", (e) => {
+      if (e.target.checked) {
+        localStorage.setItem("agntcon_ignore_telemetry", "true");
+      } else {
+        localStorage.removeItem("agntcon_ignore_telemetry");
+      }
+      updateAnalyticsExclusionUI();
+    });
+  }
+
+  if (btnOpenSettings) {
+    btnOpenSettings.addEventListener("click", () => {
+      updateAnalyticsExclusionUI();
     });
   }
 }

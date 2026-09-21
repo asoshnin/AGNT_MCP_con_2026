@@ -255,3 +255,152 @@ def test_cloudflare_analytics_unconfigured(monkeypatch):
     assert res["available"] is False
     assert "not configured" in res["reason"]
 
+
+def test_reset_analytics_events(temp_analytics_db):
+    """Verify reset_analytics_events purges all rows and resets sqlite_sequence."""
+    # 1. Insert initial events
+    eid1 = analytics_db.record_event("sess1", "page_view", "US", db_path=temp_analytics_db)
+    eid2 = analytics_db.record_event("sess2", "search", "DE", metadata={"query": "agent"}, db_path=temp_analytics_db)
+    assert eid1 > 0
+    assert eid2 > 0
+
+    summary_before = analytics_db.get_analytics_summary(temp_analytics_db)
+    assert summary_before["kpis"]["total_events"] >= 2
+
+    # 2. Reset events
+    deleted = analytics_db.reset_analytics_events(temp_analytics_db)
+    assert deleted >= 2
+
+    # 3. Verify zeroed state
+    summary_after = analytics_db.get_analytics_summary(temp_analytics_db)
+    assert summary_after["kpis"]["total_events"] == 0
+    assert summary_after["kpis"]["unique_visitors_all"] == 0
+
+    # 4. Verify sqlite_sequence reset (next insert starts at id=1)
+    new_eid = analytics_db.record_event("sess3", "page_view", "NL", db_path=temp_analytics_db)
+    assert new_eid == 1
+
+
+def test_get_real_client_ip_precedence():
+    """Verify CF-Connecting-IP > X-Forwarded-For > client_address precedence."""
+    # CF-Connecting-IP takes highest priority
+    headers_cf = {
+        "CF-Connecting-IP": "203.0.113.195",
+        "X-Forwarded-For": "198.51.100.1, 10.0.0.1",
+    }
+    assert serve.get_real_client_ip(headers_cf, ("127.0.0.1", 54321)) == "203.0.113.195"
+
+    # X-Forwarded-For takes second priority (first IP in CSV)
+    headers_xff = {
+        "X-Forwarded-For": "198.51.100.1, 10.0.0.1",
+    }
+    assert serve.get_real_client_ip(headers_xff, ("127.0.0.1", 54321)) == "198.51.100.1"
+
+    # Fallback to client_address tuple
+    headers_empty = {}
+    assert serve.get_real_client_ip(headers_empty, ("192.168.1.10", 8088)) == "192.168.1.10"
+
+    # Fallback to string
+    assert serve.get_real_client_ip(headers_empty, "192.168.1.20") == "192.168.1.20"
+
+
+def test_http_telemetry_ignored_ip_filter(analytics_test_server, temp_analytics_db, monkeypatch):
+    """Verify requests matching ANALYTICS_IGNORE_IPS are suppressed with 200 ignored."""
+    monkeypatch.setenv("ANALYTICS_IGNORE_IPS", "203.0.113.50, 198.51.100.22")
+
+    with httpx.Client() as client:
+        res = client.post(
+            f"{analytics_test_server}/api/telemetry",
+            json={"event_type": "page_view"},
+            headers={"CF-Connecting-IP": "203.0.113.50"},
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data.get("status") == "ignored"
+        assert data.get("reason") == "internal_traffic"
+
+    summary = analytics_db.get_analytics_summary(temp_analytics_db)
+    assert summary["kpis"]["total_events"] == 0
+
+
+def test_http_telemetry_internal_headers_filter(analytics_test_server, temp_analytics_db):
+    """Verify X-Internal-Test and X-Internal-Agent headers suppress telemetry."""
+    with httpx.Client() as client:
+        # X-Internal-Test: 1
+        res1 = client.post(
+            f"{analytics_test_server}/api/telemetry",
+            json={"event_type": "page_view"},
+            headers={"X-Internal-Test": "1"},
+        )
+        assert res1.status_code == 200
+        assert res1.json() == {"status": "ignored", "reason": "internal_traffic"}
+
+        # X-Internal-Agent: true
+        res2 = client.post(
+            f"{analytics_test_server}/api/telemetry",
+            json={"event_type": "search", "metadata": {"query": "test"}},
+            headers={"X-Internal-Agent": "true"},
+        )
+        assert res2.status_code == 200
+        assert res2.json() == {"status": "ignored", "reason": "internal_traffic"}
+
+    summary = analytics_db.get_analytics_summary(temp_analytics_db)
+    assert summary["kpis"]["total_events"] == 0
+
+
+def test_http_telemetry_bot_user_agent_filter(analytics_test_server, temp_analytics_db):
+    """Verify automated testing and bot user agents are excluded from analytics."""
+    bot_agents = [
+        "Mozilla/5.0 (compatible; Googlebot/2.1)",
+        "pytest-agent/8.0",
+        "playwright/1.40 (headless)",
+        "openclaw/2.0-core",
+        "curl/7.88.1",
+    ]
+
+    with httpx.Client() as client:
+        for ua in bot_agents:
+            res = client.post(
+                f"{analytics_test_server}/api/telemetry",
+                json={"event_type": "page_view"},
+                headers={"User-Agent": ua},
+            )
+            assert res.status_code == 200
+            assert res.json() == {"status": "ignored", "reason": "internal_traffic"}
+
+    summary = analytics_db.get_analytics_summary(temp_analytics_db)
+    assert summary["kpis"]["total_events"] == 0
+
+
+def test_http_admin_analytics_reset_endpoint(analytics_test_server, temp_analytics_db):
+    """Verify POST /api/admin/analytics-reset requires admin auth and clears events table."""
+    with httpx.Client() as client:
+        # 1. Populate some events
+        analytics_db.record_event("s1", "page_view", "US", db_path=temp_analytics_db)
+        analytics_db.record_event("s2", "search", "NL", db_path=temp_analytics_db)
+        assert analytics_db.get_analytics_summary(temp_analytics_db)["kpis"]["total_events"] == 2
+
+        # 2. Unauthenticated request must return 401
+        unauth_res = client.post(f"{analytics_test_server}/api/admin/analytics-reset")
+        assert unauth_res.status_code == 401
+
+        # 3. Invalid token must return 401
+        invalid_res = client.post(
+            f"{analytics_test_server}/api/admin/analytics-reset",
+            headers={"Authorization": "Bearer bad-token"},
+        )
+        assert invalid_res.status_code == 401
+
+        # 4. Valid admin token must purge records and return count
+        auth_res = client.post(
+            f"{analytics_test_server}/api/admin/analytics-reset",
+            headers={"Authorization": f"Bearer {serve.ADMIN_SESSION_TOKEN}"},
+        )
+        assert auth_res.status_code == 200
+        data = auth_res.json()
+        assert data.get("status") == "ok"
+        assert data.get("deleted_rows") == 2
+
+        # 5. Verify database is now empty
+        assert analytics_db.get_analytics_summary(temp_analytics_db)["kpis"]["total_events"] == 0
+

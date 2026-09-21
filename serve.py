@@ -212,14 +212,20 @@ def check_telemetry_rate_limit(session_hash: str) -> bool:
     TELEMETRY_LOG[session_hash].append(now)
     return True
 
-def get_effective_client_ip(headers, fallback_ip: str) -> str:
+def get_real_client_ip(headers, client_address) -> str:
     cf_ip = headers.get("CF-Connecting-IP")
     if cf_ip and cf_ip.strip():
         return cf_ip.strip()
-    x_forwarded = headers.get("X-Forwarded-For")
-    if x_forwarded and x_forwarded.strip():
-        return x_forwarded.split(",")[0].strip()
-    return fallback_ip
+    xff = headers.get("X-Forwarded-For")
+    if xff and xff.strip():
+        return xff.split(",")[0].strip()
+    if isinstance(client_address, (list, tuple)) and len(client_address) > 0:
+        return str(client_address[0]).strip()
+    return str(client_address).strip() if client_address else "127.0.0.1"
+
+
+def get_effective_client_ip(headers, fallback_ip: str) -> str:
+    return get_real_client_ip(headers, (fallback_ip,))
 
 class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -410,7 +416,7 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
         global WAITING_TASKS, ACTIVE_TASKS
         parsed = urlparse(self.path)
         path = parsed.path
-        client_ip = self.client_address[0]
+        client_ip = get_real_client_ip(self.headers, self.client_address)
 
         if path == "/api/chat":
             # 1. Rate Limiting Check
@@ -867,8 +873,26 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": f"Invalid event type: '{event_type}'"}).encode("utf-8"))
                 return
 
-            client_ip = get_effective_client_ip(self.headers, self.client_address[0])
-            session_hash = get_session_hash(client_ip)
+            real_ip = get_real_client_ip(self.headers, self.client_address)
+            ignored_ips_raw = os.environ.get("ANALYTICS_IGNORE_IPS", "")
+            ignored_ips = {ip.strip() for ip in ignored_ips_raw.split(",") if ip.strip()}
+
+            is_internal_header = (
+                self.headers.get("X-Internal-Test") == "1"
+                or self.headers.get("X-Internal-Agent") == "true"
+            )
+            ua = self.headers.get("User-Agent", "").lower()
+            is_bot_tester = any(b in ua for b in ["pytest", "playwright", "openclaw", "curl", "bot"])
+
+            if real_ip in ignored_ips or is_internal_header or is_bot_tester:
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "ignored", "reason": "internal_traffic"}).encode("utf-8"))
+                return
+
+            session_hash = get_session_hash(real_ip)
 
             if not check_telemetry_rate_limit(session_hash):
                 self.send_response(429)
@@ -901,6 +925,30 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": f"Internal database error: {e}"}).encode("utf-8"))
+            return
+
+        # Admin Analytics Reset Endpoint (Purges test events & resets autoincrement sequence)
+        if path == "/api/admin/analytics-reset":
+            if not check_admin_auth(self.headers):
+                self.send_response(401)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Unauthorized"}).encode("utf-8"))
+                return
+            try:
+                deleted_rows = analytics_db.reset_analytics_events()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "ok", "deleted_rows": deleted_rows}).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": f"Failed to reset analytics events: {e}"}).encode("utf-8"))
             return
 
         # Admin Login Endpoint

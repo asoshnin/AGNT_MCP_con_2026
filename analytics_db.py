@@ -333,3 +333,21 @@ def get_analytics_summary(db_path: str | None = None) -> dict[str, Any]:
         "hourly_activity": hourly_activity,
         "generated_at": datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC"),
     }
+
+
+def reset_analytics_events(db_path: str | None = None) -> int:
+    """Safely purge all records in the events table and reset sqlite_sequence, returning deleted count."""
+    init_analytics_db(db_path)
+    conn = get_db(db_path)
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM events;")
+    count = cur.fetchone()[0] or 0
+    cur.execute("DELETE FROM events;")
+    try:
+        cur.execute("DELETE FROM sqlite_sequence WHERE name = 'events';")
+    except sqlite3.OperationalError:
+        # sqlite_sequence might not exist if autoincrement table has had no inserts
+        pass
+    conn.commit()
+    conn.close()
+    return int(count)
