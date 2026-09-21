@@ -2343,22 +2343,13 @@ function setupModalsAndSettings() {
   const testModelResult = document.getElementById("test-model-result");
   const btnCopyMcp = document.getElementById("btn-copy-mcp-json");
 
-  const checkMixedContent = () => {
-    if (window.location.protocol === "https:") {
-      const warning = document.getElementById("https-mixed-content-warning");
-      if (baseUrlInput && warning) {
-        const url = baseUrlInput.value.trim();
-        if (url.startsWith("http://")) {
-          warning.style.display = "block";
-        } else {
-          warning.style.display = "none";
-        }
-      }
-    }
+  const hideMixedContentWarning = () => {
+    const warning = document.getElementById("https-mixed-content-warning");
+    if (warning) warning.style.display = "none";
   };
 
   if (baseUrlInput) {
-    baseUrlInput.addEventListener("input", checkMixedContent);
+    baseUrlInput.addEventListener("input", hideMixedContentWarning);
   }
 
   // Inference Tier Tabs
@@ -2396,7 +2387,7 @@ function setupModalsAndSettings() {
       tabCloud.classList.remove("active");
       panelBYOM.style.display = "block";
       panelCloud.style.display = "none";
-      checkMixedContent();
+      hideMixedContentWarning();
       updateChatEngineBadge();
     });
   }
@@ -2468,7 +2459,7 @@ function setupModalsAndSettings() {
     if (savedBaseUrl) baseUrlInput.value = savedBaseUrl;
     baseUrlInput.addEventListener("input", (e) => {
       localStorage.setItem("agntcon_custom_base_url", e.target.value.trim());
-      checkMixedContent();
+      hideMixedContentWarning();
     });
   }
 
@@ -2507,7 +2498,7 @@ function setupModalsAndSettings() {
       }
       localStorage.setItem("agntcon_custom_base_url", baseUrlInput.value);
       localStorage.setItem("agntcon_custom_model_name", modelNameInput.value);
-      checkMixedContent();
+      hideMixedContentWarning();
       updateChatEngineBadge();
     });
   }
@@ -2564,6 +2555,7 @@ function setupModalsAndSettings() {
 
         const elapsed = Math.round(performance.now() - t0);
         if (res.ok) {
+          hideMixedContentWarning();
           const data = await res.json();
           if (data.choices && data.choices.length > 0) {
             testModelResult.style.color = "#22c55e";
@@ -2581,6 +2573,19 @@ function setupModalsAndSettings() {
         const elapsed = Math.round(performance.now() - t0);
         testModelResult.style.color = "#f87171";
         testModelResult.textContent = `✕ Connection error (${elapsed}ms): Network/CORS failure. Verify CORS/server is running.`;
+        if (window.location.protocol === "https:" && rawBase.startsWith("http://")) {
+          const warning = document.getElementById("https-mixed-content-warning");
+          if (warning) {
+            warning.style.display = "block";
+            warning.innerHTML = `
+              <strong>💡 Local Model Connection Troubleshooting:</strong><br>
+              • If using <strong>Safari</strong> or <strong>Firefox</strong>, browsers block <code>http://</code> from HTTPS pages.<br>
+              • <strong>Quick Fix 1:</strong> Use <strong>Chrome</strong>, <strong>Brave</strong>, or <strong>Edge</strong> (which allow <code>http://127.0.0.1</code> natively).<br>
+              • <strong>Quick Fix 2:</strong> Expose your local port via Cloudflare tunnel: <code>cloudflared tunnel --url http://127.0.0.1:1234</code>.<br>
+              • <strong>Quick Fix 3:</strong> Ensure LM Studio / Ollama is running and CORS is enabled.
+            `;
+          }
+        }
       }
     });
   }
