@@ -371,23 +371,42 @@ def tool_get_queue_status() -> dict:
 
 # Standard MCP JSON-RPC Server Handler (over stdio)
 def run_mcp_stdio():
-    print(json.dumps({
-        "jsonrpc": "2.0",
-        "method": "notifications/initialized",
-        "params": {"name": "agntcon-2026-mcp", "version": "1.0.0"}
-    }), flush=True)
-    
     while True:
         try:
             line = sys.stdin.readline()
             if not line:
                 break
-            req = json.loads(line)
+            line_str = line.strip()
+            if not line_str:
+                continue
+            req = json.loads(line_str)
             req_id = req.get("id")
             method = req.get("method")
             params = req.get("params", {})
             
-            if method == "tools/list":
+            if method == "initialize":
+                resp = {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "result": {
+                        "protocolVersion": params.get("protocolVersion", "2024-11-05"),
+                        "capabilities": {
+                            "tools": {}
+                        },
+                        "serverInfo": {
+                            "name": "agntcon-2026-mcp",
+                            "version": "1.0.0"
+                        }
+                    }
+                }
+                print(json.dumps(resp), flush=True)
+            elif method in ("notifications/initialized", "initialized"):
+                # Standard MCP client notification; no response needed
+                continue
+            elif method == "ping":
+                resp = {"jsonrpc": "2.0", "id": req_id, "result": {}}
+                print(json.dumps(resp), flush=True)
+            elif method == "tools/list":
                 resp = {
                     "jsonrpc": "2.0",
                     "id": req_id,
