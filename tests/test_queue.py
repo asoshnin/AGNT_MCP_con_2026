@@ -58,6 +58,8 @@ def test_queue_concurrent_semaphore_execution(monkeypatch, queue_test_server):
         return {"answer": f"Mock answer for {q}", "citations": []}
 
     monkeypatch.setattr(serve, "tool_answer_conference", mock_tool)
+    import mcp_server
+    monkeypatch.setattr(mcp_server, "tool_answer_conference", mock_tool)
 
     results = []
     def worker(idx):

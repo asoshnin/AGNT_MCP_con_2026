@@ -668,6 +668,7 @@ function setupEventListeners() {
             const btnOpenProf = document.getElementById("btn-open-profile");
             if (btnOpenProf) btnOpenProf.click();
           });
+        }
         // Update Cut-Off Threshold selector and matches label
         const thresholdSelect = document.getElementById("track-threshold-select");
         const thresholdMatches = document.getElementById("track-threshold-matches");
