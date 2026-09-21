@@ -628,6 +628,21 @@
                   </button>
                 </div>
               </div>
+              <div id="track-threshold-bar" style="padding: 6px 12px; background: rgba(56, 189, 248, 0.08); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.78rem;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span style="font-weight: 600; color: var(--text-primary); white-space: nowrap;">🎯 Cut-Off Level:</span>
+                  <select id="track-threshold-select" class="search-input" style="padding: 2px 6px; font-size: 0.76rem; width: auto; background: var(--card-bg);" title="Adjust minimum fit percentage to include in auto-curated track">
+                    <option value="60">≥ 60% (Broad / All Relevant)</option>
+                    <option value="65">≥ 65% (Extended Track)</option>
+                    <option value="70">≥ 70% (Inclusive Track)</option>
+                    <option value="75" selected>≥ 75% (Balanced Recommended)</option>
+                    <option value="80">≥ 80% (High Affinity)</option>
+                    <option value="85">≥ 85% (Selective / Priority)</option>
+                    <option value="90">≥ 90% (Strict Must-Attend)</option>
+                  </select>
+                </div>
+                <span id="track-threshold-matches" style="font-size: 0.74rem; color: var(--accent); font-weight: 500;"></span>
+              </div>
               <div id="export-track-list" class="track-pane-scroll">
                 <!-- Populated dynamically -->
               </div>
@@ -682,6 +697,9 @@
             <button type="button" id="chat-reset" class="btn-header" style="padding: 3px 8px; font-size: 0.75rem;" title="Reset chat conversation">🔄 New</button>
             <button id="chat-close" class="chat-close">&times;</button>
           </div>
+        </div>
+        <div id="chat-profile-indicator" style="padding: 5px 14px; background: rgba(56, 189, 248, 0.07); border-bottom: 1px solid var(--border); font-size: 0.74rem; color: var(--text-secondary); display: flex; align-items: center; justify-content: space-between;">
+          <span id="chat-profile-text">💡 <a href="javascript:void(0)" onclick="document.getElementById('btn-open-profile').click()" style="color: var(--accent); text-decoration: underline;">Set up your Profile</a> to personalize answers.</span>
         </div>
         <div id="chat-messages" class="chat-messages">
           <div class="chat-msg bot">

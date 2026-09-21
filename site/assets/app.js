@@ -53,65 +53,98 @@ function calculateProfileFit(talk, profile) {
   const stopWords = new Set(["the", "and", "for", "with", "that", "this", "from", "about", "what", "how", "are", "you", "your", "only", "also", "want", "more"]);
   const noteTokens = notesStr
     .split(/[^a-z0-9_-]+/)
-    .filter(t => t.length > 3 && !stopWords.has(t));
+    .filter(t => t.length > 2 && !stopWords.has(t));
 
   let s_notes = 0;
   if (noteTokens.length > 0) {
     const matchedTokens = noteTokens.filter(t => combinedText.includes(t));
-    if (matchedTokens.length >= 2) s_notes = 100;
-    else if (matchedTokens.length === 1) s_notes = 60;
+    if (matchedTokens.length >= 3) s_notes = 100;
+    else if (matchedTokens.length === 2) s_notes = 85;
+    else if (matchedTokens.length === 1) s_notes = 65;
   }
 
-  // 3. Role Match (targeted non-generic keywords)
+  // 3. Primary Objective Match (0 - 100)
+  const objStr = (profile.objective || "").toLowerCase();
+  let s_obj = 60;
+  if (objStr.includes("code") || objStr.includes("implement") || objStr.includes("hands-on")) {
+    if (talk.has_slides || talk.file_name) s_obj += 20;
+    if (talkConcepts.some(c => ["tool-use", "mcp"].includes(c))) s_obj += 20;
+  } else if (objStr.includes("security") || objStr.includes("trap") || objStr.includes("harden")) {
+    if (talkConcepts.some(c => ["security", "sandboxing", "evaluation"].includes(c))) s_obj += 25;
+    if (combinedText.includes("vulnerability") || combinedText.includes("attack") || combinedText.includes("poison") || combinedText.includes("exploit")) s_obj += 15;
+  } else if (objStr.includes("standard") || objStr.includes("protocol") || objStr.includes("trend")) {
+    if (talkConcepts.some(c => ["mcp", "orchestration"].includes(c))) s_obj += 20;
+    if (combinedText.includes("standard") || combinedText.includes("protocol") || combinedText.includes("spec") || combinedText.includes("rfc")) s_obj += 20;
+  }
+  s_obj = Math.min(100, s_obj);
+
+  // 4. Role Match (targeted non-generic keywords)
   const roleStr = (profile.role || "").toLowerCase();
-  let s_role = 0;
+  let s_role = 60;
   if (roleStr.includes("security") || roleStr.includes("red team")) {
-    if (talkConcepts.some(c => ["security", "sandboxing", "red-teaming"].includes(c)) || combinedText.includes("attack") || combinedText.includes("vulnerability") || combinedText.includes("jailbreak")) {
+    if (talkConcepts.some(c => ["security", "sandboxing", "red-teaming"].includes(c))) {
       s_role = 100;
+    } else if (combinedText.includes("attack") || combinedText.includes("vulnerability") || combinedText.includes("jailbreak") || combinedText.includes("exploit")) {
+      s_role = 85;
+    } else {
+      s_role = 35;
     }
-  } else if (roleStr.includes("architect") || roleStr.includes("infrastructure")) {
-    if (combinedText.includes("kubernetes") || combinedText.includes("infrastructure") || combinedText.includes("scale") || combinedText.includes("production") || talkConcepts.includes("ebpf")) {
-      s_role = 100;
+  } else if (roleStr.includes("architect") || roleStr.includes("platform") || roleStr.includes("infrastructure")) {
+    if (combinedText.includes("kubernetes") || combinedText.includes("infrastructure") || combinedText.includes("scale") || combinedText.includes("production") || combinedText.includes("control plane") || talkConcepts.includes("ebpf")) {
+      s_role = 95;
+    } else {
+      s_role = 50;
     }
-  } else if (roleStr.includes("engineer") || roleStr.includes("developer")) {
-    if (combinedText.includes("code") || combinedText.includes("tool") || combinedText.includes("framework") || talkConcepts.includes("mcp") || talkConcepts.includes("tool-use")) {
-      s_role = 100;
+  } else if (roleStr.includes("engineer") || roleStr.includes("developer") || roleStr.includes("dev")) {
+    if (combinedText.includes("sdk") || combinedText.includes("code") || combinedText.includes("implementation") || combinedText.includes("tool") || combinedText.includes("framework") || talkConcepts.includes("tool-use")) {
+      s_role = 95;
+    } else {
+      s_role = 50;
     }
-  } else if (roleStr.includes("executive") || roleStr.includes("founder")) {
-    if (combinedText.includes("strategy") || combinedText.includes("governance") || combinedText.includes("ecosystem") || talk.kind === "keynote") {
-      s_role = 100;
+  } else if (roleStr.includes("executive") || roleStr.includes("founder") || roleStr.includes("product")) {
+    if (combinedText.includes("strategy") || combinedText.includes("enterprise") || combinedText.includes("governance") || combinedText.includes("ecosystem") || talk.kind === "keynote") {
+      s_role = 95;
+    } else {
+      s_role = 40;
     }
   }
 
-  // 4. Topic Depth baseline
+  // 5. Topic Depth baseline
   const s_depth = (talk.relevance_score || 0.8) * 100;
 
   // Composite Discriminative Formula (Base 0)
   let score = 0;
   if (noteTokens.length > 0) {
-    score = (0.40 * s_tags) + (0.30 * s_notes) + (0.15 * s_role) + (0.15 * s_depth);
+    score = (0.35 * s_tags) + (0.30 * s_notes) + (0.15 * s_role) + (0.10 * s_obj) + (0.10 * s_depth);
   } else if (profileFocus.length > 0) {
-    score = (0.55 * s_tags) + (0.25 * s_role) + (0.20 * s_depth);
+    score = (0.50 * s_tags) + (0.20 * s_role) + (0.15 * s_obj) + (0.15 * s_depth);
   } else {
-    score = (0.50 * s_role) + (0.50 * s_depth);
+    score = (0.40 * s_role) + (0.30 * s_obj) + (0.30 * s_depth);
   }
+
+  // Tie-breaker subtle offset (0 - 3 pts) based on relevance
+  score += (talk.relevance_score || 0.8) * 3;
 
   return Math.min(100, Math.max(0, Math.round(score)));
 }
 
-function curateTrackFromProfile(profile) {
+function getTrackThreshold() {
+  return Number(localStorage.getItem("agntcon_track_threshold") || 75);
+}
+
+function curateTrackFromProfile(profile, minThreshold = null) {
   if (!profile) return [];
+  const threshold = minThreshold !== null ? minThreshold : getTrackThreshold();
   const scored = ALL_TALKS.map(t => ({
     id: t.id,
     fit: calculateProfileFit(t, profile)
   })).sort((a, b) => b.fit - a.fit);
 
-  // Take all talks with fit >= 60%, clamped to a rich personal track of 6 to 10 talks
-  let matches = scored.filter(s => s.fit >= 60).map(s => s.id);
-  if (matches.length < 4) {
-    matches = scored.slice(0, 6).map(s => s.id);
-  } else if (matches.length > 10) {
-    matches = matches.slice(0, 10);
+  // Take all talks meeting or exceeding the user's chosen threshold
+  let matches = scored.filter(s => s.fit >= threshold).map(s => s.id);
+  // Graceful fallback: if threshold is so high that 0 or fewer than 3 match, take top 3
+  if (matches.length < 3 && scored.length > 0) {
+    matches = scored.slice(0, Math.min(3, scored.length)).map(s => s.id);
   }
   return matches;
 }
@@ -463,6 +496,7 @@ function setupEventListeners() {
         tabRec.classList.remove("active");
       }
     }
+    updateChatProfileIndicator();
   };
 
   const notesTextarea = document.getElementById("profile-custom-notes");
@@ -634,6 +668,17 @@ function setupEventListeners() {
             const btnOpenProf = document.getElementById("btn-open-profile");
             if (btnOpenProf) btnOpenProf.click();
           });
+        // Update Cut-Off Threshold selector and matches label
+        const thresholdSelect = document.getElementById("track-threshold-select");
+        const thresholdMatches = document.getElementById("track-threshold-matches");
+        if (thresholdSelect) {
+          thresholdSelect.value = String(getTrackThreshold());
+          if (profile && thresholdMatches) {
+            const qualifyCount = ALL_TALKS.filter(t => calculateProfileFit(t, profile) >= getTrackThreshold()).length;
+            thresholdMatches.textContent = `${qualifyCount} sessions qualify (≥${getTrackThreshold()}%)`;
+          } else if (thresholdMatches) {
+            thresholdMatches.textContent = "";
+          }
         }
       } else if (trackTalks.length === 0) {
         // Stage 2: Profile Exists, but Track is Empty
@@ -649,14 +694,14 @@ function setupEventListeners() {
               Focus: ${(profile.focus_areas || []).map(escapeHtml).join(", ") || "General"}
             </p>
             <button type="button" id="btn-auto-curate-track" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; padding: 7px 16px; font-size: 0.82rem;">
-              ✨ Curate My Track with AI (Top Matches)
+              ✨ Curate My Track with AI (≥${getTrackThreshold()}% Fit)
             </button>
           </div>
         `;
         const btnAuto = document.getElementById("btn-auto-curate-track");
         if (btnAuto) {
           btnAuto.addEventListener("click", () => {
-            const curated = curateTrackFromProfile(profile);
+            const curated = curateTrackFromProfile(profile, getTrackThreshold());
             localStorage.setItem("agntcon_my_track", JSON.stringify(curated));
             localStorage.setItem("agntcon_track_profile_sync", String(profile.updated_at || Date.now()));
             updateTrackCount();
@@ -680,25 +725,42 @@ function setupEventListeners() {
           `;
         }
 
-        currentListEl.innerHTML = realignBanner + trackTalks.map(t => `
+        // Update Cut-Off Threshold selector and matches label for populated track
+        const thresholdSelect = document.getElementById("track-threshold-select");
+        const thresholdMatches = document.getElementById("track-threshold-matches");
+        if (thresholdSelect) {
+          thresholdSelect.value = String(getTrackThreshold());
+          if (profile && thresholdMatches) {
+            const qualifyCount = ALL_TALKS.filter(t => calculateProfileFit(t, profile) >= getTrackThreshold()).length;
+            thresholdMatches.textContent = `${qualifyCount} sessions qualify (≥${getTrackThreshold()}%)`;
+          } else if (thresholdMatches) {
+            thresholdMatches.textContent = "";
+          }
+        }
+
+        currentListEl.innerHTML = realignBanner + trackTalks.map(t => {
+          const fitScore = calculateProfileFit(t, profile);
+          return `
           <div class="track-item">
             <div style="min-width: 0;">
               <a href="#/session/${t.id}" onclick="openEssenceModal('${t.id}')" style="color: var(--accent); font-weight: 700; text-decoration: underline; font-size: 0.85rem; margin-right: 4px;">[${t.id}]</a>
               <strong style="font-size: 0.84rem; color: var(--text-primary);">${escapeHtml(t.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, ""))}</strong><br>
               <span style="font-size: 0.76rem; color: var(--text-secondary);">${escapeHtml((t.speakers || []).join(", "))}</span>
               ${(t.has_slides || t.file_name) ? '<span style="font-size: 0.72rem; color: #22c55e; margin-left: 6px;">📄 Slides</span>' : ''}
+              <span style="font-size: 0.72rem; color: var(--accent); font-weight: 600; margin-left: 6px;">Fit: ${fitScore}%</span>
             </div>
             <div style="display: flex; gap: 4px; align-items: center; flex-shrink: 0;">
               <button type="button" class="btn-cite" onclick="openEssenceModal('${t.id}')" style="padding: 3px 6px; font-size: 0.72rem;">Essence</button>
               <button type="button" class="btn-cite" onclick="toggleTrack('${t.id}');" style="padding: 3px 6px; font-size: 0.72rem; color: #ef4444;" title="Remove from track">✕</button>
             </div>
           </div>
-        `).join("");
+        `;
+        }).join("");
 
         const btnRealign = document.getElementById("btn-realign-track");
         if (btnRealign) {
           btnRealign.addEventListener("click", () => {
-            const curated = curateTrackFromProfile(profile);
+            const curated = curateTrackFromProfile(profile, getTrackThreshold());
             localStorage.setItem("agntcon_my_track", JSON.stringify(curated));
             localStorage.setItem("agntcon_track_profile_sync", String(profile.updated_at || Date.now()));
             updateTrackCount();
@@ -787,6 +849,23 @@ function setupEventListeners() {
     });
   });
 
+  const thresholdSelectEl = document.getElementById("track-threshold-select");
+  if (thresholdSelectEl) {
+    thresholdSelectEl.addEventListener("change", (e) => {
+      const newThreshold = Number(e.target.value);
+      localStorage.setItem("agntcon_track_threshold", String(newThreshold));
+      const profile = getUserProfile();
+      if (profile) {
+        const curated = curateTrackFromProfile(profile, newThreshold);
+        localStorage.setItem("agntcon_my_track", JSON.stringify(curated));
+        localStorage.setItem("agntcon_track_profile_sync", String(profile.updated_at || Date.now()));
+        updateTrackCount();
+        renderCards();
+        renderTrackStudio();
+      }
+    });
+  }
+
   if (btnCurateTrackProfile) {
     btnCurateTrackProfile.addEventListener("click", () => {
       const profile = getUserProfile();
@@ -796,7 +875,7 @@ function setupEventListeners() {
         if (btnOpenProf) btnOpenProf.click();
         return;
       }
-      const curated = curateTrackFromProfile(profile);
+      const curated = curateTrackFromProfile(profile, getTrackThreshold());
       localStorage.setItem("agntcon_my_track", JSON.stringify(curated));
       localStorage.setItem("agntcon_track_profile_sync", String(profile.updated_at || Date.now()));
       updateTrackCount();
@@ -1424,6 +1503,19 @@ function updateChatEngineBadge() {
   }
 }
 
+function updateChatProfileIndicator() {
+  const el = document.getElementById("chat-profile-text");
+  if (!el) return;
+  const profile = getUserProfile();
+  if (profile && (profile.role || (profile.focus_areas && profile.focus_areas.length > 0))) {
+    const roleStr = profile.role || "Specialist";
+    const focusStr = (profile.focus_areas && profile.focus_areas.length > 0) ? profile.focus_areas.slice(0, 2).join(", ") : "General";
+    el.innerHTML = `🎯 Tailored for: <strong style="color: var(--accent);">${escapeHtml(roleStr)}</strong> • ${escapeHtml(focusStr)} <a href="javascript:void(0)" onclick="document.getElementById('btn-open-profile').click()" style="color: var(--accent); margin-left: 6px; text-decoration: underline;">(Edit)</a>`;
+  } else {
+    el.innerHTML = `💡 <a href="javascript:void(0)" onclick="document.getElementById('btn-open-profile').click()" style="color: var(--accent); text-decoration: underline;">Set up your Profile</a> to get tailored recommendations and answers.`;
+  }
+}
+
 function setupChat() {
   const toggleBtn = document.getElementById("chat-toggle");
   const chatPanel = document.getElementById("chat-panel");
@@ -1434,6 +1526,7 @@ function setupChat() {
   const chatMessages = document.getElementById("chat-messages");
 
   updateChatEngineBadge();
+  updateChatProfileIndicator();
 
   if (chatReset) {
     chatReset.addEventListener("click", () => {
@@ -1446,7 +1539,10 @@ function setupChat() {
     });
   }
 
-  toggleBtn.addEventListener("click", () => chatPanel.classList.toggle("open"));
+  toggleBtn.addEventListener("click", () => {
+    chatPanel.classList.toggle("open");
+    updateChatProfileIndicator();
+  });
   chatClose.addEventListener("click", () => chatPanel.classList.remove("open"));
 
   chatForm.addEventListener("submit", async (e) => {
