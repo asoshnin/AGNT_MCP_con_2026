@@ -9,6 +9,35 @@ let CURRENT_INFERENCE_TIER = localStorage.getItem("agntcon_inference_tier") || "
 let IS_RECOMMENDED_MODE = false;
 let IS_TRACK_FILTER_ACTIVE = false;
 
+// ── Zero-PII Non-Blocking Engagement Telemetry Beacon ──────────────
+function sendTelemetry(eventType, metadata = {}) {
+  try {
+    const payload = JSON.stringify({ event_type: eventType, metadata: metadata });
+    if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+      const blob = new Blob([payload], { type: "application/json" });
+      navigator.sendBeacon("/api/telemetry", blob);
+    } else if (typeof fetch !== "undefined") {
+      fetch("/api/telemetry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+        keepalive: true
+      }).catch(() => {});
+    }
+  } catch (e) {
+    // Non-blocking telemetry: zero user friction
+  }
+}
+
+let _searchTelemetryTimer = null;
+function debouncedSearchTelemetry(query, resultCount) {
+  clearTimeout(_searchTelemetryTimer);
+  if (!query || query.trim().length === 0) return;
+  _searchTelemetryTimer = setTimeout(() => {
+    sendTelemetry("search", { query: query.trim(), result_count: resultCount });
+  }, 500);
+}
+
 function getUserProfile() {
   const raw = localStorage.getItem("agntcon_user_profile");
   if (!raw) return null;
@@ -146,6 +175,7 @@ function curateTrackFromProfile(profile, minThreshold = null) {
   if (matches.length < 3 && scored.length > 0) {
     matches = scored.slice(0, Math.min(3, scored.length)).map(s => s.id);
   }
+  sendTelemetry("track_curate", { threshold: threshold, talk_count: matches.length });
   return matches;
 }
 
@@ -221,6 +251,7 @@ function initTheme() {
 
 document.addEventListener("DOMContentLoaded", async () => {
   initTheme();
+  sendTelemetry("page_view");
   // Prevent browser form history from auto-filling into search box
   const searchInput = document.getElementById("search-input");
   const searchClear = document.getElementById("search-clear");
@@ -912,6 +943,7 @@ function setupEventListeners() {
         return;
       }
 
+      sendTelemetry("track_export_obsidian", { talk_count: trackTalks.length });
       btnDownloadObsidian.textContent = "⏳ Bundling Vault...";
 
       const zip = new JSZip();
@@ -1000,6 +1032,7 @@ function setupEventListeners() {
         return;
       }
 
+      sendTelemetry("track_export_pdf", { talk_count: trackTalks.length });
       btnExportPdf.textContent = "⏳ Generating Dossier...";
 
       // Fetch full unabridged essence for each session in parallel
@@ -1185,6 +1218,10 @@ function renderCards() {
     return matches;
   });
 
+  if (q) {
+    debouncedSearchTelemetry(q, filtered.length);
+  }
+
   // Sorting
   filtered.sort((a, b) => {
     if (CURRENT_SORT === "title") {
@@ -1334,6 +1371,7 @@ function renderCards() {
 }
 
 async function openEssenceModal(sid) {
+  sendTelemetry("talk_opened", { talk_id: sid });
   const modalBackdrop = document.getElementById("modal-backdrop");
   const modalBody = document.getElementById("modal-body");
   const titleEl = document.getElementById("essence-modal-title");
@@ -1542,6 +1580,7 @@ function setupChat() {
     const breadthSelect = document.getElementById("rag-breadth-select");
     const breadth = breadthSelect ? breadthSelect.value : "auto";
     const tier = localStorage.getItem("agntcon_inference_tier") || "cloud";
+    sendTelemetry("chat_query", { tier: tier, breadth: breadth });
 
     // 1. BYOM: Direct Browser-Side Execution (Local or Custom Cloud)
     if (tier === "byom") {

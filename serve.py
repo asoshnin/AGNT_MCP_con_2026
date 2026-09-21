@@ -35,6 +35,7 @@ try:
 except ImportError:
     ThreadingHTTPServer = HTTPServer
 import argparse
+import hashlib
 import secrets
 from urllib.parse import parse_qs, urlparse
 
@@ -42,6 +43,7 @@ HUB_DIR = os.path.dirname(os.path.abspath(__file__))
 SITE_DIR = os.path.join(HUB_DIR, "site")
 
 sys.path.insert(0, HUB_DIR)
+import analytics_db
 import crm_db
 from mcp_server import tool_answer_conference, tool_get_page, tool_search_talks
 
@@ -181,6 +183,42 @@ def check_ip_rate_limit(ip: str) -> bool:
         return False
     IP_REQUEST_LOG[ip].append(now)
     return True
+
+DAILY_SALT = secrets.token_hex(16)
+SALT_CREATION_DAY = time.strftime("%Y-%m-%d")
+TELEMETRY_LOG: dict[str, list[float]] = {}
+TELEMETRY_RATE_LIMIT_PER_MINUTE = 60
+
+def get_daily_salt() -> str:
+    global DAILY_SALT, SALT_CREATION_DAY
+    today = time.strftime("%Y-%m-%d")
+    if today != SALT_CREATION_DAY:
+        DAILY_SALT = secrets.token_hex(16)
+        SALT_CREATION_DAY = today
+    return DAILY_SALT
+
+def get_session_hash(client_ip: str) -> str:
+    salt = get_daily_salt()
+    return hashlib.sha256(f"{client_ip}_{salt}".encode()).hexdigest()[:12]
+
+def check_telemetry_rate_limit(session_hash: str) -> bool:
+    now = time.time()
+    if session_hash not in TELEMETRY_LOG:
+        TELEMETRY_LOG[session_hash] = []
+    TELEMETRY_LOG[session_hash] = [t for t in TELEMETRY_LOG[session_hash] if now - t < 60]
+    if len(TELEMETRY_LOG[session_hash]) >= TELEMETRY_RATE_LIMIT_PER_MINUTE:
+        return False
+    TELEMETRY_LOG[session_hash].append(now)
+    return True
+
+def get_effective_client_ip(headers, fallback_ip: str) -> str:
+    cf_ip = headers.get("CF-Connecting-IP")
+    if cf_ip and cf_ip.strip():
+        return cf_ip.strip()
+    x_forwarded = headers.get("X-Forwarded-For")
+    if x_forwarded and x_forwarded.strip():
+        return x_forwarded.split(",")[0].strip()
+    return fallback_ip
 
 class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -337,6 +375,30 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps(inq, ensure_ascii=False).encode("utf-8"))
+            return
+
+        # API: Admin Analytics Summary (Zero-PII Operator Dashboard)
+        if path == "/api/admin/analytics-summary":
+            if not check_admin_auth(self.headers):
+                self.send_response(401)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Unauthorized"}).encode("utf-8"))
+                return
+            try:
+                summary = analytics_db.get_analytics_summary()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps(summary, ensure_ascii=False).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": f"Failed to get analytics summary: {e}"}).encode("utf-8"))
             return
 
         # Serve static site
@@ -770,6 +832,73 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 "ticket_id": ticket_id,
                 "ticket_url": ticket_url
             }).encode("utf-8"))
+            return
+
+        # Telemetry Ingestion Endpoint (Zero-PII & Abuse Protected)
+        if path == "/api/telemetry":
+            content_length = int(self.headers.get("Content-Length", 0))
+            if content_length > 1024:
+                self.send_response(413)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Payload exceeds 1024 bytes ceiling"}).encode("utf-8"))
+                return
+
+            try:
+                body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
+                payload = json.loads(body) if body else {}
+            except Exception:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Malformed JSON payload"}).encode("utf-8"))
+                return
+
+            event_type = str(payload.get("event_type", "")).strip()
+            if event_type not in analytics_db.ALLOWED_EVENTS:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": f"Invalid event type: '{event_type}'"}).encode("utf-8"))
+                return
+
+            client_ip = get_effective_client_ip(self.headers, self.client_address[0])
+            session_hash = get_session_hash(client_ip)
+
+            if not check_telemetry_rate_limit(session_hash):
+                self.send_response(429)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Rate limit exceeded. Max 60 events per minute."}).encode("utf-8"))
+                return
+
+            country = self.headers.get("CF-IPCountry", "XX").strip()
+            referrer = self.headers.get("Referer", self.headers.get("Referrer", "direct")).strip()
+            metadata = payload.get("metadata")
+
+            try:
+                analytics_db.record_event(
+                    session_hash=session_hash,
+                    event_type=event_type,
+                    country=country,
+                    referrer=referrer,
+                    metadata=metadata,
+                )
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "ok"}).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": f"Internal database error: {e}"}).encode("utf-8"))
             return
 
         # Admin Login Endpoint
