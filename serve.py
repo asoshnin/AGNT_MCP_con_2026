@@ -45,6 +45,7 @@ SITE_DIR = os.path.join(HUB_DIR, "site")
 sys.path.insert(0, HUB_DIR)
 import analytics_db
 import crm_db
+from cloudflare_analytics import fetch_cloudflare_edge_analytics
 from mcp_server import tool_answer_conference, tool_get_page, tool_search_talks
 
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "agntcon2026admin")
@@ -388,6 +389,7 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 return
             try:
                 summary = analytics_db.get_analytics_summary()
+                summary["cloudflare"] = fetch_cloudflare_edge_analytics(days=7)
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Access-Control-Allow-Origin", "*")

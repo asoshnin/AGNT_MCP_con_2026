@@ -238,3 +238,20 @@ def test_http_admin_analytics_summary_auth_gate(analytics_test_server, temp_anal
         assert "top_talks" in data
         assert "top_searches" in data
         assert "hourly_activity" in data
+        assert "cloudflare" in data
+
+
+def test_cloudflare_analytics_unconfigured(monkeypatch):
+    """Verify graceful fallback when Cloudflare credentials are not configured."""
+    from cloudflare_analytics import fetch_cloudflare_edge_analytics
+
+    monkeypatch.delenv("CLOUDFLARE_ANALYTICS_TOKEN", raising=False)
+    monkeypatch.delenv("CLOUDFLARE_ZONE_ID", raising=False)
+    import cloudflare_analytics
+
+    cloudflare_analytics._CF_CACHE["data"] = None
+
+    res = fetch_cloudflare_edge_analytics()
+    assert res["available"] is False
+    assert "not configured" in res["reason"]
+
