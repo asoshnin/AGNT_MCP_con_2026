@@ -30,7 +30,7 @@ An independent, fair-use research wiki, interactive AI assistant, and Model Cont
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    HIGH-PERFORMANCE DATA & INDEX LAYER                      │
 │        wiki/index.json  │  agntcon2026.sqlite (FTS5 BM25 + BGE Embeddings)   │
-│        wiki/sources/*.md  │  wiki/concepts/*.md  │  crm.sqlite (Inquiries)  │
+│        wiki/sources/*.md  │  crm.sqlite (Inquiries)  │ analytics.sqlite     │
 └──────────────────────────────────────┬──────────────────────────────────────┘
                                        │
                                        ▼
@@ -184,12 +184,25 @@ Download pre-formatted markdown notes tailored for [Obsidian](https://obsidian.m
 
 ---
 
+## 📊 Zero-PII Engagement Analytics & Operator Console
+
+The platform provides privacy-preserving engagement telemetry for operators and maintainers to measure real community adoption without third-party tracking cookies:
+
+- **Anonymous Event Ingestion:** `POST /api/telemetry` logs client-side high-intent actions (`page_view`, `search`, `talk_opened`, `track_curate`, `track_export_obsidian`, `track_export_pdf`, `chat_query`) with non-blocking beacons (`navigator.sendBeacon`).
+- **Zero-PII Storage:** Stored in `data/analytics.sqlite` (SQLite WAL mode). Raw IP addresses are **never stored**; visitor deduplication uses daily-salted, non-reversible SHA-256 hashes (`hash(IP + daily_salt)[:12]`).
+- **Edge Geodistribution:** Country metrics are derived automatically from Cloudflare Edge request headers (`CF-IPCountry`).
+- **Cloudflare GraphQL Edge Sync:** Live integration querying Cloudflare's GraphQL API (`CLOUDFLARE_ANALYTICS_TOKEN` & `CLOUDFLARE_ZONE_ID`) with in-memory caching to monitor 7-day zone requests, pageviews, bandwidth, and cache ratios.
+- **4-Tier Tester Exclusion:** Automatic client-side muting when logged into `/admin`, opt-out magic link (`?internal=1`), settings toggle, and server IP denylist (`ANALYTICS_IGNORE_IPS`).
+- **Operator Dashboard:** Accessible at `/admin` (password-protected) with conversion funnels, top clicked talks, top searched keywords, and a one-click `🗑️ Reset Test Data` purge utility.
+
+---
+
 ## 🧪 Testing & Quality Gates
 
 Run the automated test suite and linter:
 
 ```bash
-# Run 21 deterministic unit & integration tests
+# Run 39 deterministic unit & integration tests
 pytest tests/ -v
 
 # Run Ruff linter
