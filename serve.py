@@ -37,6 +37,8 @@ except ImportError:
 import argparse
 import hashlib
 import secrets
+import urllib.error
+import urllib.request
 from urllib.parse import parse_qs, urlparse
 
 HUB_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -261,6 +263,21 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
 
         # Queue Status Telemetry (Sprint P-04e)
         if path == "/api/queue-status":
+            upstream_queue = os.environ.get("UPSTREAM_QUEUE_URL")
+            if upstream_queue:
+                try:
+                    req = urllib.request.Request(upstream_queue)
+                    with urllib.request.urlopen(req, timeout=4.0) as u_res:
+                        self.send_response(u_res.status)
+                        self.send_header("Content-Type", "application/json")
+                        self.send_header("Access-Control-Allow-Origin", "*")
+                        self.send_header("Cache-Control", "no-store, max-age=0")
+                        self.end_headers()
+                        self.wfile.write(u_res.read())
+                        return
+                except Exception:
+                    pass
+
             with QUEUE_LOCK:
                 status_str = "busy" if ACTIVE_TASKS >= MAX_CONCURRENT_CHATS else "ready"
                 resp_data = {
@@ -419,6 +436,41 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
         client_ip = get_real_client_ip(self.headers, self.client_address)
 
         if path == "/api/chat":
+            upstream_chat = os.environ.get("UPSTREAM_CHAT_URL")
+            if upstream_chat:
+                try:
+                    content_length = int(self.headers.get("Content-Length", 0))
+                    body = self.rfile.read(content_length) if content_length > 0 else b""
+                    req = urllib.request.Request(
+                        upstream_chat,
+                        data=body,
+                        headers={
+                            "Content-Type": "application/json",
+                            "User-Agent": self.headers.get("User-Agent", "ConferenceHubProxy")
+                        }
+                    )
+                    with urllib.request.urlopen(req, timeout=45.0) as u_res:
+                        self.send_response(u_res.status)
+                        self.send_header("Content-Type", "application/json")
+                        self.send_header("Access-Control-Allow-Origin", "*")
+                        self.end_headers()
+                        self.wfile.write(u_res.read())
+                        return
+                except urllib.error.HTTPError as he:
+                    self.send_response(he.code)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(he.read())
+                    return
+                except Exception as e:
+                    self.send_response(503)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": f"Upstream proxy failed: {e}"}).encode("utf-8"))
+                    return
+
             # 1. Rate Limiting Check
             if not check_ip_rate_limit(client_ip):
                 self.send_response(429)
