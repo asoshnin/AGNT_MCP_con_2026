@@ -1096,29 +1096,6 @@ function setupEventListeners() {
     });
   }
 
-  // Command Chips
-  document.querySelectorAll(".command-chip").forEach(chip => {
-    chip.addEventListener("click", () => {
-      const query = chip.getAttribute("data-query");
-      const action = chip.getAttribute("data-action");
-      if (query) {
-        const si = document.getElementById("search-input");
-        if (si) {
-          si.value = query;
-          si.dispatchEvent(new Event("input"));
-        }
-      }
-      if (action === "top-takeaways") {
-        const chatPanel = document.getElementById("chat-panel");
-        const chatInput = document.getElementById("chat-input");
-        const chatForm = document.getElementById("chat-form");
-        if (chatPanel) chatPanel.classList.add("open");
-        if (chatInput) chatInput.value = "What are the top 3 architectural takeaways and security recommendations from AGNTCon + MCPCon Europe 2026?";
-        if (chatForm) chatForm.dispatchEvent(new Event("submit"));
-      }
-    });
-  });
-
   // Initial UI refresh
   updateProfileUI();
   updateTrackCount();
