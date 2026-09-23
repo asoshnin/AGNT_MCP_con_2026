@@ -27,6 +27,7 @@ import argparse
 import asyncio
 import concurrent.futures
 import hashlib
+import html
 import json
 import re
 import secrets
@@ -37,6 +38,8 @@ import time
 import urllib.error
 import urllib.request
 from http.server import HTTPServer, SimpleHTTPRequestHandler
+from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 try:
@@ -62,6 +65,30 @@ CONTRIBUTE_RATE_LIMIT = {}
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "agntcon2026admin")
 ADMIN_SESSION_TOKEN = secrets.token_hex(24)
 
+PENDING_SUBMISSIONS_DIR = os.environ.get(
+    "PENDING_SUBMISSIONS_DIR", os.path.join(HUB_DIR, "data", "submissions", "pending")
+)
+CANONICAL_SLIDES_DIR = os.environ.get(
+    "CANONICAL_SLIDES_DIR", os.path.join(SITE_DIR, "assets", "slides")
+)
+
+def get_pending_submissions_dir() -> Path:
+    return Path(os.environ.get("PENDING_SUBMISSIONS_DIR", os.path.join(HUB_DIR, "data", "submissions", "pending"))).resolve()
+
+def get_canonical_slides_dir() -> Path:
+    return Path(os.environ.get("CANONICAL_SLIDES_DIR", os.path.join(SITE_DIR, "assets", "slides"))).resolve()
+
+def is_safe_slide_path(file_path: str) -> bool:
+    if not file_path:
+        return False
+    try:
+        target = Path(file_path).resolve()
+        pending = get_pending_submissions_dir()
+        canonical = get_canonical_slides_dir()
+        return target.is_relative_to(pending) or target.is_relative_to(canonical)
+    except Exception:
+        return False
+
 def load_env_file():
     env_path = os.path.join(HUB_DIR, ".env")
     if os.path.exists(env_path):
@@ -80,12 +107,281 @@ def load_env_file():
 
 load_env_file()
 
-def check_admin_auth(headers) -> bool:
+def check_admin_auth(headers, query_params: dict | None = None) -> bool:
     auth_header = headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         token = auth_header.split(" ", 1)[1].strip()
-        return token == ADMIN_SESSION_TOKEN
+        if token == ADMIN_SESSION_TOKEN:
+            return True
+    if query_params:
+        query_token = query_params.get("token", [""])[0].strip()
+        if query_token and query_token == ADMIN_SESSION_TOKEN:
+            return True
     return False
+
+def get_canonical_session_metadata(session_id: str) -> dict[str, Any]:
+    """Retrieves official Sched metadata for a session from sessions.json or archive/wiki fallbacks."""
+    candidate_paths = [
+        os.environ.get("SESSIONS_JSON_PATH"),
+        os.path.join(HUB_DIR, "data", "sessions.json"),
+        os.path.join(HUB_DIR, "sessions.json"),
+        os.path.join(HUB_DIR, "..", "01_harvester_pipeline", "data", "sessions.json"),
+    ]
+    for p in candidate_paths:
+        if p and os.path.exists(p):
+            try:
+                with open(p, encoding="utf-8") as f:
+                    data = json.load(f)
+                if isinstance(data, dict) and session_id in data:
+                    item = data[session_id]
+                    speakers_val = item.get("session_speakers") or item.get("speakers", [])
+                    if isinstance(speakers_val, str):
+                        speakers_list = [speakers_val]
+                    else:
+                        speakers_list = [
+                            s.get("name") if isinstance(s, dict) else str(s)
+                            for s in speakers_val
+                        ]
+                    return {
+                        "session_title": item.get("session_title") or item.get("title", ""),
+                        "session_speakers": speakers_list,
+                        "session_company": item.get("session_company") or item.get("company", ""),
+                        "session_abstract": item.get("session_abstract") or item.get("abstract", ""),
+                        "sched_url": item.get("sched_url", ""),
+                    }
+                elif isinstance(data, list):
+                    for item in data:
+                        if isinstance(item, dict) and item.get("id") == session_id:
+                            speakers_val = item.get("session_speakers") or item.get("speakers", [])
+                            if isinstance(speakers_val, str):
+                                speakers_list = [speakers_val]
+                            else:
+                                speakers_list = [
+                                    s.get("name") if isinstance(s, dict) else str(s)
+                                    for s in speakers_val
+                                ]
+                            return {
+                                "session_title": item.get("session_title") or item.get("title", ""),
+                                "session_speakers": speakers_list,
+                                "session_company": item.get("session_company") or item.get("company", ""),
+                                "session_abstract": item.get("session_abstract") or item.get("abstract", ""),
+                                "sched_url": item.get("sched_url", ""),
+                            }
+            except Exception:
+                pass
+
+    # Fallback: 01_harvester_pipeline/archive/talks/{session_id}.json
+    talk_path = os.path.join(HUB_DIR, "..", "01_harvester_pipeline", "archive", "talks", f"{session_id}.json")
+    if os.path.exists(talk_path):
+        try:
+            with open(talk_path, encoding="utf-8") as f:
+                talk = json.load(f)
+            spk_raw = talk.get("speakers", [])
+            spk_names = []
+            orgs = []
+            for s in spk_raw:
+                if isinstance(s, dict):
+                    if s.get("name"):
+                        spk_names.append(s["name"])
+                    if s.get("org"):
+                        orgs.append(s["org"])
+                elif isinstance(s, str):
+                    spk_names.append(s)
+            return {
+                "session_title": talk.get("title", ""),
+                "session_speakers": spk_names,
+                "session_company": ", ".join(orgs) if orgs else "",
+                "session_abstract": talk.get("abstract", ""),
+                "sched_url": talk.get("sched_url", ""),
+            }
+        except Exception:
+            pass
+
+    # Fallback: wiki/index.json
+    index_path = os.path.join(HUB_DIR, "wiki", "index.json")
+    if os.path.exists(index_path):
+        try:
+            with open(index_path, encoding="utf-8") as f:
+                catalog = json.load(f)
+            for item in catalog:
+                if item.get("id") == session_id:
+                    return {
+                        "session_title": item.get("title", ""),
+                        "session_speakers": item.get("speakers", []),
+                        "session_company": "",
+                        "session_abstract": item.get("relevance_rationale", "") or item.get("one_paragraph", ""),
+                        "sched_url": item.get("sched_url", ""),
+                    }
+        except Exception:
+            pass
+
+    return {
+        "session_title": "",
+        "session_speakers": [],
+        "session_company": "",
+        "session_abstract": "",
+        "sched_url": "",
+    }
+
+def enrich_submission(sub: dict[str, Any]) -> dict[str, Any]:
+    sess_meta = get_canonical_session_metadata(sub.get("session_id", ""))
+    sub["session_title"] = sess_meta.get("session_title", "")
+    sub["session_speakers"] = sess_meta.get("session_speakers", [])
+    sub["session_company"] = sess_meta.get("session_company", "")
+    sub["session_abstract"] = sess_meta.get("session_abstract", "")
+    sub["sched_url"] = sess_meta.get("sched_url", "")
+
+    # Domain match heuristic
+    email = sub.get("submitter_email", "")
+    sub["domain_matched"] = False
+    if "@" in email:
+        domain = email.split("@")[-1].lower()
+        combined_text = (
+            sub["session_title"] + " " + " ".join(sub["session_speakers"]) + " " + sub["session_company"]
+        ).lower()
+        domain_name = domain.split(".")[0]
+        if len(domain_name) > 2 and domain_name in combined_text:
+            sub["domain_matched"] = True
+    return sub
+
+def compute_heuristic_relevance(title: str, abstract: str, slide_text: str) -> tuple[int, str, str]:
+    combined_ref = f"{title} {abstract}".lower()
+    stopwords = {
+        "the", "and", "for", "that", "this", "with", "from", "are", "have", "you",
+        "your", "all", "can", "will", "our", "about", "how", "what", "when", "why",
+        "into", "more", "then", "them", "some", "such", "than", "were", "been", "being",
+        "not", "they", "their", "there", "which", "would", "could", "should", "also"
+    }
+    ref_words = {w for w in re.findall(r"[a-z0-9_\-]{3,}", combined_ref) if w not in stopwords}
+    slide_words = {w for w in re.findall(r"[a-z0-9_\-]{3,}", slide_text.lower()) if w not in stopwords}
+
+    if not ref_words or not slide_words:
+        return 0, "MISMATCH", "Insufficient text to establish topic correlation."
+
+    intersection = ref_words & slide_words
+    recall = len(intersection) / len(ref_words)
+    jaccard = len(intersection) / len(ref_words | slide_words)
+    combined = (recall * 0.70) + (jaccard * 0.30)
+    score = int(min(100, max(0, round(combined * 135))))
+
+    if score >= 80:
+        verdict = "MATCH"
+        rationale = f"Verified via semantic keyword alignment ({score}% topical overlap) between official abstract and slides."
+    elif score >= 50:
+        verdict = "AMBIGUOUS"
+        rationale = f"Partial semantic alignment ({score}% overlap) between abstract and slide text; manual review recommended."
+    else:
+        verdict = "MISMATCH"
+        rationale = f"Low keyword correlation ({score}% overlap) between abstract and slide text; potential session mismatch."
+
+    return score, verdict, rationale
+
+def verify_submission_authenticity(
+    title: str,
+    abstract: str,
+    slide_text: str,
+    speaker: str = "",
+) -> tuple[int, str, str]:
+    """Evaluates submission relevance/authenticity via free LLM cascade or heuristic fallback."""
+    if not slide_text or not slide_text.strip():
+        return (
+            0,
+            "MISMATCH",
+            "Extracted presentation slide text is empty or unavailable for verification."
+        )
+
+    # 1. Attempt free LLM cascade if zero-cost gateway key is present
+    openrouter_key = os.environ.get("OPENROUTER_API_KEY")
+    kilocode_key = os.environ.get("KILOCODE_API_KEY")
+    nvidia_key = os.environ.get("NVIDIA_API_KEY")
+
+    gateways = []
+    if openrouter_key and openrouter_key != "mock_free_key":
+        gateways.append({
+            "url": "https://openrouter.ai/api/v1/chat/completions",
+            "headers": {
+                "Authorization": f"Bearer {openrouter_key}",
+                "Content-Type": "application/json",
+            },
+            "model": "openrouter/free",
+        })
+    if kilocode_key:
+        gateways.append({
+            "url": "https://api.kilo.ai/api/gateway/chat/completions",
+            "headers": {
+                "Authorization": f"Bearer {kilocode_key}",
+                "Content-Type": "application/json",
+            },
+            "model": "kilo-auto/free",
+        })
+    if nvidia_key:
+        gateways.append({
+            "url": "https://integrate.api.nvidia.com/v1/chat/completions",
+            "headers": {
+                "Authorization": f"Bearer {nvidia_key}",
+                "Content-Type": "application/json",
+            },
+            "model": "nvidia/llama-3.1-nemotron-70b-instruct",
+        })
+
+    system_prompt = (
+        "You are an objective academic and technical reviewer for AGNTCon EU 2026.\n"
+        "Compare the following Official Conference Abstract against the Extracted Presentation Slide Text.\n"
+        "Determine:\n"
+        "1. Does this uploaded deck authentically belong to this session?\n"
+        "2. Relevance score between 0 and 100.\n"
+        "3. Verdict: MATCH (>=80), AMBIGUOUS (50-79), or MISMATCH (<50).\n"
+        "4. Concise 2-sentence rationale.\n\n"
+        "Output strictly valid JSON:\n"
+        "{\n"
+        '  "relevance_score": 95,\n'
+        '  "authenticity_verdict": "MATCH",\n'
+        '  "authenticity_rationale": "The slides directly discuss the MCP protocol and context engineering, fully aligning with the abstract."\n'
+        "}"
+    )
+    user_prompt = (
+        f"<official_session>\n"
+        f"Title: {title}\n"
+        f"Speaker: {speaker}\n"
+        f"Official Abstract: {abstract[:2000]}\n"
+        f"</official_session>\n\n"
+        f"<extracted_slide_text>\n"
+        f"{slide_text[:3000]}\n"
+        f"</extracted_slide_text>"
+    )
+
+    for gw in gateways:
+        try:
+            req_body = json.dumps({
+                "model": gw["model"],
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "temperature": 0.1,
+                "max_tokens": 400,
+            }).encode("utf-8")
+            req = urllib.request.Request(gw["url"], data=req_body, headers=gw["headers"])
+            with urllib.request.urlopen(req, timeout=12.0) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    content = data["choices"][0]["message"]["content"].strip()
+                    if "```" in content:
+                        content = re.sub(r"```(?:json)?", "", content).replace("```", "").strip()
+                    parsed_json = json.loads(content)
+                    raw_score = int(parsed_json.get("relevance_score", 0))
+                    score = max(0, min(100, raw_score))
+                    verdict = str(parsed_json.get("authenticity_verdict", "AMBIGUOUS")).upper()
+                    if verdict not in ("MATCH", "AMBIGUOUS", "MISMATCH"):
+                        verdict = "MATCH" if score >= 80 else ("AMBIGUOUS" if score >= 50 else "MISMATCH")
+                    rationale = str(parsed_json.get("authenticity_rationale", "")).strip()
+                    if rationale:
+                        return score, verdict, rationale
+        except Exception:
+            pass
+
+    # Fallback to deterministic keyword overlap heuristic
+    return compute_heuristic_relevance(title=title, abstract=abstract, slide_text=slide_text)
 
 def dispatch_resend_email(to_email: str, subject: str, html_body: str):
     api_key = os.environ.get("RESEND_API_KEY")
@@ -449,7 +745,7 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
 
         # API: Admin Submissions List (FR-4.2)
         if path == "/api/admin/submissions":
-            if not check_admin_auth(self.headers):
+            if not check_admin_auth(self.headers, query_params):
                 self.send_response(401)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
@@ -457,37 +753,100 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 return
             status_filter = query_params.get("status", [None])[0]
             db = SubmissionsDB()
-            submissions = db.get_submissions(status_filter)
-
-            # Enrich with session info (domain match score)
-            index_path = os.path.join(HUB_DIR, "wiki", "index.json")
-            sessions_map = {}
-            if os.path.exists(index_path):
-                try:
-                    with open(index_path, encoding="utf-8") as f:
-                        for s in json.load(f):
-                            sessions_map[s["id"]] = s
-                except Exception:
-                    pass
-
-            for sub in submissions:
-                sess = sessions_map.get(sub.get("session_id"), {})
-                sub["session_title"] = sess.get("title", "")
-                sub["session_speakers"] = sess.get("speakers", [])
-                # Domain match heuristic
-                email = sub.get("submitter_email", "")
-                sub["domain_matched"] = False
-                if "@" in email:
-                    domain = email.split("@")[-1].lower()
-                    combined_text = (sess.get("title", "") + " " + " ".join(sess.get("speakers", []))).lower()
-                    if domain.split(".")[0] in combined_text and len(domain.split(".")[0]) > 2:
-                        sub["domain_matched"] = True
-
+            submissions = [enrich_submission(s) for s in db.get_submissions(status_filter)]
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps(submissions, ensure_ascii=False).encode("utf-8"))
             return
+
+        # API: Admin Submissions Download, Preview & Detail (Sprint 14)
+        if path.startswith("/api/admin/submissions/"):
+            parts = path.strip("/").split("/")
+            # e.g. ["api", "admin", "submissions", sub_id] or ["api", "admin", "submissions", sub_id, "download"]
+            if len(parts) >= 4 and parts[0] == "api" and parts[1] == "admin" and parts[2] == "submissions":
+                sub_id = parts[3]
+                action = parts[4] if len(parts) >= 5 else None
+
+                if not check_admin_auth(self.headers, query_params):
+                    self.send_response(401)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": "Unauthorized"}).encode("utf-8"))
+                    return
+
+                db = SubmissionsDB()
+                sub = db.get_submission(sub_id)
+                if not sub:
+                    self.send_response(404)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": "Submission not found"}).encode("utf-8"))
+                    return
+
+                if action is None:
+                    enriched = enrich_submission(sub)
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps(enriched, ensure_ascii=False).encode("utf-8"))
+                    return
+
+                if action in ("download", "preview"):
+                    file_path = sub.get("file_path")
+                    if not file_path:
+                        self.send_response(404)
+                        self.send_header("Content-Type", "application/json")
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"error": "No file associated with this submission"}).encode("utf-8"))
+                        return
+
+                    # Path containment check (SEC-S14-01)
+                    if not is_safe_slide_path(file_path):
+                        self.send_response(403)
+                        self.send_header("Content-Type", "application/json")
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"error": "Forbidden: Path traversal outside allowed storage directories"}).encode("utf-8"))
+                        return
+
+                    if not os.path.isfile(file_path):
+                        self.send_response(404)
+                        self.send_header("Content-Type", "application/json")
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"error": "File not found on disk"}).encode("utf-8"))
+                        return
+
+                    file_size = os.path.getsize(file_path)
+
+                    if action == "download":
+                        raw_name = sub.get("submitter_name", "submitter").strip()
+                        safe_name = re.sub(r"[^a-zA-Z0-9_\-]", "_", raw_name)
+                        filename = f"{sub.get('session_id', 'session')}_{safe_name}.pdf"
+
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/pdf")
+                        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+                        self.send_header("Content-Length", str(file_size))
+                        self.send_header("Cache-Control", "private, no-store")
+                        self.send_header("Referrer-Policy", "no-referrer")
+                        self.end_headers()
+                        with open(file_path, "rb") as f:
+                            while chunk := f.read(65536):
+                                self.wfile.write(chunk)
+                        return
+
+                    elif action == "preview":
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/pdf")
+                        self.send_header("Content-Disposition", "inline")
+                        self.send_header("Content-Length", str(file_size))
+                        self.send_header("X-Frame-Options", "SAMEORIGIN")
+                        self.send_header("Referrer-Policy", "no-referrer")
+                        self.end_headers()
+                        with open(file_path, "rb") as f:
+                            while chunk := f.read(65536):
+                                self.wfile.write(chunk)
+                        return
 
         # API: Contribute Session Info (FR-4.1)
         if path == "/api/contribute/session-info":
@@ -548,6 +907,7 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
         global WAITING_TASKS, ACTIVE_TASKS
         parsed = urlparse(self.path)
         path = parsed.path
+        query_params = parse_qs(parsed.query)
         client_ip = get_real_client_ip(self.headers, self.client_address)
 
         if path == "/api/chat":
@@ -1478,7 +1838,7 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
 
         # Admin Approve Submission Endpoint (FR-4.3)
         if path.startswith("/api/admin/submissions/") and path.endswith("/approve"):
-            if not check_admin_auth(self.headers):
+            if not check_admin_auth(self.headers, query_params):
                 self.send_response(401)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
@@ -1556,7 +1916,7 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
 
         # Admin Reject Submission Endpoint (FR-4.4)
         if path.startswith("/api/admin/submissions/") and path.endswith("/reject"):
-            if not check_admin_auth(self.headers):
+            if not check_admin_auth(self.headers, query_params):
                 self.send_response(401)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
@@ -1564,6 +1924,194 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 return
 
             sub_id = path.split("/")[4]
+            db = SubmissionsDB()
+            sub = db.get_submission(sub_id)
+            if not sub:
+                self.send_response(404)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Submission not found"}).encode("utf-8"))
+                return
+
+            try:
+                content_length = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(content_length).decode("utf-8")
+                payload = json.loads(body) if body else {}
+                reason = payload.get("reason", "Rejected by administrator")
+            except Exception:
+                reason = "Rejected by administrator"
+
+            # Unlink pending file
+            if sub.get("file_path"):
+                p_dir = os.path.dirname(sub["file_path"])
+                if os.path.isdir(p_dir) and "pending" in p_dir:
+                    shutil.rmtree(p_dir, ignore_errors=True)
+
+            db.update_status(sub_id, "rejected", rejection_reason=reason)
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "rejected",
+                "submission_id": sub_id,
+                "reason": reason,
+            }).encode("utf-8"))
+            return
+
+        # Admin Verify Submission Relevance (Sprint 14 FR-3)
+        if path.startswith("/api/admin/submissions/") and path.endswith("/verify-relevance"):
+            if not check_admin_auth(self.headers, query_params):
+                self.send_response(401)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Unauthorized"}).encode("utf-8"))
+                return
+
+            parts = path.strip("/").split("/")
+            if len(parts) < 5:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Invalid URL"}).encode("utf-8"))
+                return
+
+            sub_id = parts[3]
+            db = SubmissionsDB()
+            sub = db.get_submission(sub_id)
+            if not sub:
+                self.send_response(404)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Submission not found"}).encode("utf-8"))
+                return
+
+            force = query_params.get("force", ["0"])[0] == "1"
+            if not force and sub.get("relevance_score") is not None:
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "relevance_score": sub["relevance_score"],
+                    "authenticity_verdict": sub["authenticity_verdict"],
+                    "authenticity_rationale": sub["authenticity_rationale"],
+                    "cached": True
+                }, ensure_ascii=False).encode("utf-8"))
+                return
+
+            sess_meta = get_canonical_session_metadata(sub.get("session_id", ""))
+            abstract = sess_meta.get("session_abstract", "")
+            title = sess_meta.get("session_title", "")
+            slide_text = sub.get("draft_summary", "")
+
+            if not slide_text and sub.get("file_path") and os.path.exists(sub["file_path"]):
+                try:
+                    txt_path = os.path.join(os.path.dirname(sub["file_path"]), "extracted.txt")
+                    if os.path.exists(txt_path):
+                        with open(txt_path, encoding="utf-8", errors="ignore") as tf:
+                            slide_text = tf.read()
+                except Exception:
+                    pass
+
+            score, verdict, rationale = verify_submission_authenticity(
+                title=title,
+                abstract=abstract,
+                slide_text=slide_text,
+                speaker=sub.get("submitter_name", ""),
+            )
+            db.update_verification(sub_id, score, verdict, rationale)
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "relevance_score": score,
+                "authenticity_verdict": verdict,
+                "authenticity_rationale": rationale,
+                "cached": False
+            }, ensure_ascii=False).encode("utf-8"))
+            return
+
+        # Admin Reply to Submitter via CRM Bridge (Sprint 14 FR-4)
+        if path.startswith("/api/admin/submissions/") and path.endswith("/reply"):
+            if not check_admin_auth(self.headers, query_params):
+                self.send_response(401)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Unauthorized"}).encode("utf-8"))
+                return
+
+            parts = path.strip("/").split("/")
+            if len(parts) < 5:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Invalid URL"}).encode("utf-8"))
+                return
+
+            sub_id = parts[3]
+            db = SubmissionsDB()
+            sub = db.get_submission(sub_id)
+            if not sub:
+                self.send_response(404)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Submission not found"}).encode("utf-8"))
+                return
+
+            try:
+                content_length = int(self.headers.get("Content-Length", 0))
+                body_bytes = self.rfile.read(content_length) if content_length > 0 else b"{}"
+                body_json = json.loads(body_bytes.decode("utf-8"))
+            except Exception:
+                body_json = {}
+
+            message = body_json.get("message", "").strip()
+            if not message:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "message is required"}).encode("utf-8"))
+                return
+
+            subject = body_json.get("subject", "").strip()
+            if not subject:
+                subject = f"Regarding your AGNTCon 2026 presentation submission [[{sub.get('session_id', '')}]]"
+
+            to_email = sub.get("submitter_email", "")
+            submitter_name = sub.get("submitter_name", "Submitter")
+            email_html = f"""
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;">
+              <h2 style="color: #0284c7; margin-top: 0;">Message from AGNTCon Program Committee</h2>
+              <p>Hi {html.escape(submitter_name)},</p>
+              <p>Regarding your submission for session <strong>[[{html.escape(sub.get('session_id', ''))}]]</strong>:</p>
+              <div style="white-space: pre-wrap; background: #f8fafc; padding: 16px; border-radius: 6px; border-left: 4px solid #0284c7; margin: 16px 0; color: #1e293b;">{html.escape(message)}</div>
+              <p style="color: #64748b; font-size: 13px; margin-top: 24px;">AGNTCon &amp; MCPCon Europe 2026 Organizing Committee</p>
+            </div>
+            """
+            dispatch_resend_email(to_email, subject, email_html)
+
+            inq = crm_db.create_inquiry(
+                inquiry_type="Submission Review",
+                name=submitter_name,
+                email=to_email,
+                session_id=sub.get("session_id", ""),
+                title=subject,
+                initial_message=f"Review dialogue for submission {sub_id}",
+            )
+            crm_db.add_message(inq["id"], sender_type="admin", body=message, is_note=False)
+
+            db.update_crm_inquiry(sub_id, inq["id"])
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "sent",
+                "inquiry_id": inq["id"],
+                "recipient": to_email,
+            }, ensure_ascii=False).encode("utf-8"))
+            return
             db = SubmissionsDB()
             sub = db.get_submission(sub_id)
             if not sub:

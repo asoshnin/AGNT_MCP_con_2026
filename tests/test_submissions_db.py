@@ -90,3 +90,67 @@ def test_purge_stale_pending_uploads(tmp_path):
     assert item["status"] == "quarantined"
     assert not os.path.exists(str(fake_file))
     assert not os.path.exists(str(pending_dir))
+
+
+def test_submissions_db_migration_idempotent(tmp_path):
+    import sqlite3
+    db_file = str(tmp_path / "test_migration.sqlite")
+    conn = sqlite3.connect(db_file)
+    # Create older schema table missing the 4 Sprint 14 columns
+    conn.execute("""
+    CREATE TABLE submissions (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        token TEXT,
+        submitter_name TEXT NOT NULL,
+        submitter_email TEXT NOT NULL,
+        submitter_role TEXT NOT NULL,
+        submission_type TEXT NOT NULL,
+        source_url TEXT,
+        file_path TEXT,
+        file_hash TEXT,
+        file_size_bytes INTEGER,
+        page_count INTEGER,
+        text_yield_chars INTEGER,
+        ocr_required BOOLEAN DEFAULT 0,
+        injection_risk_score TEXT DEFAULT 'clean',
+        injection_details TEXT,
+        status TEXT DEFAULT 'pending',
+        client_ip_hash TEXT,
+        user_agent TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        reviewed_at TIMESTAMP,
+        rejection_reason TEXT,
+        draft_summary TEXT
+    );
+    """)
+    conn.execute("""
+    INSERT INTO submissions (id, session_id, submitter_name, submitter_email, submitter_role, submission_type)
+    VALUES ('sub_OLD_1', '2RB8M', 'Pre Migration', 'pre@example.com', 'speaker', 'url');
+    """)
+    conn.commit()
+    conn.close()
+
+    # Instantiate SubmissionsDB, triggering create_tables and migrations
+    db = SubmissionsDB(db_path=db_file)
+
+    # Verify existing data preserved
+    sub = db.get_submission("sub_OLD_1")
+    assert sub is not None
+    assert sub["submitter_name"] == "Pre Migration"
+    assert "relevance_score" in sub
+    assert sub["relevance_score"] is None
+    assert "authenticity_verdict" in sub
+    assert "authenticity_rationale" in sub
+    assert "crm_inquiry_id" in sub
+
+    # Test update_verification and update_crm_inquiry
+    db.update_verification("sub_OLD_1", 92, "MATCH", "Verified match.")
+    db.update_crm_inquiry("sub_OLD_1", "TICK-1234")
+
+    sub_updated = db.get_submission("sub_OLD_1")
+    assert sub_updated["relevance_score"] == 92
+    assert sub_updated["authenticity_verdict"] == "MATCH"
+    assert sub_updated["authenticity_rationale"] == "Verified match."
+    assert sub_updated["crm_inquiry_id"] == "TICK-1234"
+

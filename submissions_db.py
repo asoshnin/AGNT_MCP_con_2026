@@ -57,11 +57,29 @@ class SubmissionsDB:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             reviewed_at TIMESTAMP,
             rejection_reason TEXT,
-            draft_summary TEXT
+            draft_summary TEXT,
+            relevance_score INTEGER DEFAULT NULL,
+            authenticity_verdict TEXT DEFAULT NULL,
+            authenticity_rationale TEXT DEFAULT NULL,
+            crm_inquiry_id TEXT DEFAULT NULL
         );
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_sub_session ON submissions(session_id);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_sub_status ON submissions(status);")
+
+        # Idempotent column migrations for existing tables
+        cur.execute("PRAGMA table_info(submissions);")
+        existing_cols = {row["name"] for row in cur.fetchall()}
+        migrations = [
+            ("relevance_score", "INTEGER DEFAULT NULL"),
+            ("authenticity_verdict", "TEXT DEFAULT NULL"),
+            ("authenticity_rationale", "TEXT DEFAULT NULL"),
+            ("crm_inquiry_id", "TEXT DEFAULT NULL"),
+        ]
+        for col_name, col_def in migrations:
+            if col_name not in existing_cols:
+                cur.execute(f"ALTER TABLE submissions ADD COLUMN {col_name} {col_def};")
+
         conn.commit()
         conn.close()
 
@@ -75,13 +93,15 @@ class SubmissionsDB:
             submission_type, source_url, file_path, file_hash, file_size_bytes,
             page_count, text_yield_chars, ocr_required, injection_risk_score,
             injection_details, status, client_ip_hash, user_agent, created_at,
-            reviewed_at, rejection_reason, draft_summary
+            reviewed_at, rejection_reason, draft_summary,
+            relevance_score, authenticity_verdict, authenticity_rationale, crm_inquiry_id
         ) VALUES (
             :id, :session_id, :token, :submitter_name, :submitter_email, :submitter_role,
             :submission_type, :source_url, :file_path, :file_hash, :file_size_bytes,
             :page_count, :text_yield_chars, :ocr_required, :injection_risk_score,
             :injection_details, :status, :client_ip_hash, :user_agent, :created_at,
-            :reviewed_at, :rejection_reason, :draft_summary
+            :reviewed_at, :rejection_reason, :draft_summary,
+            :relevance_score, :authenticity_verdict, :authenticity_rationale, :crm_inquiry_id
         )
         """, {
             "id": sub_id,
@@ -107,6 +127,10 @@ class SubmissionsDB:
             "reviewed_at": data.get("reviewed_at"),
             "rejection_reason": data.get("rejection_reason"),
             "draft_summary": data.get("draft_summary"),
+            "relevance_score": data.get("relevance_score"),
+            "authenticity_verdict": data.get("authenticity_verdict"),
+            "authenticity_rationale": data.get("authenticity_rationale"),
+            "crm_inquiry_id": data.get("crm_inquiry_id"),
         })
         conn.commit()
         conn.close()
@@ -138,6 +162,38 @@ class SubmissionsDB:
         cur.execute(
             "UPDATE submissions SET status = ?, reviewed_at = ?, rejection_reason = ? WHERE id = ?",
             (new_status, now, rejection_reason, sub_id),
+        )
+        affected = cur.rowcount
+        conn.commit()
+        conn.close()
+        return affected > 0
+
+    def update_verification(
+        self, sub_id: str, relevance_score: int, verdict: str, rationale: str
+    ) -> bool:
+        """Updates automated LLM authenticity verification results."""
+        conn = self.get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE submissions
+            SET relevance_score = ?, authenticity_verdict = ?, authenticity_rationale = ?
+            WHERE id = ?
+            """,
+            (relevance_score, verdict, rationale, sub_id),
+        )
+        affected = cur.rowcount
+        conn.commit()
+        conn.close()
+        return affected > 0
+
+    def update_crm_inquiry(self, sub_id: str, crm_inquiry_id: str) -> bool:
+        """Links a CRM thread inquiry to this submission."""
+        conn = self.get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE submissions SET crm_inquiry_id = ? WHERE id = ?",
+            (crm_inquiry_id, sub_id),
         )
         affected = cur.rowcount
         conn.commit()

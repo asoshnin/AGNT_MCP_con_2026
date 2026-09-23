@@ -165,13 +165,21 @@
       </div>
     </div>
 
-    <!-- Slide Preview Modal -->
-    <div id="sub-preview-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9999; align-items: center; justify-content: center;">
-      <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; width: 90%; max-width: 800px; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden;">
-        <div style="padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-          <strong id="modal-sub-title">Submission Preview</strong>
-          <button class="btn-header" onclick="closeSubModal()" style="padding: 4px 10px; font-size: 0.8rem;">✕ Close</button>
+    <!-- Submissions Side-by-Side Moderation Studio Modal (Sprint 14) -->
+    <div id="sub-preview-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.78); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+      <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; width: 95%; max-width: 1240px; max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7);">
+        <!-- Studio Header -->
+        <div style="padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 12px; background: var(--bg-secondary);">
+          <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">
+            <strong id="modal-sub-title" style="font-size: 1rem; color: var(--text-primary);">Submission Review Studio</strong>
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
+            <button id="modal-download-btn" class="btn-header" style="padding: 5px 12px; font-size: 0.8rem; background: rgba(56, 189, 248, 0.15); border-color: var(--accent); color: var(--accent); display: none;">📥 Download Original PDF</button>
+            <button id="modal-reverify-btn" class="btn-header" style="padding: 5px 12px; font-size: 0.8rem; background: rgba(147, 51, 234, 0.15); border-color: #a855f7; color: #c084fc;">⚡ Re-verify AI</button>
+            <button class="btn-header" onclick="closeSubModal()" style="padding: 5px 12px; font-size: 0.8rem;">✕ Close</button>
+          </div>
         </div>
+        <!-- Studio Body Grid -->
         <div id="modal-sub-body" style="padding: 20px; overflow-y: auto; flex: 1; font-size: 0.9rem; line-height: 1.5;"></div>
       </div>
     </div>
@@ -668,6 +676,18 @@
         const domainBadge = s.domain_matched ? `<span style="font-size: 0.7rem; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 1px 6px; border-radius: 4px; margin-left: 4px;">✓ Verified Domain</span>` : '';
         const ocrBadge = s.ocr_required ? `<span style="font-size: 0.7rem; background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.4); padding: 1px 6px; border-radius: 4px; margin-left: 4px;">OCR Req</span>` : '';
 
+        // AI Authenticity Badge
+        let aiBadge = `<span style="font-size: 0.72rem; padding: 2px 7px; border-radius: 4px; color: var(--text-secondary); border: 1px dashed var(--border);">AI: Pending</span>`;
+        if (s.relevance_score !== null && s.relevance_score !== undefined) {
+          if (s.relevance_score >= 80) {
+            aiBadge = `<span style="font-size: 0.72rem; padding: 2px 7px; border-radius: 4px; font-weight: 600; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.35);">✓ AI: ${s.relevance_score}%</span>`;
+          } else if (s.relevance_score >= 50) {
+            aiBadge = `<span style="font-size: 0.72rem; padding: 2px 7px; border-radius: 4px; font-weight: 600; background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.35);">⚠️ AI: ${s.relevance_score}%</span>`;
+          } else {
+            aiBadge = `<span style="font-size: 0.72rem; padding: 2px 7px; border-radius: 4px; font-weight: 600; background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.35);">✕ AI: ${s.relevance_score}%</span>`;
+          }
+        }
+
         return `
           <tr style="border-bottom: 1px solid var(--border);">
             <td style="padding: 12px 14px;">
@@ -682,6 +702,9 @@
               <span style="text-transform: uppercase; font-weight: 600;">${s.submission_type}</span>
               ${s.source_url ? `<br><a href="${s.source_url}" target="_blank" style="color: var(--accent); text-decoration: none;">External Deck ↗</a>` : ''}
               ${s.page_count ? `<br><span style="color: var(--text-secondary);">${s.page_count} pages • ${s.text_yield_chars} chars ${ocrBadge}</span>` : ''}
+            </td>
+            <td style="padding: 12px 14px;">
+              ${aiBadge}
             </td>
             <td style="padding: 12px 14px;">
               <span style="font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; font-weight: 600; background: ${riskColor}22; color: ${riskColor}; border: 1px solid ${riskColor}55;">
@@ -711,6 +734,7 @@
               <th style="padding: 10px 14px;">Session</th>
               <th style="padding: 10px 14px;">Submitter</th>
               <th style="padding: 10px 14px;">Content / Type</th>
+              <th style="padding: 10px 14px;">AI Authenticity</th>
               <th style="padding: 10px 14px;">Security Risk</th>
               <th style="padding: 10px 14px;">Status</th>
               <th style="padding: 10px 14px; text-align: right;">Actions</th>
@@ -723,45 +747,296 @@
       `;
     }
 
+    let CURRENT_INSPECT_SUB_ID = null;
+
     function openSubModal(subId) {
+      CURRENT_INSPECT_SUB_ID = subId;
       const sub = CACHED_SUBMISSIONS.find(s => s.id === subId);
       if (!sub) return;
-      document.getElementById("modal-sub-title").textContent = `Submission Details: ${sub.id} (Session [[${sub.session_id}]])`;
-      
-      let previewContent = "";
-      if (sub.source_url) {
-        previewContent += `
-          <div style="margin-bottom: 16px;">
-            <strong>Cloud Deck URL:</strong> <a href="${sub.source_url}" target="_blank" style="color: var(--accent);">${sub.source_url}</a>
-            <div style="margin-top: 10px; height: 350px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;">
-              <iframe src="${sub.source_url}" style="width: 100%; height: 100%; border: none;"></iframe>
-            </div>
-          </div>
-        `;
+
+      const token = localStorage.getItem("agntcon_admin_token") || "";
+      const modalTitle = document.getElementById("modal-sub-title");
+      modalTitle.innerHTML = `[[${sub.session_id}]] — ${escapeHtml(sub.session_title || 'Session Review')}`;
+
+      const downloadBtn = document.getElementById("modal-download-btn");
+      if (sub.file_path || sub.submission_type === 'pdf') {
+        downloadBtn.style.display = "inline-block";
+        downloadBtn.onclick = () => {
+          window.open(`/api/admin/submissions/${sub.id}/download?token=${encodeURIComponent(token)}`, '_blank');
+        };
+      } else {
+        downloadBtn.style.display = "none";
       }
-      if (sub.draft_summary) {
-        previewContent += `
-          <div style="margin-bottom: 16px;">
-            <strong>Extracted Text Sample / Summary Draft:</strong>
-            <pre style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-size: 0.8rem; max-height: 200px; overflow-y: auto; white-space: pre-wrap;">${escapeHtml(sub.draft_summary)}</pre>
+
+      const reverifyBtn = document.getElementById("modal-reverify-btn");
+      reverifyBtn.onclick = () => verifySubmissionRelevance(sub.id, true);
+
+      renderStudioContent(sub, token);
+      document.getElementById("sub-preview-modal").style.display = "flex";
+    }
+
+    function renderStudioContent(sub, token) {
+      const modalBody = document.getElementById("modal-sub-body");
+
+      // AI Badge Calculation
+      let aiScoreHtml = "";
+      if (sub.relevance_score !== null && sub.relevance_score !== undefined) {
+        let badgeColor = "#10b981";
+        let badgeIcon = "✓";
+        if (sub.relevance_score < 50) {
+          badgeColor = "#ef4444";
+          badgeIcon = "✕";
+        } else if (sub.relevance_score < 80) {
+          badgeColor = "#f59e0b";
+          badgeIcon = "⚠️";
+        }
+        aiScoreHtml = `
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <span style="font-size: 0.85rem; font-weight: 700; color: ${badgeColor}; background: ${badgeColor}18; border: 1px solid ${badgeColor}44; padding: 4px 10px; border-radius: 6px;">
+              ${badgeIcon} AI Verified: ${sub.relevance_score}% Match (${escapeHtml(sub.authenticity_verdict || 'EVALUATED')})
+            </span>
+            <button class="btn-header" style="font-size: 0.72rem; padding: 3px 8px;" onclick="verifySubmissionRelevance('${sub.id}', true)">⚡ Force Re-run</button>
           </div>
+          <p style="margin: 0; font-size: 0.82rem; color: var(--text-secondary); line-height: 1.45; background: var(--bg-secondary); padding: 10px 12px; border-radius: 6px; border: 1px solid var(--border);">
+            ${escapeHtml(sub.authenticity_rationale || 'Authenticity scored via semantic analysis.')}
+          </p>
         `;
-      }
-      if (sub.injection_details) {
-        previewContent += `
-          <div style="margin-bottom: 16px; color: #ef4444;">
-            <strong>Security Scan Flags:</strong>
-            <pre style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 6px; padding: 10px; font-size: 0.8rem;">${escapeHtml(sub.injection_details)}</pre>
+      } else {
+        aiScoreHtml = `
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 0.82rem; color: var(--text-secondary); font-style: italic;">
+              Authenticity verification pending.
+            </span>
+            <button class="btn-header" style="font-size: 0.78rem; padding: 4px 10px; background: rgba(147, 51, 234, 0.2); border-color: #a855f7; color: #c084fc;" onclick="verifySubmissionRelevance('${sub.id}', false)">⚡ Run AI Verification</button>
           </div>
         `;
       }
 
-      document.getElementById("modal-sub-body").innerHTML = previewContent || `<p style="color: var(--text-secondary);">No additional draft content available.</p>`;
-      document.getElementById("sub-preview-modal").style.display = "flex";
+      // Security risk banner if flagged
+      let securityBanner = "";
+      if (sub.injection_risk_score && sub.injection_risk_score !== "clean") {
+        const flagColor = sub.injection_risk_score === "critical" ? "#ef4444" : "#f59e0b";
+        securityBanner = `
+          <div style="margin-bottom: 14px; background: ${flagColor}15; border: 1px solid ${flagColor}44; border-radius: 8px; padding: 10px 14px; font-size: 0.82rem; color: ${flagColor};">
+            <strong>Security Risk Alert (${sub.injection_risk_score.toUpperCase()}):</strong>
+            <div style="margin-top: 4px; font-family: monospace; font-size: 0.76rem;">${escapeHtml(sub.injection_details || 'Potential prompt injection or anomalous payload detected.')}</div>
+          </div>
+        `;
+      }
+
+      const speakersText = (sub.session_speakers && sub.session_speakers.length > 0) ? sub.session_speakers.join(", ") : "N/A";
+      const schedLinkHtml = sub.sched_url ? `<a href="${sub.sched_url}" target="_blank" style="color: var(--accent); text-decoration: none; font-size: 0.8rem; font-weight: 500;">Official Sched Link ↗</a>` : "";
+
+      modalBody.innerHTML = `
+        ${securityBanner}
+        <div style="display: grid; grid-template-columns: 1fr 1.15fr; gap: 20px;">
+          <!-- LEFT COLUMN: Canonical Reference & AI Scoring -->
+          <div style="display: flex; flex-direction: column; gap: 16px;">
+            <!-- Official Sched Card -->
+            <div style="background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                <div>
+                  <span style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); font-weight: 600;">Canonical Schedule Anchor</span>
+                  <h4 style="margin: 4px 0 2px 0; font-size: 0.95rem; color: var(--accent);">[[${sub.session_id}]] ${escapeHtml(sub.session_title || 'Session Details')}</h4>
+                </div>
+                ${schedLinkHtml}
+              </div>
+              <div style="font-size: 0.82rem; margin-bottom: 10px; color: var(--text-secondary);">
+                <strong>Speaker(s):</strong> ${escapeHtml(speakersText)} ${sub.session_company ? `<span style="opacity: 0.8;">(${escapeHtml(sub.session_company)})</span>` : ''}
+              </div>
+              <div>
+                <strong style="font-size: 0.78rem; text-transform: uppercase; color: var(--text-secondary);">Official Abstract:</strong>
+                <div style="margin-top: 6px; font-size: 0.82rem; color: var(--text-primary); max-height: 180px; overflow-y: auto; background: var(--bg-secondary); padding: 10px; border-radius: 6px; border: 1px solid var(--border); white-space: pre-wrap; line-height: 1.45;">
+                  ${escapeHtml(sub.session_abstract || 'No official Sched abstract found for this session.')}
+                </div>
+              </div>
+            </div>
+
+            <!-- AI Authenticity & Relevance Card -->
+            <div style="background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+              <span style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); font-weight: 600; display: block; margin-bottom: 8px;">
+                🤖 Automated LLM Authenticity Gate
+              </span>
+              <div id="studio-ai-card-content">
+                ${aiScoreHtml}
+              </div>
+            </div>
+
+            <!-- Submitter Metadata Card -->
+            <div style="background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px; padding: 14px; font-size: 0.82rem;">
+              <span style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); font-weight: 600; display: block; margin-bottom: 8px;">Submitter Provenance</span>
+              <div><strong>Submitter:</strong> ${escapeHtml(sub.submitter_name)} &lt;${escapeHtml(sub.submitter_email)}&gt;</div>
+              <div style="margin-top: 4px;"><strong>Declared Role:</strong> ${escapeHtml(sub.submitter_role)} • <strong>Format:</strong> ${escapeHtml(sub.submission_type.toUpperCase())}</div>
+              <div style="margin-top: 4px; color: var(--text-secondary);">
+                ${sub.page_count ? `<span>${sub.page_count} pages • ${sub.text_yield_chars} extracted chars</span>` : 'No local file parsed'}
+                ${sub.crm_inquiry_id ? ` • <a href="#ticket=${sub.crm_inquiry_id}" onclick="closeSubModal(); switchAdminView('crm');" style="color: var(--accent);">CRM Thread: #${sub.crm_inquiry_id}</a>` : ''}
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT COLUMN: Materials Inspection Studio (PDF / Text) -->
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; gap: 6px;">
+                <button id="tab-btn-pdf" class="btn-header" style="font-size: 0.78rem; padding: 4px 10px; background: var(--accent); color: #0b0f19; font-weight: 600;" onclick="switchStudioViewer('pdf')">📄 Embedded PDF</button>
+                <button id="tab-btn-text" class="btn-header" style="font-size: 0.78rem; padding: 4px 10px; background: var(--bg-secondary); color: var(--text-secondary);" onclick="switchStudioViewer('text')">📝 Extracted Text</button>
+              </div>
+              <span style="font-size: 0.75rem; color: var(--text-secondary);">Sandbox Inline Preview</span>
+            </div>
+
+            <div id="viewer-container" style="height: 440px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #1e293b;">
+              ${sub.submission_type === 'url' && sub.source_url ? `
+                <iframe id="studio-pdf-frame" src="${sub.source_url}" style="width: 100%; height: 100%; border: none;"></iframe>
+              ` : `
+                <iframe id="studio-pdf-frame" src="/api/admin/submissions/${sub.id}/preview?token=${encodeURIComponent(token)}" style="width: 100%; height: 100%; border: none; background: #ffffff;"></iframe>
+              `}
+              <pre id="studio-text-frame" style="display: none; width: 100%; height: 100%; box-sizing: border-box; margin: 0; padding: 14px; background: var(--bg-secondary); color: var(--text-primary); overflow-y: auto; font-size: 0.8rem; line-height: 1.45; white-space: pre-wrap;">${escapeHtml(sub.draft_summary || 'No extracted slide text available.')}</pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- FOOTER: CRM Reply Drawer & Moderation Actions -->
+        <div style="margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <button class="btn-header" style="font-size: 0.82rem; padding: 6px 14px; background: rgba(56, 189, 248, 0.12); border-color: var(--accent); color: var(--accent);" onclick="toggleReplyDrawer()">
+              💬 Reply to Submitter
+            </button>
+            <div style="display: flex; gap: 8px;">
+              ${sub.status === 'pending' || sub.status === 'quarantined' ? `
+                <button class="btn-header" style="font-size: 0.82rem; padding: 6px 16px; background: rgba(16, 185, 129, 0.2); border-color: #10b981; color: #10b981; font-weight: 600;" onclick="approveSubmission('${sub.id}')">✓ Approve &amp; Ingest</button>
+                <button class="btn-header" style="font-size: 0.82rem; padding: 6px 16px; background: rgba(239, 68, 68, 0.2); border-color: #ef4444; color: #ef4444;" onclick="rejectSubmission('${sub.id}')">✕ Reject</button>
+              ` : `
+                <span style="font-size: 0.82rem; font-weight: 600; padding: 6px 12px; border-radius: 6px; background: var(--bg-secondary); border: 1px solid var(--border); text-transform: uppercase;">Status: ${sub.status}</span>
+              `}
+            </div>
+          </div>
+
+          <!-- Collapsible Reply Drawer -->
+          <div id="reply-drawer" style="display: none; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+            <div style="font-size: 0.84rem; font-weight: 600; margin-bottom: 8px; color: var(--text-primary);">
+              Compose Message to Submitter &lt;${escapeHtml(sub.submitter_email)}&gt;
+            </div>
+            <input type="text" id="reply-subject" class="search-input" value="Regarding your AGNTCon 2026 presentation submission [[${escapeHtml(sub.session_id)}]]" style="width: 100%; box-sizing: border-box; padding: 8px 12px; font-size: 0.82rem; margin-bottom: 8px;">
+            <textarea id="reply-message" class="search-input" rows="3" placeholder="Write feedback, request updated slides, or clarify details..." style="width: 100%; box-sizing: border-box; padding: 8px 12px; font-size: 0.85rem; font-family: inherit; resize: vertical; margin-bottom: 8px;"></textarea>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span id="reply-status" style="font-size: 0.8rem; color: var(--text-secondary);"></span>
+              <button class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; padding: 6px 16px; font-size: 0.82rem;" onclick="sendSubmitterReply('${sub.id}')">
+                Send Reply &amp; Record in CRM →
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function switchStudioViewer(mode) {
+      const pdfBtn = document.getElementById("tab-btn-pdf");
+      const txtBtn = document.getElementById("tab-btn-text");
+      const pdfFrame = document.getElementById("studio-pdf-frame");
+      const txtFrame = document.getElementById("studio-text-frame");
+
+      if (mode === "pdf") {
+        if (pdfBtn) { pdfBtn.style.background = "var(--accent)"; pdfBtn.style.color = "#0b0f19"; }
+        if (txtBtn) { txtBtn.style.background = "var(--bg-secondary)"; txtBtn.style.color = "var(--text-secondary)"; }
+        if (pdfFrame) pdfFrame.style.display = "block";
+        if (txtFrame) txtFrame.style.display = "none";
+      } else {
+        if (txtBtn) { txtBtn.style.background = "var(--accent)"; txtBtn.style.color = "#0b0f19"; }
+        if (pdfBtn) { pdfBtn.style.background = "var(--bg-secondary)"; pdfBtn.style.color = "var(--text-secondary)"; }
+        if (pdfFrame) pdfFrame.style.display = "none";
+        if (txtFrame) txtFrame.style.display = "block";
+      }
+    }
+
+    function toggleReplyDrawer() {
+      const drawer = document.getElementById("reply-drawer");
+      if (drawer) {
+        drawer.style.display = drawer.style.display === "none" ? "block" : "none";
+      }
+    }
+
+    async function sendSubmitterReply(subId) {
+      const msgInput = document.getElementById("reply-message");
+      const subjInput = document.getElementById("reply-subject");
+      const statusEl = document.getElementById("reply-status");
+      const message = msgInput?.value.trim();
+      const subject = subjInput?.value.trim();
+
+      if (!message) {
+        alert("Please enter a message before sending.");
+        return;
+      }
+
+      statusEl.textContent = "Sending reply via Resend...";
+      statusEl.style.color = "var(--text-secondary)";
+
+      const token = localStorage.getItem("agntcon_admin_token");
+      try {
+        const res = await fetch(`/api/admin/submissions/${subId}/reply`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ message, subject })
+        });
+        const data = await res.json();
+        if (res.ok && data.status === "sent") {
+          statusEl.textContent = `✓ Reply sent & logged to CRM inquiry #${data.inquiry_id}`;
+          statusEl.style.color = "#10b981";
+          msgInput.value = "";
+          const sub = CACHED_SUBMISSIONS.find(s => s.id === subId);
+          if (sub) {
+            sub.crm_inquiry_id = data.inquiry_id;
+          }
+        } else {
+          statusEl.textContent = `Failed: ${data.error || 'Server error'}`;
+          statusEl.style.color = "#ef4444";
+        }
+      } catch (err) {
+        statusEl.textContent = `Error: ${err.message}`;
+        statusEl.style.color = "#ef4444";
+      }
+    }
+
+    async function verifySubmissionRelevance(subId, force = false) {
+      const aiContainer = document.getElementById("studio-ai-card-content");
+      if (aiContainer) {
+        aiContainer.innerHTML = `<div style="font-size: 0.82rem; color: var(--accent); padding: 8px 0;">⚡ Analyzing relevance with AI Authenticity Gate...</div>`;
+      }
+      const token = localStorage.getItem("agntcon_admin_token");
+      try {
+        const res = await fetch(`/api/admin/submissions/${subId}/verify-relevance${force ? '?force=1' : ''}`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (res.ok) {
+          const sub = CACHED_SUBMISSIONS.find(s => s.id === subId);
+          if (sub) {
+            sub.relevance_score = data.relevance_score;
+            sub.authenticity_verdict = data.authenticity_verdict;
+            sub.authenticity_rationale = data.authenticity_rationale;
+          }
+          if (CURRENT_INSPECT_SUB_ID === subId) {
+            renderStudioContent(sub, token);
+          }
+          renderSubmissionsTable(CACHED_SUBMISSIONS);
+        } else {
+          if (aiContainer) {
+            aiContainer.innerHTML = `<div style="color: #ef4444; font-size: 0.82rem;">Verification error: ${data.error || 'Failed'}</div>`;
+          }
+        }
+      } catch (err) {
+        if (aiContainer) {
+          aiContainer.innerHTML = `<div style="color: #ef4444; font-size: 0.82rem;">Network error: ${err.message}</div>`;
+        }
+      }
     }
 
     function closeSubModal() {
       document.getElementById("sub-preview-modal").style.display = "none";
+      CURRENT_INSPECT_SUB_ID = null;
     }
 
     async function approveSubmission(subId) {
