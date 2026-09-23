@@ -1337,8 +1337,8 @@ function renderCards() {
 
         let directSlideBtn = "";
         if (hasSlides) {
-          const slideHref = t.slide_url || t.sched_url;
-          directSlideBtn = `<a class="btn-view-essence" href="${escapeHtml(slideHref)}" target="_blank" rel="noopener" style="text-decoration: none;" title="View official presentation slides">📄 Slides ↗</a>`;
+          const slideHref = t.slide_url || `/assets/slides/${t.id}.pdf`;
+          directSlideBtn = `<a class="btn-sched" href="${escapeHtml(slideHref)}" target="_blank" rel="noopener" style="text-decoration: none; color: #16a34a; border-color: rgba(22, 163, 74, 0.4); background: rgba(22, 163, 74, 0.08); font-weight: 600;" title="View official presentation slides">📄 Slides ↗</a>`;
         } else {
           directSlideBtn = `<button class="btn-view-essence" onclick="openContributeModal('${t.id}')" style="background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.4); color: var(--accent);" title="Upload missing presentation slides or claim session">[ + Add Slides ]</button>`;
         }
@@ -1408,7 +1408,7 @@ function renderCards() {
       <td style="text-align: right;">
         <div style="display: inline-flex; gap: 6px;">
           <a class="btn-sched" href="${escapeHtml(t.sched_url)}" target="_blank" rel="noopener" style="padding: 4px 8px; font-size: 0.78rem;">Sched ↗</a>
-          ${hasSlides ? '' : `<button class="btn-view-essence" onclick="openContributeModal('${t.id}')" style="padding: 4px 8px; font-size: 0.78rem; background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.4); color: var(--accent);">+ Slides</button>`}
+          ${hasSlides ? `<a class="btn-sched" href="${t.slide_url || `/assets/slides/${t.id}.pdf`}" target="_blank" rel="noopener" style="padding: 4px 8px; font-size: 0.78rem; text-decoration: none; color: #16a34a; border-color: rgba(22, 163, 74, 0.4); background: rgba(22, 163, 74, 0.08); font-weight: 600;" title="View Slides PDF">📄 Slides ↗</a>` : `<button class="btn-view-essence" onclick="openContributeModal('${t.id}')" style="padding: 4px 8px; font-size: 0.78rem; background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.4); color: var(--accent);">+ Slides</button>`}
           <button class="btn-view-essence" onclick="openEssenceModal('${t.id}')" style="padding: 4px 8px; font-size: 0.78rem;">View</button>
           <button class="btn-cite" onclick="copyCitation('${t.id}', this)" style="padding: 4px 8px; font-size: 0.78rem;" title="Copy academic citation to clipboard">📋 Citation</button>
         </div>
@@ -1475,8 +1475,18 @@ async function openEssenceModal(sid) {
         htmlOutput = `<div style="white-space: pre-wrap;">${escapeHtml(processed)}</div>`;
       }
 
+      const slideBanner = (talkObj && (talkObj.has_slides || talkObj.file_name))
+        ? `<div style="margin-bottom: 16px; padding: 10px 14px; background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+             <span style="font-size: 0.85rem; color: var(--text-primary); display: inline-flex; align-items: center; gap: 6px;">
+               <span style="font-size: 1.1rem;">📄</span>
+               <span><strong>Official Presentation Slides</strong> are available for this session.</span>
+             </span>
+             <a href="${talkObj.slide_url || `/assets/slides/${sid}.pdf`}" target="_blank" rel="noopener" style="background: #16a34a; color: #fff; border: none; font-weight: 600; padding: 6px 12px; font-size: 0.82rem; text-decoration: none; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">Open Slides PDF ↗</a>
+           </div>`
+        : "";
+
       if (modalBody) {
-        modalBody.innerHTML = `<div class="markdown-content">${htmlOutput}</div>`;
+        modalBody.innerHTML = `${slideBanner}<div class="markdown-content">${htmlOutput}</div>`;
       }
 
       // Enhance code blocks with copy snippet buttons
