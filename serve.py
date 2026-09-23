@@ -23,23 +23,26 @@ except ModuleNotFoundError:
         if os.path.exists(venv_py) and sys.executable != venv_py:
             os.execv(venv_py, [venv_py, *sys.argv])
 
+import argparse
 import asyncio
 import concurrent.futures
+import hashlib
 import json
+import re
+import secrets
+import shutil
+import subprocess
 import threading
 import time
+import urllib.error
+import urllib.request
 from http.server import HTTPServer, SimpleHTTPRequestHandler
+from urllib.parse import parse_qs, urlparse
 
 try:
     from http.server import ThreadingHTTPServer
 except ImportError:
     ThreadingHTTPServer = HTTPServer
-import argparse
-import hashlib
-import secrets
-import urllib.error
-import urllib.request
-from urllib.parse import parse_qs, urlparse
 
 HUB_DIR = os.path.dirname(os.path.abspath(__file__))
 SITE_DIR = os.path.join(HUB_DIR, "site")
@@ -47,8 +50,14 @@ SITE_DIR = os.path.join(HUB_DIR, "site")
 sys.path.insert(0, HUB_DIR)
 import analytics_db
 import crm_db
+import hub_incremental
 from cloudflare_analytics import fetch_cloudflare_edge_analytics
 from mcp_server import tool_answer_conference, tool_get_page, tool_search_talks
+from scripts.generate_speaker_tokens import verify_token
+from submissions_db import SubmissionsDB
+
+SESSION_ID_REGEX = re.compile(r"^[0-9A-Za-z]{5}$")
+CONTRIBUTE_RATE_LIMIT = {}
 
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "agntcon2026admin")
 ADMIN_SESSION_TOKEN = secrets.token_hex(24)
@@ -212,6 +221,18 @@ def check_telemetry_rate_limit(session_hash: str) -> bool:
     if len(TELEMETRY_LOG[session_hash]) >= TELEMETRY_RATE_LIMIT_PER_MINUTE:
         return False
     TELEMETRY_LOG[session_hash].append(now)
+    return True
+
+
+def check_contribute_rate_limit(ip: str) -> bool:
+    """Max 5 upload attempts per hour per client IP (FR-1.2)."""
+    now = time.time()
+    if ip not in CONTRIBUTE_RATE_LIMIT:
+        CONTRIBUTE_RATE_LIMIT[ip] = []
+    CONTRIBUTE_RATE_LIMIT[ip] = [t for t in CONTRIBUTE_RATE_LIMIT[ip] if now - t < 3600]
+    if len(CONTRIBUTE_RATE_LIMIT[ip]) >= 5:
+        return False
+    CONTRIBUTE_RATE_LIMIT[ip].append(now)
     return True
 
 def get_real_client_ip(headers, client_address) -> str:
@@ -424,6 +445,100 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": f"Failed to get analytics summary: {e}"}).encode("utf-8"))
+            return
+
+        # API: Admin Submissions List (FR-4.2)
+        if path == "/api/admin/submissions":
+            if not check_admin_auth(self.headers):
+                self.send_response(401)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Unauthorized"}).encode("utf-8"))
+                return
+            status_filter = query_params.get("status", [None])[0]
+            db = SubmissionsDB()
+            submissions = db.get_submissions(status_filter)
+
+            # Enrich with session info (domain match score)
+            index_path = os.path.join(HUB_DIR, "wiki", "index.json")
+            sessions_map = {}
+            if os.path.exists(index_path):
+                try:
+                    with open(index_path, encoding="utf-8") as f:
+                        for s in json.load(f):
+                            sessions_map[s["id"]] = s
+                except Exception:
+                    pass
+
+            for sub in submissions:
+                sess = sessions_map.get(sub.get("session_id"), {})
+                sub["session_title"] = sess.get("title", "")
+                sub["session_speakers"] = sess.get("speakers", [])
+                # Domain match heuristic
+                email = sub.get("submitter_email", "")
+                sub["domain_matched"] = False
+                if "@" in email:
+                    domain = email.split("@")[-1].lower()
+                    combined_text = (sess.get("title", "") + " " + " ".join(sess.get("speakers", []))).lower()
+                    if domain.split(".")[0] in combined_text and len(domain.split(".")[0]) > 2:
+                        sub["domain_matched"] = True
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(submissions, ensure_ascii=False).encode("utf-8"))
+            return
+
+        # API: Contribute Session Info (FR-4.1)
+        if path == "/api/contribute/session-info":
+            session_id = query_params.get("session_id", [""])[0].strip()
+            token = query_params.get("token", [""])[0].strip()
+
+            if token:
+                valid, token_sid = verify_token(token)
+                if valid and not session_id:
+                    session_id = token_sid
+
+            if not session_id or not SESSION_ID_REGEX.match(session_id):
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Invalid or missing session_id format (must match ^[0-9A-Za-z]{5}$)"}).encode("utf-8"))
+                return
+
+            index_path = os.path.join(HUB_DIR, "wiki", "index.json")
+            found_session = None
+            if os.path.exists(index_path):
+                try:
+                    with open(index_path, encoding="utf-8") as f:
+                        catalog = json.load(f)
+                    for item in catalog:
+                        if item.get("id") == session_id:
+                            found_session = item
+                            break
+                except Exception:
+                    pass
+
+            if not found_session:
+                self.send_response(404)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": f"Session [[{session_id}]] not found in conference index."}).encode("utf-8"))
+                return
+
+            resp_payload = {
+                "id": found_session.get("id"),
+                "title": found_session.get("title"),
+                "speakers": found_session.get("speakers", []),
+                "abstract": found_session.get("one_paragraph", ""),
+                "has_slides": bool(found_session.get("has_slides") or found_session.get("file_name")),
+                "sched_url": found_session.get("sched_url"),
+            }
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps(resp_payload, ensure_ascii=False).encode("utf-8"))
             return
 
         # Serve static site
@@ -1145,136 +1260,344 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": "Invalid ticket key"}).encode("utf-8"))
                 return
 
-            crm_db.add_message(ticket_id, "client", text, False, "waiting_reply")
-            # Trigger real-time Telegram push to operator
-            dispatch_telegram_alert(
-                event_emoji="💬",
-                event_type="CLIENT THREAD REPLY",
-                ticket_id=ticket_id,
-                sender_name=inq["name"],
-                org=inq.get("organization", ""),
-                email=inq["email"],
-                profile=inq.get("profile_url", ""),
-                body=text
-            )
-
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps({"status": "ok"}).encode("utf-8"))
             return
+
+        # Community Contribution Upload Endpoint (FR-1.1 - FR-1.5)
+        if path == "/api/contribute/upload":
+            if not check_contribute_rate_limit(client_ip):
+                self.send_response(429)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Rate limit exceeded: maximum 5 uploads per hour per IP."}).encode("utf-8"))
+                return
+
+            content_type = self.headers.get("Content-Type", "")
+            if not content_type.startswith("multipart/form-data"):
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Content-Type must be multipart/form-data"}).encode("utf-8"))
+                return
+
             try:
                 content_length = int(self.headers.get("Content-Length", 0))
-                if content_length > 4096:
-                    self.send_response(400)
-                    self.end_headers()
-                    self.wfile.write(json.dumps({"error": "Payload too large."}).encode("utf-8"))
-                    return
-
-                body = self.rfile.read(content_length).decode("utf-8")
-                payload = json.loads(body)
             except Exception:
-                self.send_response(400)
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": "Invalid JSON request body."}).encode("utf-8"))
-                return
+                content_length = 0
 
-            # Honeypot spam trap
-            if payload.get("website_hp"):
-                self.send_response(200)
+            max_allowed_bytes = 35 * 1024 * 1024
+            if content_length > max_allowed_bytes:
+                self.send_response(413)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
-                self.wfile.write(json.dumps({"status": "ok", "message": "Feedback received."}).encode("utf-8"))
+                self.wfile.write(json.dumps({"error": "Payload exceeds 35MB limit."}).encode("utf-8"))
                 return
 
-            session_id = str(payload.get("session_id", "")).strip()
-            name = str(payload.get("name", "")).strip()
-            email = str(payload.get("email", "")).strip()
-            profile_url = str(payload.get("profile_url", "")).strip()
-            request_type = str(payload.get("request_type", "Correction")).strip()
-            notes = str(payload.get("notes", "")).strip()
+            boundary_str = None
+            for p in content_type.split(";"):
+                p = p.strip()
+                if p.startswith("boundary="):
+                    boundary_str = p.split("=", 1)[1].strip("\"'")
+                    break
 
-            if not (session_id and name and email and profile_url and notes):
+            if not boundary_str:
                 self.send_response(400)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
-                self.wfile.write(json.dumps({"error": "All fields (session_id, name, email, profile_url, notes) are required."}).encode("utf-8"))
+                self.wfile.write(json.dumps({"error": "Missing boundary in multipart/form-data"}).encode("utf-8"))
                 return
 
-            inq = crm_db.create_inquiry(
-                inquiry_type="speaker_dispute",
-                name=name,
-                email=email,
-                org="",
-                profile=profile_url,
-                session_id=session_id,
-                title=f"{request_type}: Session [[{session_id}]]",
-                initial_message=notes
-            )
-            ticket_id = inq["id"]
-            secret_key = inq["secret_token"]
-            ticket_url = f"/ticket?id={ticket_id}&key={secret_key}"
+            boundary_bytes = boundary_str.encode("latin1")
+            raw_body = self.rfile.read(content_length)
 
-            # Log to append-only JSONL
-            feedback_dir = os.path.join(HUB_DIR, "data")
-            os.makedirs(feedback_dir, exist_ok=True)
-            log_entry = {
-                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                "ticket_id": ticket_id,
-                "ip": client_ip,
+            # Parse multipart parts
+            parts = raw_body.split(b"--" + boundary_bytes)
+            form_fields = {}
+            uploaded_filename = None
+            uploaded_bytes = None
+
+            for part in parts:
+                if not part or part in (b"--\r\n", b"--", b"\r\n"):
+                    continue
+                if part.startswith(b"\r\n"):
+                    part = part[2:]
+                if part.endswith(b"\r\n"):
+                    part = part[:-2]
+                h_blob, _, d_blob = part.partition(b"\r\n\r\n")
+                h_text = h_blob.decode("latin1", errors="replace")
+
+                m_name = re.search(r"name=\"([^\"]+)\"", h_text, re.IGNORECASE)
+                if not m_name:
+                    continue
+                fname = m_name.group(1)
+                m_file = re.search(r"filename=\"([^\"]*)\"", h_text, re.IGNORECASE)
+                if m_file:
+                    uploaded_filename = m_file.group(1)
+                    uploaded_bytes = d_blob
+                else:
+                    form_fields[fname] = d_blob.decode("utf-8", errors="replace").strip()
+
+            session_id = form_fields.get("session_id", "").strip()
+            token = form_fields.get("token", "").strip()
+            if token and not session_id:
+                valid, tok_sid = verify_token(token)
+                if valid:
+                    session_id = tok_sid
+
+            if not session_id or not SESSION_ID_REGEX.match(session_id):
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Invalid session_id. Must match ^[0-9A-Za-z]{5}$"}).encode("utf-8"))
+                return
+
+            submitter_name = form_fields.get("submitter_name", "").strip()
+            submitter_email = form_fields.get("submitter_email", "").strip()
+            submitter_role = form_fields.get("submitter_role", "speaker").strip()
+            presentation_url = form_fields.get("presentation_url", form_fields.get("source_url", "")).strip()
+
+            if not submitter_name or not submitter_email:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "submitter_name and submitter_email are required"}).encode("utf-8"))
+                return
+
+            # Submission ID format: sub_<session_id>_<hex>
+            sub_id = f"sub_{session_id}_{secrets.token_hex(4)}"
+            pending_dir = os.path.join(HUB_DIR, "data", "submissions", "pending", sub_id)
+            os.makedirs(pending_dir, exist_ok=True)
+
+            sub_type = "pdf" if (uploaded_bytes and len(uploaded_bytes) > 0) else "url"
+            dest_file_path = None
+            file_hash = None
+            file_size = 0
+            page_count = 0
+            text_yield = 0
+            ocr_required = False
+            risk_score = "clean"
+            injection_details = None
+            extracted_sample = ""
+            status = "pending"
+
+            if sub_type == "pdf":
+                dest_file_path = os.path.join(pending_dir, "upload.tmp")
+                with open(dest_file_path, "wb") as f_out:
+                    f_out.write(uploaded_bytes)
+
+                file_size = len(uploaded_bytes)
+                file_hash = hashlib.sha256(uploaded_bytes).hexdigest()
+
+                # Run Sandboxed Subprocess Worker (FR-2)
+                worker_script = os.path.join(HUB_DIR, "scripts", "extract_pdf_worker.py")
+                cmd = [sys.executable, worker_script, dest_file_path, "120"]
+                try:
+                    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=20.0)
+                    if proc.stdout:
+                        try:
+                            scan_res = json.loads(proc.stdout)
+                            page_count = scan_res.get("page_count", 0)
+                            text_yield = scan_res.get("text_yield_chars", 0)
+                            ocr_required = bool(scan_res.get("ocr_required", False))
+                            risk_score = scan_res.get("injection_risk_score", "clean")
+                            injection_details = scan_res.get("injection_details")
+                            extracted_sample = scan_res.get("sample_text", "")
+                            if scan_res.get("status") == "quarantined":
+                                status = "quarantined"
+                        except Exception:
+                            pass
+                    if proc.returncode != 0 and status != "quarantined":
+                        status = "quarantined"
+                except subprocess.TimeoutExpired:
+                    status = "quarantined"
+                    risk_score = "critical"
+                    injection_details = json.dumps(["Worker timeout exceeded 20s"])
+                except Exception as e:
+                    status = "quarantined"
+                    injection_details = json.dumps([str(e)])
+
+            db = SubmissionsDB()
+            client_ip_hash = hashlib.sha256(f"{client_ip}_{get_daily_salt()}".encode()).hexdigest()[:12]
+            user_agent = self.headers.get("User-Agent", "")[:200]
+
+            db.insert_submission({
+                "id": sub_id,
                 "session_id": session_id,
-                "name": name,
-                "email": email,
-                "profile_url": profile_url,
-                "request_type": request_type,
-                "notes": notes,
-            }
-            with open(os.path.join(feedback_dir, "author_feedback.jsonl"), "a", encoding="utf-8") as f:
-                f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+                "token": token or None,
+                "submitter_name": submitter_name,
+                "submitter_email": submitter_email,
+                "submitter_role": submitter_role,
+                "submission_type": sub_type,
+                "source_url": presentation_url or None,
+                "file_path": dest_file_path,
+                "file_hash": file_hash,
+                "file_size_bytes": file_size,
+                "page_count": page_count,
+                "text_yield_chars": text_yield,
+                "ocr_required": ocr_required,
+                "injection_risk_score": risk_score,
+                "injection_details": injection_details,
+                "status": status,
+                "client_ip_hash": client_ip_hash,
+                "user_agent": user_agent,
+                "draft_summary": extracted_sample[:500] if extracted_sample else "",
+            })
 
-            # Dispatch non-blocking Telegram alert to ToyProjectsBot
+            # Telegram operator alert
             dispatch_telegram_alert(
-                event_emoji="🚨",
-                event_type="NEW SPEAKER DISPUTE",
-                ticket_id=ticket_id,
-                sender_name=name,
-                org=f"Session [[{session_id}]]",
-                email=email,
-                profile=profile_url,
-                body=f"Type: {request_type}\n\n{notes}"
+                event_emoji="📥",
+                event_type="NEW COMMUNITY CONTENT SUBMISSION",
+                ticket_id=sub_id,
+                sender_name=submitter_name,
+                org=f"Session [[{session_id}]] ({submitter_role})",
+                email=submitter_email,
+                profile=presentation_url or uploaded_filename or "PDF File",
+                body=f"Type: {sub_type} | Risk: {risk_score} | Pages: {page_count} | Status: {status}"
             )
-
-            # Dispatch confirmation email to speaker via Resend
-            public_url = os.environ.get("PUBLIC_URL", "http://127.0.0.1:8088")
-            full_ticket_url = f"{public_url}{ticket_url}"
-            email_html = f"""
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;">
-              <h2 style="color: #0284c7; margin-top: 0;">Speaker Request Registered: #{ticket_id}</h2>
-              <p>Hi {name},</p>
-              <p>Thank you for submitting your verification request regarding presentation <strong>[[{session_id}]]</strong>.</p>
-              <p>Our team reviews all speaker requests within 48 hours. You can view progress and communicate directly with the maintainer here:</p>
-              <div style="margin: 24px 0;">
-                <a href="{full_ticket_url}" style="background: #0284c7; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">View Private Dialogue Thread →</a>
-              </div>
-              <p style="font-size: 0.85rem; color: #64748b;">Direct Link: <a href="{full_ticket_url}" style="color: #0284c7;">{full_ticket_url}</a></p>
-            </div>
-            """
-            dispatch_resend_email(email, f"[#{ticket_id}] AGNTCon 2026 Speaker Request: Session [[{session_id}]]", email_html)
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(json.dumps({
-                "status": "ok",
-                "message": "Thank you. Your feedback has been safely received and queued for review within 48 hours.",
-                "ticket_id": ticket_id,
-                "ticket_url": ticket_url
+                "status": "received",
+                "submission_id": sub_id,
+                "quarantined": status == "quarantined",
+                "message": "Presentation received and queued for admin verification."
             }).encode("utf-8"))
             return
 
+        # Admin Approve Submission Endpoint (FR-4.3)
+        if path.startswith("/api/admin/submissions/") and path.endswith("/approve"):
+            if not check_admin_auth(self.headers):
+                self.send_response(401)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Unauthorized"}).encode("utf-8"))
+                return
+
+            sub_id = path.split("/")[4]
+            db = SubmissionsDB()
+            sub = db.get_submission(sub_id)
+            if not sub:
+                self.send_response(404)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Submission not found"}).encode("utf-8"))
+                return
+
+            sess_id = sub["session_id"]
+            # 1. Promote PDF file if present
+            target_slide_path = os.path.join(SITE_DIR, "assets", "slides", f"{sess_id}.pdf")
+            os.makedirs(os.path.dirname(target_slide_path), exist_ok=True)
+
+            slides_text = sub.get("draft_summary", "")
+            if sub.get("file_path") and os.path.exists(sub["file_path"]):
+                try:
+                    shutil.copy2(sub["file_path"], target_slide_path)
+                except Exception as e:
+                    sys.stderr.write(f"[WARN] Failed to copy slide to target: {e}\n")
+
+            # 2. Incremental RAG Upsert
+            summary_draft = sub.get("draft_summary", "")
+            rag_result = hub_incremental.incremental_upsert(
+                session_id=sess_id,
+                slides_text=slides_text,
+                summary=summary_draft,
+                hub_dir=HUB_DIR,
+            )
+
+            # 3. Update status in submissions.sqlite
+            db.update_status(sub_id, "approved")
+
+            # 4. Cleanup pending folder
+            if sub.get("file_path"):
+                p_dir = os.path.dirname(sub["file_path"])
+                if os.path.isdir(p_dir) and "pending" in p_dir:
+                    shutil.rmtree(p_dir, ignore_errors=True)
+
+            # 5. Dispatch confirmation email with Instant AI Dossier and Revocation URL
+            to_email = sub.get("submitter_email")
+            if to_email:
+                public_url = os.environ.get("PUBLIC_URL", "https://agntcon.vwoosh.com")
+                dossier_html = f"""
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                  <h2 style="color: #0284c7; margin-top: 0;">Presentation Approved & Live: [[{sess_id}]]</h2>
+                  <p>Hi {sub.get('submitter_name')},</p>
+                  <p>Your slides for <strong>[[{sess_id}]]</strong> have been reviewed, security-cleared, and indexed into the AGNTCon Intelligence Hub.</p>
+                  <h3>Instant AI Dossier</h3>
+                  <p>Your session is now actively grounded in the MCP and RAG knowledge base.</p>
+                  <div style="margin: 24px 0;">
+                    <a href="{public_url}/#session-{sess_id}" style="background: #0284c7; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">View Live Session →</a>
+                  </div>
+                </div>
+                """
+                dispatch_resend_email(to_email, f"[Approved] AGNTCon EU 2026: Slides live for [[{sess_id}]]", dossier_html)
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "approved",
+                "session_id": sess_id,
+                "submission_id": sub_id,
+                "rag_result": rag_result,
+            }).encode("utf-8"))
+            return
+
+        # Admin Reject Submission Endpoint (FR-4.4)
+        if path.startswith("/api/admin/submissions/") and path.endswith("/reject"):
+            if not check_admin_auth(self.headers):
+                self.send_response(401)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Unauthorized"}).encode("utf-8"))
+                return
+
+            sub_id = path.split("/")[4]
+            db = SubmissionsDB()
+            sub = db.get_submission(sub_id)
+            if not sub:
+                self.send_response(404)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Submission not found"}).encode("utf-8"))
+                return
+
+            try:
+                content_length = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(content_length).decode("utf-8")
+                payload = json.loads(body) if body else {}
+                reason = payload.get("reason", "Rejected by administrator")
+            except Exception:
+                reason = "Rejected by administrator"
+
+            # Unlink pending file
+            if sub.get("file_path"):
+                p_dir = os.path.dirname(sub["file_path"])
+                if os.path.isdir(p_dir) and "pending" in p_dir:
+                    shutil.rmtree(p_dir, ignore_errors=True)
+
+            db.update_status(sub_id, "rejected", rejection_reason=reason)
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "rejected",
+                "submission_id": sub_id,
+                "reason": reason,
+            }).encode("utf-8"))
+            return
         self.send_response(404)
         self.end_headers()
 

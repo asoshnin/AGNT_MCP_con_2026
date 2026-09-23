@@ -716,6 +716,75 @@
       </div>
     </div>
 
+    <!-- Community Contribution / Claim Session Modal (Sprint 13) -->
+    <div id="contribute-modal-backdrop" class="modal-backdrop">
+      <div class="modal-box" style="max-width: 620px;">
+        <div class="modal-header-bar">
+          <span class="modal-title">📤 Add Slides / Claim Session</span>
+          <button id="contribute-modal-close" class="modal-close" onclick="closeContributeModal()" style="position: static; font-size: 1.4rem; padding: 2px 8px; line-height: 1;">&times;</button>
+        </div>
+        <div class="markdown-content" style="font-size: 0.9rem;">
+          <div id="contribute-session-preview" style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">
+            <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--accent); font-weight: 700; margin-bottom: 2px;" id="contrib-session-id">Session [[...]]</div>
+            <strong id="contrib-session-title" style="font-size: 1rem; color: var(--text-primary);">Loading session...</strong>
+            <div id="contrib-session-speakers" style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 4px;">Speaker names</div>
+          </div>
+
+          <form id="contribute-form">
+            <input type="hidden" id="contrib-input-session-id" name="session_id">
+            <input type="hidden" id="contrib-input-token" name="token">
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+              <div>
+                <label style="display: block; font-weight: 600; font-size: 0.82rem; margin-bottom: 4px;">Your Name *</label>
+                <input type="text" id="contrib-name" name="submitter_name" class="search-input" required placeholder="e.g. Alexey Soshnin" style="width: 100%; padding: 8px 10px; font-size: 0.85rem;">
+              </div>
+              <div>
+                <label style="display: block; font-weight: 600; font-size: 0.82rem; margin-bottom: 4px;">Your Email *</label>
+                <input type="email" id="contrib-email" name="submitter_email" class="search-input" required placeholder="e.g. alex@example.com" style="width: 100%; padding: 8px 10px; font-size: 0.85rem;">
+              </div>
+            </div>
+
+            <div style="margin-bottom: 12px;">
+              <label style="display: block; font-weight: 600; font-size: 0.82rem; margin-bottom: 4px;">Your Relationship to this Session *</label>
+              <select id="contrib-role" name="submitter_role" class="search-input" style="width: 100%; padding: 8px 10px; font-size: 0.85rem;">
+                <option value="speaker">Official Speaker / Presenter</option>
+                <option value="coauthor">Co-Author / Colleague</option>
+                <option value="organizer">Conference Organizer</option>
+                <option value="attendee">Attendee sharing public author deck</option>
+              </select>
+            </div>
+
+            <div style="margin-bottom: 12px;">
+              <label style="display: block; font-weight: 600; font-size: 0.82rem; margin-bottom: 4px;">Upload PDF Slide Deck (Max 35MB)</label>
+              <input type="file" id="contrib-file" name="file" accept="application/pdf,.pdf" class="search-input" style="width: 100%; padding: 6px; font-size: 0.82rem;">
+            </div>
+
+            <div style="margin-bottom: 14px;">
+              <label style="display: block; font-weight: 600; font-size: 0.82rem; margin-bottom: 4px;">— OR — Public Cloud Deck URL</label>
+              <input type="url" id="contrib-url" name="presentation_url" class="search-input" placeholder="https://docs.google.com/presentation/d/... or Canva / Pitch link" style="width: 100%; padding: 8px 10px; font-size: 0.85rem;">
+            </div>
+
+            <div style="margin-bottom: 16px; background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 6px; padding: 10px 12px;">
+              <label style="display: flex; align-items: flex-start; gap: 8px; font-size: 0.78rem; cursor: pointer; color: var(--text-secondary);">
+                <input type="checkbox" id="contrib-license" name="license_accepted" required style="margin-top: 2px;">
+                <span>I confirm I am authorized to share these materials under a non-exclusive license for indexing into the AGNTCon community archive.</span>
+              </label>
+            </div>
+
+            <div id="contrib-status-msg" style="display: none; padding: 10px 12px; border-radius: 6px; font-size: 0.84rem; margin-bottom: 12px;"></div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+              <button type="button" class="btn-header" onclick="closeContributeModal()">Cancel</button>
+              <button type="submit" id="contrib-submit-btn" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; padding: 8px 18px;">
+                🚀 Submit for Indexing
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
     <!-- Floating Interactive MCP Chat Drawer -->
     <div class="chat-drawer">
       <button id="chat-toggle" class="chat-toggle-btn">

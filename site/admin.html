@@ -93,6 +93,7 @@
         </div>
         <div class="admin-nav-tabs">
           <button id="nav-tab-crm" class="admin-nav-tab active" onclick="switchAdminView('crm')">💼 Inquiries (CRM)</button>
+          <button id="nav-tab-submissions" class="admin-nav-tab" onclick="switchAdminView('submissions')">📥 Submissions</button>
           <button id="nav-tab-analytics" class="admin-nav-tab" onclick="switchAdminView('analytics')">📊 Analytics</button>
         </div>
       </div>
@@ -137,6 +138,42 @@
           Select an inquiry from the inbox to inspect messages and reply.
         </div>
       </section>
+    </div>
+
+    <!-- Submissions View (Sprint 13) -->
+    <div id="submissions-view" class="analytics-view" style="display: none;">
+      <div class="analytics-header">
+        <div>
+          <h2 style="margin: 0; font-size: 1.3rem;">📥 Community Content & Speaker Slide Submissions</h2>
+          <p style="margin: 4px 0 0 0; font-size: 0.82rem; color: var(--text-secondary);">
+            Review incoming presentations, security quarantine flags, and 1-Click approve incremental RAG ingestion.
+          </p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <select id="sub-filter-status" class="search-input" style="padding: 6px 12px; font-size: 0.82rem;" onchange="loadSubmissions()">
+            <option value="pending">Pending Review</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="quarantined">Quarantined</option>
+            <option value="all">All Submissions</option>
+          </select>
+          <button class="btn-header" style="font-size: 0.8rem; padding: 6px 12px;" onclick="loadSubmissions()">🔄 Refresh</button>
+        </div>
+      </div>
+      <div id="submissions-table-wrap" class="analytics-panel" style="overflow-x: auto; padding: 0;">
+        <div style="padding: 40px; text-align: center; color: var(--text-secondary);">Loading submissions...</div>
+      </div>
+    </div>
+
+    <!-- Slide Preview Modal -->
+    <div id="sub-preview-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9999; align-items: center; justify-content: center;">
+      <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; width: 90%; max-width: 800px; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden;">
+        <div style="padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+          <strong id="modal-sub-title">Submission Preview</strong>
+          <button class="btn-header" onclick="closeSubModal()" style="padding: 4px 10px; font-size: 0.8rem;">✕ Close</button>
+        </div>
+        <div id="modal-sub-body" style="padding: 20px; overflow-y: auto; flex: 1; font-size: 0.9rem; line-height: 1.5;"></div>
+      </div>
     </div>
 
     <!-- Analytics Dashboard View -->
@@ -557,21 +594,210 @@
 
     function switchAdminView(view) {
       const crmTab = document.getElementById("nav-tab-crm");
+      const subTab = document.getElementById("nav-tab-submissions");
       const analyticsTab = document.getElementById("nav-tab-analytics");
       const crmLayout = document.getElementById("crm-inbox-view");
+      const subLayout = document.getElementById("submissions-view");
       const analyticsLayout = document.getElementById("analytics-view");
 
+      crmTab.classList.remove("active");
+      subTab.classList.remove("active");
+      analyticsTab.classList.remove("active");
+      crmLayout.style.display = "none";
+      subLayout.style.display = "none";
+      analyticsLayout.style.display = "none";
+
       if (view === "analytics") {
-        crmTab.classList.remove("active");
         analyticsTab.classList.add("active");
-        crmLayout.style.display = "none";
         analyticsLayout.style.display = "block";
         loadAnalytics();
+      } else if (view === "submissions") {
+        subTab.classList.add("active");
+        subLayout.style.display = "block";
+        loadSubmissions();
       } else {
-        analyticsTab.classList.remove("active");
         crmTab.classList.add("active");
-        analyticsLayout.style.display = "none";
         crmLayout.style.display = "grid";
+      }
+    }
+
+    let CACHED_SUBMISSIONS = [];
+
+    async function loadSubmissions() {
+      const token = localStorage.getItem("agntcon_admin_token");
+      const statusFilter = document.getElementById("sub-filter-status")?.value || "pending";
+      const wrap = document.getElementById("submissions-table-wrap");
+      wrap.innerHTML = `<div style="padding: 40px; text-align: center; color: var(--text-secondary);">Loading submissions (${statusFilter})...</div>`;
+
+      try {
+        const res = await fetch(`/api/admin/submissions?status=${statusFilter}`, {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (res.status === 401) {
+          localStorage.removeItem("agntcon_admin_token");
+          location.reload();
+          return;
+        }
+        CACHED_SUBMISSIONS = await res.json();
+        renderSubmissionsTable(CACHED_SUBMISSIONS);
+      } catch (err) {
+        wrap.innerHTML = `<div style="padding: 30px; color: #f87171; text-align: center;">Failed to load submissions: ${err.message}</div>`;
+      }
+    }
+
+    function renderSubmissionsTable(subs) {
+      const wrap = document.getElementById("submissions-table-wrap");
+      if (!subs || subs.length === 0) {
+        wrap.innerHTML = `<div style="padding: 40px; text-align: center; color: var(--text-secondary);">No submissions found matching this filter.</div>`;
+        return;
+      }
+
+      const rows = subs.map(s => {
+        const riskColor = s.injection_risk_score === 'critical' ? '#ef4444' : (s.injection_risk_score === 'warning' ? '#f59e0b' : '#10b981');
+        const statusColor = s.status === 'approved' ? '#10b981' : (s.status === 'rejected' ? '#ef4444' : (s.status === 'quarantined' ? '#f59e0b' : '#38bdf8'));
+        const domainBadge = s.domain_matched ? `<span style="font-size: 0.7rem; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); padding: 1px 6px; border-radius: 4px; margin-left: 4px;">✓ Verified Domain</span>` : '';
+        const ocrBadge = s.ocr_required ? `<span style="font-size: 0.7rem; background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.4); padding: 1px 6px; border-radius: 4px; margin-left: 4px;">OCR Req</span>` : '';
+
+        return `
+          <tr style="border-bottom: 1px solid var(--border);">
+            <td style="padding: 12px 14px;">
+              <strong>[[${s.session_id}]]</strong><br>
+              <span style="font-size: 0.8rem; color: var(--text-secondary);">${escapeHtml(s.session_title || 'Unknown Session')}</span>
+            </td>
+            <td style="padding: 12px 14px;">
+              <div><strong>${escapeHtml(s.submitter_name)}</strong> ${domainBadge}</div>
+              <div style="font-size: 0.78rem; color: var(--text-secondary);">${escapeHtml(s.submitter_email)} (${s.submitter_role})</div>
+            </td>
+            <td style="padding: 12px 14px; font-size: 0.82rem;">
+              <span style="text-transform: uppercase; font-weight: 600;">${s.submission_type}</span>
+              ${s.source_url ? `<br><a href="${s.source_url}" target="_blank" style="color: var(--accent); text-decoration: none;">External Deck ↗</a>` : ''}
+              ${s.page_count ? `<br><span style="color: var(--text-secondary);">${s.page_count} pages • ${s.text_yield_chars} chars ${ocrBadge}</span>` : ''}
+            </td>
+            <td style="padding: 12px 14px;">
+              <span style="font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; font-weight: 600; background: ${riskColor}22; color: ${riskColor}; border: 1px solid ${riskColor}55;">
+                ${s.injection_risk_score}
+              </span>
+            </td>
+            <td style="padding: 12px 14px;">
+              <span style="font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; font-weight: 600; background: ${statusColor}22; color: ${statusColor}; border: 1px solid ${statusColor}55;">
+                ${s.status}
+              </span>
+            </td>
+            <td style="padding: 12px 14px; text-align: right; white-space: nowrap;">
+              <button class="btn-header" style="font-size: 0.75rem; padding: 4px 8px; margin-right: 4px;" onclick="openSubModal('${s.id}')">Inspect</button>
+              ${s.status === 'pending' || s.status === 'quarantined' ? `
+                <button class="btn-header" style="font-size: 0.75rem; padding: 4px 8px; background: rgba(16, 185, 129, 0.2); border-color: #10b981; color: #10b981;" onclick="approveSubmission('${s.id}')">✓ Approve</button>
+                <button class="btn-header" style="font-size: 0.75rem; padding: 4px 8px; background: rgba(239, 68, 68, 0.2); border-color: #ef4444; color: #ef4444; margin-left: 4px;" onclick="rejectSubmission('${s.id}')">✕ Reject</button>
+              ` : ''}
+            </td>
+          </tr>
+        `;
+      }).join("");
+
+      wrap.innerHTML = `
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
+          <thead>
+            <tr style="background: var(--bg-secondary); border-bottom: 1px solid var(--border); text-align: left; font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase;">
+              <th style="padding: 10px 14px;">Session</th>
+              <th style="padding: 10px 14px;">Submitter</th>
+              <th style="padding: 10px 14px;">Content / Type</th>
+              <th style="padding: 10px 14px;">Security Risk</th>
+              <th style="padding: 10px 14px;">Status</th>
+              <th style="padding: 10px 14px; text-align: right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      `;
+    }
+
+    function openSubModal(subId) {
+      const sub = CACHED_SUBMISSIONS.find(s => s.id === subId);
+      if (!sub) return;
+      document.getElementById("modal-sub-title").textContent = `Submission Details: ${sub.id} (Session [[${sub.session_id}]])`;
+      
+      let previewContent = "";
+      if (sub.source_url) {
+        previewContent += `
+          <div style="margin-bottom: 16px;">
+            <strong>Cloud Deck URL:</strong> <a href="${sub.source_url}" target="_blank" style="color: var(--accent);">${sub.source_url}</a>
+            <div style="margin-top: 10px; height: 350px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;">
+              <iframe src="${sub.source_url}" style="width: 100%; height: 100%; border: none;"></iframe>
+            </div>
+          </div>
+        `;
+      }
+      if (sub.draft_summary) {
+        previewContent += `
+          <div style="margin-bottom: 16px;">
+            <strong>Extracted Text Sample / Summary Draft:</strong>
+            <pre style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-size: 0.8rem; max-height: 200px; overflow-y: auto; white-space: pre-wrap;">${escapeHtml(sub.draft_summary)}</pre>
+          </div>
+        `;
+      }
+      if (sub.injection_details) {
+        previewContent += `
+          <div style="margin-bottom: 16px; color: #ef4444;">
+            <strong>Security Scan Flags:</strong>
+            <pre style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 6px; padding: 10px; font-size: 0.8rem;">${escapeHtml(sub.injection_details)}</pre>
+          </div>
+        `;
+      }
+
+      document.getElementById("modal-sub-body").innerHTML = previewContent || `<p style="color: var(--text-secondary);">No additional draft content available.</p>`;
+      document.getElementById("sub-preview-modal").style.display = "flex";
+    }
+
+    function closeSubModal() {
+      document.getElementById("sub-preview-modal").style.display = "none";
+    }
+
+    async function approveSubmission(subId) {
+      if (!confirm(`Are you sure you want to approve submission ${subId}? This will promote the slides to production and incrementally update FTS5 and vector indices.`)) {
+        return;
+      }
+      const token = localStorage.getItem("agntcon_admin_token");
+      try {
+        const res = await fetch(`/api/admin/submissions/${subId}/approve`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (res.ok && data.status === "approved") {
+          alert(`Submission ${subId} successfully approved and indexed!`);
+          loadSubmissions();
+        } else {
+          alert(`Approval failed: ${data.error || JSON.stringify(data)}`);
+        }
+      } catch (err) {
+        alert(`Error approving submission: ${err.message}`);
+      }
+    }
+
+    async function rejectSubmission(subId) {
+      const reason = prompt("Enter rejection reason (optional):", "Rejected by administrator");
+      if (reason === null) return;
+      const token = localStorage.getItem("agntcon_admin_token");
+      try {
+        const res = await fetch(`/api/admin/submissions/${subId}/reject`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: json.stringify ? JSON.stringify({ reason }) : JSON.stringify({ reason })
+        });
+        const data = await res.json();
+        if (res.ok && data.status === "rejected") {
+          alert(`Submission ${subId} rejected.`);
+          loadSubmissions();
+        } else {
+          alert(`Rejection failed: ${data.error || JSON.stringify(data)}`);
+        }
+      } catch (err) {
+        alert(`Error rejecting submission: ${err.message}`);
       }
     }
 

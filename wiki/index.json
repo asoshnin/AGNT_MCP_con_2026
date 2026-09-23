@@ -15,7 +15,7 @@
     ],
     "relevance_score": 0.98,
     "relevance_rationale": "The talk directly addresses the challenges and architectural patterns for running multi-agent systems in production, covering orchestration, tool-use (MCP), and critical operational concerns like observability and data handling, which are central to AGNTCon and MCPCon themes.",
-    "one_paragraph": "This talk dissects the journey of building and operating a multi-agent system for 5,000+ developers, moving beyond single-LLM agents to a robust 'orchestra' of 12 specialist agents. The core insight is the necessity of sophisticated orchestration primitives, including sequential pipelines, parallel fan-out, and LLM-driven dynamic routing, to handle real-world complexity and scale. Each agent is equipped with MCP tools, enabling them to interact with external systems like GitHub and StackOverflow. The speaker highlights critical production challenges such as drain-loop bugs, recency drift in RA",
+    "one_paragraph": "Executive summary of the session deck.",
     "has_slides": true,
     "wiki_path": "wiki/sources/2RB8M.md"
   },

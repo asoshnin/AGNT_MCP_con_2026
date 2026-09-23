@@ -1312,6 +1312,8 @@ function renderCards() {
         if (hasSlides) {
           const slideHref = t.slide_url || t.sched_url;
           directSlideBtn = `<a class="btn-view-essence" href="${escapeHtml(slideHref)}" target="_blank" rel="noopener" style="text-decoration: none;" title="View official presentation slides">📄 Slides ↗</a>`;
+        } else {
+          directSlideBtn = `<button class="btn-view-essence" onclick="openContributeModal('${t.id}')" style="background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.4); color: var(--accent);" title="Upload missing presentation slides or claim session">[ + Add Slides ]</button>`;
         }
 
         return `
@@ -1379,6 +1381,7 @@ function renderCards() {
       <td style="text-align: right;">
         <div style="display: inline-flex; gap: 6px;">
           <a class="btn-sched" href="${escapeHtml(t.sched_url)}" target="_blank" rel="noopener" style="padding: 4px 8px; font-size: 0.78rem;">Sched ↗</a>
+          ${hasSlides ? '' : `<button class="btn-view-essence" onclick="openContributeModal('${t.id}')" style="padding: 4px 8px; font-size: 0.78rem; background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.4); color: var(--accent);">+ Slides</button>`}
           <button class="btn-view-essence" onclick="openEssenceModal('${t.id}')" style="padding: 4px 8px; font-size: 0.78rem;">View</button>
           <button class="btn-cite" onclick="copyCitation('${t.id}', this)" style="padding: 4px 8px; font-size: 0.78rem;" title="Copy academic citation to clipboard">📋 Citation</button>
         </div>
@@ -2676,5 +2679,119 @@ function setupModalsAndSettings() {
     btnOpenSettings.addEventListener("click", () => {
       updateAnalyticsExclusionUI();
     });
+  }
+
+  // ── Community Contribution / Claim Session Logic (Sprint 13) ──────────────
+  const urlParams = new URLSearchParams(window.location.search);
+  const magicToken = urlParams.get("token");
+  if (magicToken) {
+    const parts = magicToken.split(".");
+    if (parts.length === 3) {
+      openContributeModal(parts[0], magicToken);
+    }
+  }
+
+  const contribForm = document.getElementById("contribute-form");
+  if (contribForm) {
+    contribForm.addEventListener("submit", handleContributeSubmit);
+  }
+}
+
+async function openContributeModal(sessionId, token = "") {
+  const backdrop = document.getElementById("contribute-modal-backdrop");
+  if (!backdrop) return;
+
+  document.getElementById("contrib-input-session-id").value = sessionId;
+  document.getElementById("contrib-input-token").value = token || "";
+  document.getElementById("contrib-session-id").textContent = `Session [[${sessionId}]]`;
+  document.getElementById("contrib-session-title").textContent = "Loading session details...";
+  document.getElementById("contrib-session-speakers").textContent = "";
+
+  const statusMsg = document.getElementById("contrib-status-msg");
+  if (statusMsg) statusMsg.style.display = "none";
+
+  backdrop.classList.add("open");
+
+  try {
+    const res = await fetch(`/api/contribute/session-info?session_id=${sessionId}${token ? `&token=${token}` : ""}`);
+    if (res.ok) {
+      const data = await res.json();
+      document.getElementById("contrib-session-title").textContent = data.title || "Session";
+      document.getElementById("contrib-session-speakers").textContent = (data.speakers || []).join(", ") || "Speaker";
+    }
+  } catch (e) {
+    document.getElementById("contrib-session-title").textContent = `Session [[${sessionId}]]`;
+  }
+}
+
+function closeContributeModal() {
+  const backdrop = document.getElementById("contribute-modal-backdrop");
+  if (backdrop) backdrop.classList.remove("open");
+}
+
+async function handleContributeSubmit(e) {
+  e.preventDefault();
+  const form = e.target;
+  const submitBtn = document.getElementById("contrib-submit-btn");
+  const statusMsg = document.getElementById("contrib-status-msg");
+
+  const fileInput = document.getElementById("contrib-file");
+  const urlInput = document.getElementById("contrib-url");
+  const hasFile = fileInput.files && fileInput.files.length > 0;
+  const hasUrl = !!urlInput.value.trim();
+
+  if (!hasFile && !hasUrl) {
+    statusMsg.style.display = "block";
+    statusMsg.style.background = "rgba(239, 68, 68, 0.15)";
+    statusMsg.style.color = "#f87171";
+    statusMsg.style.border = "1px solid rgba(239, 68, 68, 0.3)";
+    statusMsg.textContent = "Please either upload a PDF slide deck or provide a public presentation URL.";
+    return;
+  }
+
+  const formData = new FormData(form);
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = "⏳ Uploading & Screening...";
+  statusMsg.style.display = "block";
+  statusMsg.style.background = "rgba(56, 189, 248, 0.15)";
+  statusMsg.style.color = "var(--accent)";
+  statusMsg.style.border = "1px solid rgba(56, 189, 248, 0.3)";
+  statusMsg.textContent = "Uploading presentation to secure quarantine and running security scrubber...";
+
+  try {
+    const res = await fetch("/api/contribute/upload", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await res.json();
+
+    if (res.ok && data.status === "received") {
+      statusMsg.style.background = "rgba(16, 185, 129, 0.15)";
+      statusMsg.style.color = "#10b981";
+      statusMsg.style.border = "1px solid rgba(16, 185, 129, 0.4)";
+      statusMsg.innerHTML = `✓ <strong>Received!</strong> Reference ID: <code>${data.submission_id}</code>.<br>Your presentation has been queued for verification. Thank you for contributing to AGNTCon!`;
+      submitBtn.textContent = "✓ Uploaded";
+      setTimeout(() => {
+        closeContributeModal();
+        form.reset();
+        submitBtn.disabled = false;
+        submitBtn.textContent = "🚀 Submit for Indexing";
+      }, 4000);
+    } else {
+      statusMsg.style.background = "rgba(239, 68, 68, 0.15)";
+      statusMsg.style.color = "#f87171";
+      statusMsg.style.border = "1px solid rgba(239, 68, 68, 0.3)";
+      statusMsg.textContent = `Upload failed: ${data.error || "Unknown server error"}`;
+      submitBtn.disabled = false;
+      submitBtn.textContent = "🚀 Submit for Indexing";
+    }
+  } catch (err) {
+    statusMsg.style.background = "rgba(239, 68, 68, 0.15)";
+    statusMsg.style.color = "#f87171";
+    statusMsg.style.border = "1px solid rgba(239, 68, 68, 0.3)";
+    statusMsg.textContent = `Network error: ${err.message}`;
+    submitBtn.disabled = false;
+    submitBtn.textContent = "🚀 Submit for Indexing";
   }
 }
