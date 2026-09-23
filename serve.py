@@ -403,7 +403,7 @@ def verify_submission_authenticity(
 
 def dispatch_resend_email(to_email: str, subject: str, html_body: str):
     api_key = os.environ.get("RESEND_API_KEY")
-    from_email = os.environ.get("RESEND_FROM_EMAIL", "Alexey Soshnin <alex@onexcare.com>")
+    from_email = os.environ.get("RESEND_FROM_EMAIL", "Alexey Soshnin <alex@vwoosh.com>")
     reply_to = os.environ.get("RESEND_REPLY_TO", "alex@vwoosh.com")
     if not api_key or api_key == "YOUR_RESEND_KEY_HERE":
         sys.stdout.write(f"[INFO] RESEND_API_KEY not configured. Skipping email to {to_email}.\n")
