@@ -4,11 +4,12 @@
 Reads data/contacts.json and data/outreach_private.sqlite to generate personalized,
 privacy-preserving message drafts and public social media announcement copy.
 
-Standardized Cohort Keys:
-1. cohort_organizers: European Community Hub as a gift & North America pilot proposal
-2. cohort_missing_slides: 1-click HMAC magic link to upload slides in 10s
-3. cohort_slides_available: Live session deep-link, LinkedIn repost & GitHub star ask
-4. public_launch_post: Zero-link post body + link in first comment (Anti-suppression)
+Standardized Cohort Keys & Templates (Proposal 30.11 / Sprint 19 Hardening):
+1. Template C (cohort_organizers): European Community Hub as a gift & North America pilot proposal (<= 280 chars)
+2. Template B (cohort_missing_slides): Compact 1-click magic link agntcon-demo.vwoosh.com/c?t={token} (<= 280 chars)
+3. Template A (cohort_slides_available): Live session deep-link, honest toy demo disclosure, GitHub star ask (<= 280 chars)
+4. Template D (cohort_external_organizers): Open-source peer exchange for other tech conference organizers (<= 280 chars)
+5. Public Launch Post: Zero-link post body + link in first comment (Anti-suppression)
 
 Outputs organized drafts into out/campaigns/ (strictly gitignored).
 """
@@ -43,14 +44,56 @@ except ImportError:
 logger = logging.getLogger("outreach_campaign")
 
 
+def clean_domain(url: str) -> str:
+    """Strips protocol and trailing slashes to produce a compact domain string."""
+    if not url:
+        return "agntcon-demo.vwoosh.com"
+    u = url.strip()
+    u = re.sub(r"^https?://", "", u, flags=re.I)
+    return u.rstrip("/")
+
+
+def format_short_title(title: str, max_chars: int = 25) -> str:
+    """Format talk or conference title to strictly stay within max_chars bound."""
+    if not title:
+        return ""
+    cleaned = title.strip().replace('"', "'")
+    if len(cleaned) <= max_chars:
+        return cleaned
+    if max_chars <= 3:
+        return cleaned[:max_chars]
+    return cleaned[: max_chars - 3] + "..."
+
+
+def clamp_note_length(note: str, max_chars: int = 280) -> str:
+    """Mathematically guarantees the note never exceeds max_chars bound."""
+    if len(note) <= max_chars:
+        return note
+    signoff = " Apologies if misdirected!"
+    if len(signoff) >= max_chars:
+        return note[:max_chars]
+    available = max_chars - len(signoff)
+    return note[:available].rstrip() + signoff
+
+
 def get_first_name(full_name: str) -> str:
     """Extracts first name or friendly greeting token."""
     if not full_name:
         return "there"
-    # Clean titles like Dr., Prof.
     cleaned = re.sub(r"^(Dr\.|Prof\.|Mr\.|Ms\.|Mrs\.)\s+", "", full_name.strip(), flags=re.I)
     parts = cleaned.split()
-    return parts[0] if parts else "there"
+    first = parts[0] if parts else "there"
+    return first[:15] if len(first) > 15 else first
+
+
+def is_suspect_contact(contact: dict) -> bool:
+    """Checks if a contact has been flagged as suspect by the verification engine."""
+    if contact.get("verification_status") == "suspect":
+        return True
+    verif = contact.get("verification")
+    if isinstance(verif, dict) and verif.get("status") == "suspect":
+        return True
+    return False
 
 
 def render_organizer_template(
@@ -58,50 +101,41 @@ def render_organizer_template(
     base_url: str = DEFAULT_BASE_URL,
     github_repo: str = DEFAULT_GITHUB,
 ) -> tuple[str, str]:
+    """Template C: AGNTCon Organizers (<= 280 chars, honest toy demo disclosure)."""
+    domain = clean_domain(base_url)
     subject = "Community Knowledge Hub for AGNTCon EU (and a pilot idea for North America)"
-    body = f"""Subject: {subject}
-
-Hi {first_name},
-
-Congratulations on a phenomenal AGNTCon + MCPCon Europe 2026! 
-
-To help preserve the incredible talks from the event, I built an open-source Community Knowledge Hub: {base_url}
-
-It provides instant full-text FTS5 search, local FastEmbed semantic RAG, and in-browser slide viewing across all 113 sessions.
-
-We've already indexed 80+ presentations. For the remaining talks, we built a concierge batch-ingestion tool that can securely ingest a folder or archive in 60 seconds with zero manual overhead.
-
-With AGNTCon North America on the horizon, I'd love to share our learnings and explore offering this as a turnkey, co-branded Community Knowledge Hub for the NA edition to give attendees instant search across all tracks.
-
-Would you be open to a quick 5-minute chat or exchanging a few thoughts here?
-
-Best regards,
-Alexey Soshnin
-GitHub: {github_repo}"""
-    return subject, body
+    body = (
+        f"Hi {first_name}, congrats on AGNTCon EU! I built an open-source toy demo ({domain}) "
+        f"indexing 80+ talks on free LLMs. Would love to share learnings or explore a community hub "
+        f"for AGNTCon NA if useful. Open to a chat? Apologies if misdirected!"
+    )
+    return subject, clamp_note_length(body, 280)
 
 
 def render_missing_slides_template(
     first_name: str,
     session_title: str,
-    magic_url: str,
+    token: str,
     base_url: str = DEFAULT_BASE_URL,
 ) -> str:
-    return f"""Hi {first_name},
+    """Template B: Presenters WITHOUT Slides (<= 280 chars, compact link, honest demo disclosure)."""
+    domain = clean_domain(base_url)
+    short_title = format_short_title(session_title, 25)
 
-Loved your session on "{session_title}" at AGNTCon Europe!
+    # If full URL was passed instead of token, extract token
+    raw_token = token
+    if "token=" in raw_token:
+        raw_token = raw_token.split("token=")[1].split("&")[0]
+    elif "t=" in raw_token:
+        raw_token = raw_token.split("t=")[1].split("&")[0]
 
-Attendees exploring our open-source AGNTCon Knowledge Hub ({base_url}) have been asking for your presentation materials.
-
-I set up a 1-click upload link so you can attach your PDF slides or outline in 10 seconds — no passwords or login required:
-👉 {magic_url}
-
-You can also review the AI-generated summary of your talk on the page and submit any corrections.
-
-Hope this helps give your talk even more reach in the developer community!
-
-Best,
-Alexey Soshnin"""
+    compact_url = f"{domain}/c?t={raw_token}"
+    note = (
+        f'Hi {first_name}! AGNTCon attendees want your slides for "{short_title}". '
+        f'10s 1-click upload: {compact_url} (free toy demo on free LLMs). '
+        f'Apologies if misdirected!'
+    )
+    return clamp_note_length(note, 280)
 
 
 def render_slides_available_template(
@@ -112,20 +146,32 @@ def render_slides_available_template(
     github_repo: str = DEFAULT_GITHUB,
     linkedin_post_url: str = "[Link to LinkedIn Post]",
 ) -> str:
-    session_url = f"{base_url.rstrip('/')}/#session-{session_id}"
-    return f"""Hi {first_name},
+    """Template A: Presenters WITH Slides (<= 280 chars, deep-link, honest demo disclosure)."""
+    domain = clean_domain(base_url)
+    short_title = format_short_title(session_title, 25)
+    note = (
+        f'Hi {first_name}! Featured your talk "{short_title}" on our free toy demo: '
+        f'{domain}/#session-{session_id} (slide viewer + RAG on free LLMs; super helpful for my agents!). '
+        f'If you like it, a quick GitHub star means a lot! Apologies if misdirected!'
+    )
+    return clamp_note_length(note, 280)
 
-Just wanted to let you know that we've featured your session "{session_title}" on the AGNTCon 2026 Community Knowledge Hub!
 
-Attendees can now read your slides side-by-side with full-text search and semantic Q&A:
-👉 {session_url}
-
-We also gave your session a shout-out in our community launch post on LinkedIn: {linkedin_post_url}
-
-If you like how your talk is presented, a quick repost or a ⭐ on GitHub ({github_repo}) would mean the world to the project!
-
-Best,
-Alexey Soshnin"""
+def render_external_organizer_template(
+    first_name: str,
+    conf_name: str,
+    base_url: str = DEFAULT_BASE_URL,
+) -> tuple[str, str]:
+    """Template D: External Conference Organizers (<= 280 chars, peer exchange, honest demo disclosure)."""
+    domain = clean_domain(base_url)
+    short_conf = format_short_title(conf_name, 25)
+    subject = f"Open-source AI talk search for {short_conf} (learnings from AGNTCon demo)"
+    body = (
+        f"Hi {first_name}! Saw you organize {short_conf}. I built a free open-source toy demo for AGNTCon "
+        f"({domain}) giving attendees instant AI search across 100+ talks & slides. "
+        f"Happy to share the code if helpful for your event! Apologies if misdirected!"
+    )
+    return subject, clamp_note_length(body, 280)
 
 
 def render_public_launch_post(
@@ -197,13 +243,23 @@ def generate_campaign(
     campaign_organizers = []
     campaign_missing_slides = []
     campaign_slides_available = []
+    campaign_external_organizers = []
     suppressed_count = 0
+    suppressed_verification_count = 0
 
-    # 1. Generate for cohort_organizers
+    # 1. Generate for cohort_organizers (Template C)
     for org in organizers:
         name = org.get("name", "")
+        cohort = org.get("cohort", "cohort_organizers")
+        if cohort == "cohort_external_organizers":
+            continue
+
         ln_url = org.get("linkedin_url")
         tw_url = org.get("twitter_url")
+
+        if is_suspect_contact(org):
+            suppressed_verification_count += 1
+            continue
 
         # Opt-out check
         if name.lower() in opt_outs or (ln_url and ln_url.lower() in opt_outs) or (tw_url and tw_url.lower() in opt_outs):
@@ -248,6 +304,10 @@ def generate_campaign(
         ln_url = spk.get("linkedin_url")
         tw_url = spk.get("twitter_url")
 
+        if is_suspect_contact(spk):
+            suppressed_verification_count += 1
+            continue
+
         if name.lower() in opt_outs or (ln_url and ln_url.lower() in opt_outs) or (tw_url and tw_url.lower() in opt_outs):
             suppressed_count += 1
             continue
@@ -262,17 +322,20 @@ def generate_campaign(
         channel = "linkedin" if ln_url else ("twitter" if tw_url else "social")
 
         if cohort == "cohort_missing_slides":
-            # Lookup or create magic link
+            # Lookup or create magic link & compact link
             magic_url = ""
+            token = ""
             if conn and outreach_db:
                 tok_data = outreach_db.get_token(conn, sid)
                 if tok_data:
-                    magic_url = tok_data["magic_url"]
-            if not magic_url:
+                    magic_url = tok_data.get("magic_url", "")
+                    token = tok_data.get("token", "")
+            if not token:
                 token = generate_token(sid)
                 magic_url = f"{base_url.rstrip('/')}/contribute?token={token}"
 
-            body = render_missing_slides_template(first_name, title, magic_url, base_url)
+            compact_url = f"{clean_domain(base_url)}/c?t={token}"
+            body = render_missing_slides_template(first_name, title, token, base_url)
             msg_id = f"msg_missing_{spk.get('id', name)}_{sid}"
             rec = {
                 "id": msg_id,
@@ -281,6 +344,8 @@ def generate_campaign(
                 "session_title": title,
                 "channel": channel,
                 "target": target,
+                "token": token,
+                "compact_url": compact_url,
                 "magic_url": magic_url,
                 "message": body,
                 "cohort": "cohort_missing_slides",
@@ -327,17 +392,70 @@ def generate_campaign(
                     status="draft",
                 )
 
-    # 3. Public Launch Post
+    # 3. Generate for External Organizers (cohort_external_organizers - Template D)
+    external_orgs = list(contacts_data.get("external_organizers", []))
+    for org in organizers:
+        if org.get("cohort") == "cohort_external_organizers" and org not in external_orgs:
+            external_orgs.append(org)
+
+    for ext_org in external_orgs:
+        name = ext_org.get("name", "")
+        ln_url = ext_org.get("linkedin_url")
+        tw_url = ext_org.get("twitter_url")
+
+        if is_suspect_contact(ext_org):
+            suppressed_verification_count += 1
+            continue
+
+        if name.lower() in opt_outs or (ln_url and ln_url.lower() in opt_outs) or (tw_url and tw_url.lower() in opt_outs):
+            suppressed_count += 1
+            continue
+
+        first_name = get_first_name(name)
+        conf_name = ext_org.get("conference_name") or ext_org.get("conference", "your conference")
+        subject, body = render_external_organizer_template(first_name, conf_name, base_url)
+        target = ln_url or tw_url or ext_org.get("company", "")
+        channel = "linkedin" if ln_url else ("twitter" if tw_url else "email")
+        msg_id = f"msg_ext_{ext_org.get('id', name)}"
+
+        rec = {
+            "id": msg_id,
+            "recipient_name": name,
+            "role": ext_org.get("role", ""),
+            "company": ext_org.get("company", ""),
+            "conference_name": conf_name,
+            "channel": channel,
+            "target": target,
+            "subject": subject,
+            "message": body,
+            "cohort": "cohort_external_organizers",
+        }
+        campaign_external_organizers.append(rec)
+
+        if conn and outreach_db:
+            outreach_db.store_message(
+                conn=conn,
+                msg_id=msg_id,
+                recipient_name=name,
+                cohort="cohort_external_organizers",
+                channel=channel,
+                target_handle=target,
+                message_text=body,
+                status="draft",
+            )
+
+    # 4. Public Launch Post
     public_post = render_public_launch_post(base_url, github_repo)
 
-    # 4. Save campaign files into out/campaigns/
-    # JSON files
+    # 5. Save campaign files into out/campaigns/
     with open(out_dir / "cohort_organizers.json", "w", encoding="utf-8") as f:
         json.dump(campaign_organizers, f, indent=2, ensure_ascii=False)
     with open(out_dir / "cohort_missing_slides.json", "w", encoding="utf-8") as f:
         json.dump(campaign_missing_slides, f, indent=2, ensure_ascii=False)
     with open(out_dir / "cohort_slides_available.json", "w", encoding="utf-8") as f:
         json.dump(campaign_slides_available, f, indent=2, ensure_ascii=False)
+    with open(out_dir / "cohort_external_organizers.json", "w", encoding="utf-8") as f:
+        json.dump(campaign_external_organizers, f, indent=2, ensure_ascii=False)
     with open(out_dir / "public_launch_post.json", "w", encoding="utf-8") as f:
         json.dump(public_post, f, indent=2, ensure_ascii=False)
 
@@ -368,14 +486,22 @@ def generate_campaign(
             f.write(f"### {c['recipient_name']} - Session: {c['session_title']} ({c['session_id']})\n\n")
             f.write("```\n" + c["message"] + "\n```\n\n---\n\n")
 
+    with open(out_dir / "cohort_external_organizers.md", "w", encoding="utf-8") as f:
+        f.write(f"# Cohort: External Conference Organizers ({len(campaign_external_organizers)} targets)\n\n")
+        for c in campaign_external_organizers:
+            f.write(f"### {c['recipient_name']} - {c['conference_name']} - {c['channel']}: {c['target']}\n\n")
+            f.write("```\n" + c["message"] + "\n```\n\n---\n\n")
+
     summary = {
         "generated_at": datetime.datetime.now(datetime.UTC).isoformat(),
         "counts": {
             "cohort_organizers": len(campaign_organizers),
             "cohort_missing_slides": len(campaign_missing_slides),
             "cohort_slides_available": len(campaign_slides_available),
+            "cohort_external_organizers": len(campaign_external_organizers),
             "public_launch_post": 1,
             "suppressed_due_to_opt_out": suppressed_count,
+            "suppressed_due_to_verification": suppressed_verification_count,
         },
         "output_directory": str(out_dir),
     }

@@ -26,8 +26,10 @@ except ModuleNotFoundError:
 import argparse
 import asyncio
 import concurrent.futures
+import csv
 import hashlib
 import html
+import io
 import json
 import re
 import secrets
@@ -107,6 +109,21 @@ def load_env_file():
             pass
 
 load_env_file()
+
+
+def sanitize_csv_cell(value: Any) -> str:
+    """Fortified CSV formula injection defense (Sprint 19: SEC-01).
+
+    Prepend single quote if stripped cell begins with =, +, -, @, \\t, \\r, or \\n.
+    """
+    s = str(value if value is not None else "")
+    if s and s[0] in ("=", "+", "-", "@", "\t", "\r", "\n"):
+        return f"'{s}"
+    stripped_spaces = s.lstrip(" ")
+    if stripped_spaces and stripped_spaces[0] in ("=", "+", "-", "@", "\t", "\r", "\n"):
+        return f"'{s}"
+    return s
+
 
 def check_admin_auth(headers, query_params: dict | None = None) -> bool:
     auth_header = headers.get("Authorization", "")
@@ -570,6 +587,16 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
         path = parsed.path
         query_params = parse_qs(parsed.query)
 
+        # Short Link Redirection for Speaker Slides Upload (Sprint 19)
+        if path == "/c":
+            tok = query_params.get("t", [""])[0]
+            target_url = f"/contribute?token={tok}" if tok else "/contribute"
+            self.send_response(302)
+            self.send_header("Location", target_url)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            return
+
         # Health endpoint
         if path == "/api/health":
             self.send_response(200)
@@ -777,6 +804,86 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps(summary_data, ensure_ascii=False).encode("utf-8"))
             return
+
+        # API: Admin Contacts Export (Sprint 19: FR-P46)
+        if path == "/api/admin/contacts/export":
+            if not check_admin_auth(self.headers, query_params):
+                self.send_response(401)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Unauthorized"}).encode("utf-8"))
+                return
+
+            cohort_filter = query_params.get("cohort", ["cohort_organizers"])[0]
+            export_format = query_params.get("format", ["csv"])[0].lower()
+
+            contacts_path = Path(HUB_DIR) / "data" / "contacts.json"
+            all_records = []
+            if contacts_path.exists():
+                try:
+                    with open(contacts_path, encoding="utf-8") as cf:
+                        cdata = json.load(cf)
+
+                    raw_orgs = list(cdata.get("organizers", []))
+                    raw_orgs.extend(cdata.get("external_organizers", []))
+
+                    for org in raw_orgs:
+                        org_cohort = org.get("cohort", "cohort_organizers")
+                        if cohort_filter not in ("all", "all_organizers") and org_cohort != cohort_filter:
+                            continue
+
+                        v_status = org.get("verification_status")
+                        if not v_status and isinstance(org.get("verification"), dict):
+                            v_status = org.get("verification", {}).get("status")
+                        if not v_status:
+                            v_status = "unverified"
+
+                        rec = {
+                            "Name": org.get("name", ""),
+                            "Role": org.get("role", ""),
+                            "Company": org.get("company", ""),
+                            "Conference": org.get("conference_name") or org.get("conference", "AGNTCon Europe 2026"),
+                            "Social_URL": org.get("linkedin_url") or org.get("twitter_url") or org.get("social_url") or "",
+                            "Slide_Status": org.get("slide_status", "N/A"),
+                            "Verification_Status": v_status,
+                        }
+                        all_records.append(rec)
+                except Exception as e:
+                    self.send_response(500)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": f"Failed to export contacts: {e}"}).encode("utf-8"))
+                    return
+
+            if export_format == "json":
+                out_bytes = json.dumps(all_records, indent=2, ensure_ascii=False).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Disposition", f'attachment; filename="{cohort_filter}.json"')
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(out_bytes)
+                return
+            else:
+                # Default format: csv
+                output = io.StringIO()
+                writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
+                fieldnames = ["Name", "Role", "Company", "Conference", "Social_URL", "Slide_Status", "Verification_Status"]
+                writer.writerow(fieldnames)
+                for rec in all_records:
+                    row = [sanitize_csv_cell(rec.get(fn, "")) for fn in fieldnames]
+                    writer.writerow(row)
+
+                csv_bytes = output.getvalue().encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/csv; charset=utf-8")
+                self.send_header("Content-Disposition", f'attachment; filename="{cohort_filter}.csv"')
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(csv_bytes)
+                return
 
         # API: Admin Submissions List (FR-4.2)
         if path == "/api/admin/submissions":

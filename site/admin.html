@@ -176,6 +176,7 @@
           </select>
           <button id="btn-sched-rescan" class="btn-header" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4); color: #10b981; font-size: 0.8rem; padding: 6px 12px;" onclick="triggerSchedRescan()">🔄 Re-scan Sched for New Slides</button>
           <button id="btn-refresh-contacts" class="btn-header" style="background: rgba(56, 189, 248, 0.15); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; font-size: 0.8rem; padding: 6px 12px;" onclick="triggerRefreshContacts()">👥 Refresh Contacts</button>
+          <button id="btn-export-organizers" class="btn-header" style="background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.4); color: #c084fc; font-size: 0.8rem; padding: 6px 12px;" onclick="exportOrganizersCSV()">📥 Export Organizers CSV</button>
           <button class="btn-header" style="font-size: 0.8rem; padding: 6px 12px;" onclick="loadSubmissions()">🔄 Refresh</button>
         </div>
       </div>
@@ -1241,6 +1242,38 @@
           btn.disabled = false;
           btn.innerText = originalText;
         }
+      }
+    }
+
+    async function exportOrganizersCSV() {
+      const token = localStorage.getItem("agntcon_admin_token");
+      try {
+        const res = await fetch("/api/admin/contacts/export?cohort=cohort_organizers&format=csv", {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!res.ok) {
+          if (res.status === 401) {
+            alert("Session expired. Please log in again.");
+            localStorage.removeItem("agntcon_admin_token");
+            location.reload();
+            return;
+          }
+          const errData = await res.json().catch(() => ({}));
+          alert(`Export failed: ${errData.error || res.statusText}`);
+          return;
+        }
+        const blob = await res.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.style.display = "none";
+        a.href = downloadUrl;
+        a.download = "cohort_organizers.csv";
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(downloadUrl);
+        document.body.removeChild(a);
+      } catch (err) {
+        alert(`Export failed: ${err.message}`);
       }
     }
 

@@ -1,0 +1,247 @@
+[
+  {
+    "id": "case_01",
+    "name": "Sam Morrow",
+    "linkedin_url": "https://linkedin.com/in/sammorrow",
+    "category": "clean_match",
+    "expected_status": "verified",
+    "min_confidence": 0.90
+  },
+  {
+    "id": "case_02",
+    "name": "Jane Doe",
+    "linkedin_url": "https://linkedin.com/in/janedoe",
+    "category": "clean_match",
+    "expected_status": "verified",
+    "min_confidence": 0.90
+  },
+  {
+    "id": "case_03",
+    "name": "Angie Jones",
+    "linkedin_url": "https://linkedin.com/in/angiejones",
+    "category": "clean_match",
+    "expected_status": "verified",
+    "min_confidence": 0.90
+  },
+  {
+    "id": "case_04",
+    "name": "Elena Rostova",
+    "linkedin_url": "https://linkedin.com/in/elena-rostova",
+    "category": "clean_match",
+    "expected_status": "verified",
+    "min_confidence": 0.90
+  },
+  {
+    "id": "case_05",
+    "name": "Carlos Mendez",
+    "linkedin_url": "https://linkedin.com/in/carlos-mendez-ai",
+    "category": "clean_match",
+    "expected_status": "verified",
+    "min_confidence": 0.90
+  },
+  {
+    "id": "case_06",
+    "name": "Sophie Martin",
+    "linkedin_url": "https://linkedin.com/in/sophie-martin-tech",
+    "category": "clean_match",
+    "expected_status": "verified",
+    "min_confidence": 0.90
+  },
+  {
+    "id": "case_07",
+    "name": "David Kim",
+    "linkedin_url": "https://linkedin.com/in/davidkim-agentic",
+    "category": "clean_match",
+    "expected_status": "verified",
+    "min_confidence": 0.90
+  },
+  {
+    "id": "case_08",
+    "name": "Priya Sharma",
+    "linkedin_url": "https://linkedin.com/in/priyasharma-dev",
+    "category": "clean_match",
+    "expected_status": "verified",
+    "min_confidence": 0.90
+  },
+  {
+    "id": "case_09",
+    "name": "Lucas Rossi",
+    "linkedin_url": "https://linkedin.com/in/lucas-rossi-mcp",
+    "category": "clean_match",
+    "expected_status": "verified",
+    "min_confidence": 0.90
+  },
+  {
+    "id": "case_10",
+    "name": "Muhammad Ahsan Ayaz",
+    "linkedin_url": "https://linkedin.com/in/muhammad-ahsan-ayaz",
+    "category": "clean_match",
+    "expected_status": "verified",
+    "min_confidence": 0.90
+  },
+  {
+    "id": "case_11",
+    "name": "Alexey Soshnin",
+    "linkedin_url": "https://linkedin.com/in/asoshnin",
+    "category": "vanity_slug",
+    "expected_status": "verified",
+    "min_confidence": 0.85
+  },
+  {
+    "id": "case_12",
+    "name": "John Smith",
+    "linkedin_url": "https://linkedin.com/in/jsmith",
+    "category": "vanity_slug",
+    "expected_status": "verified",
+    "min_confidence": 0.85
+  },
+  {
+    "id": "case_13",
+    "name": "William Harrison",
+    "linkedin_url": "https://linkedin.com/in/wharrison-dev",
+    "category": "vanity_slug",
+    "expected_status": "verified",
+    "min_confidence": 0.85
+  },
+  {
+    "id": "case_14",
+    "name": "Beatriz Silva",
+    "linkedin_url": "https://linkedin.com/in/bsilva-ai",
+    "category": "vanity_slug",
+    "expected_status": "verified",
+    "min_confidence": 0.85
+  },
+  {
+    "id": "case_15",
+    "name": "Christopher Nolan",
+    "linkedin_url": "https://linkedin.com/in/cnolan-director",
+    "category": "vanity_slug",
+    "expected_status": "verified",
+    "min_confidence": 0.85
+  },
+  {
+    "id": "case_16",
+    "name": "John Doe",
+    "linkedin_url": "https://linkedin.com/in/jane-smith-accountant",
+    "category": "mismatch",
+    "expected_status": "suspect",
+    "max_confidence": 0.50
+  },
+  {
+    "id": "case_17",
+    "name": "Alice Walker",
+    "linkedin_url": "https://linkedin.com/in/bob-marley-reggae",
+    "category": "mismatch",
+    "expected_status": "suspect",
+    "max_confidence": 0.50
+  },
+  {
+    "id": "case_18",
+    "name": "Michael Brown",
+    "linkedin_url": "https://linkedin.com/in/sarah-connor-cyberdyne",
+    "category": "mismatch",
+    "expected_status": "suspect",
+    "max_confidence": 0.50
+  },
+  {
+    "id": "case_19",
+    "name": "Dmitry Ivanov",
+    "linkedin_url": "https://linkedin.com/in/pierre-dubois-paris",
+    "category": "mismatch",
+    "expected_status": "suspect",
+    "max_confidence": 0.50
+  },
+  {
+    "id": "case_20",
+    "name": "Fatima Al-Mansoor",
+    "linkedin_url": "https://linkedin.com/in/kenji-sato-tokyo",
+    "category": "mismatch",
+    "expected_status": "suspect",
+    "max_confidence": 0.50
+  },
+  {
+    "id": "case_21",
+    "name": "Sched Support",
+    "linkedin_url": "https://sched.com/speaker/support",
+    "category": "generic_handle",
+    "expected_status": "suspect",
+    "max_confidence": 0.30
+  },
+  {
+    "id": "case_22",
+    "name": "Conference Admin",
+    "linkedin_url": "https://linkedin.com/in/admin",
+    "category": "generic_handle",
+    "expected_status": "suspect",
+    "max_confidence": 0.30
+  },
+  {
+    "id": "case_23",
+    "name": "AGNTCon Team",
+    "linkedin_url": "https://linkedin.com/in/team",
+    "category": "generic_handle",
+    "expected_status": "suspect",
+    "max_confidence": 0.30
+  },
+  {
+    "id": "case_24",
+    "name": "Community Info",
+    "linkedin_url": "https://sched.com/speaker/info",
+    "category": "generic_handle",
+    "expected_status": "suspect",
+    "max_confidence": 0.30
+  },
+  {
+    "id": "case_25",
+    "name": "Help Desk",
+    "linkedin_url": "https://linkedin.com/in/help",
+    "category": "generic_handle",
+    "expected_status": "suspect",
+    "max_confidence": 0.30
+  },
+  {
+    "id": "case_26",
+    "name": "Speaker Alpha",
+    "linkedin_url": "https://linkedin.com/in/shared-conference-speaker-1",
+    "speaker_id": "spk_alpha",
+    "category": "duplicate_handle",
+    "expected_status": "suspect",
+    "expected_flag": "duplicate_url"
+  },
+  {
+    "id": "case_27",
+    "name": "Speaker Beta",
+    "linkedin_url": "https://linkedin.com/in/shared-conference-speaker-1",
+    "speaker_id": "spk_beta",
+    "category": "duplicate_handle",
+    "expected_status": "suspect",
+    "expected_flag": "duplicate_url"
+  },
+  {
+    "id": "case_28",
+    "name": "Speaker Gamma",
+    "linkedin_url": "https://linkedin.com/in/shared-conference-speaker-2",
+    "speaker_id": "spk_gamma",
+    "category": "duplicate_handle",
+    "expected_status": "suspect",
+    "expected_flag": "duplicate_url"
+  },
+  {
+    "id": "case_29",
+    "name": "Speaker Delta",
+    "linkedin_url": "https://linkedin.com/in/shared-conference-speaker-2",
+    "speaker_id": "spk_delta",
+    "category": "duplicate_handle",
+    "expected_status": "suspect",
+    "expected_flag": "duplicate_url"
+  },
+  {
+    "id": "case_30",
+    "name": "Speaker Epsilon",
+    "linkedin_url": "https://linkedin.com/in/shared-conference-speaker-2",
+    "speaker_id": "spk_epsilon",
+    "category": "duplicate_handle",
+    "expected_status": "suspect",
+    "expected_flag": "duplicate_url"
+  }
+]

@@ -82,20 +82,24 @@ def parse_sched_speaker_directory(html: str, base_url: str) -> list[dict]:
     speakers = []
     seen_handles = set()
 
-    # Match /speaker/ links
+    # Match /speaker/ or speaker/ links
     for a in soup.find_all("a", href=True):
         href = a["href"].strip()
-        m = re.search(r"/speaker/([a-zA-Z0-9_\-\.]+)", href)
+        m = re.search(r"(?:/speaker/|^speaker/)([a-zA-Z0-9_\-\.\@]+)", href)
         if m:
             handle = m.group(1)
+            if handle.lower() in ("read_more", "more", "sponsors", "speaker", "directory", "speakers"):
+                continue
+            text = a.get_text(strip=True)
+            if not text or "read more" in text.lower():
+                continue
             if handle not in seen_handles:
                 seen_handles.add(handle)
                 full_url = urllib.parse.urljoin(base_url, href)
-                name = a.get_text(strip=True) or handle
                 speakers.append({
                     "handle": handle,
                     "url": full_url,
-                    "name": name,
+                    "name": text,
                 })
 
     return speakers
@@ -107,45 +111,63 @@ def parse_sched_speaker_page(html: str, handle: str, base_url: str = "") -> dict
 
     # 1. Name
     name = ""
-    name_el = (
-        soup.find(class_=re.compile(r"sched-person-name|speaker-name", re.I))
-        or soup.find("h1")
-        or soup.find("h2")
-    )
+    # 1. Name
+    name = ""
+    name_el = soup.find(class_=re.compile(r"user-profile__name|sched-person-name|speaker-name", re.I))
     if name_el:
         name = name_el.get_text(strip=True)
     if not name:
         og_title = soup.find("meta", property="og:title")
         if og_title and og_title.get("content"):
-            name = og_title["content"].strip()
-    if not name:
+            raw_og = og_title["content"].strip()
+            if " - " in raw_og:
+                name = raw_og.split(" - ", 1)[0].strip()
+            else:
+                name = raw_og
+    if not name or "AGNTCon" in name:
         name = handle.replace("_", " ").title()
 
     # 2. Role & Company
     role = ""
     company = ""
-    comp_el = soup.find(class_=re.compile(r"sched-person-company|company|role|title", re.I))
+    comp_el = soup.find(class_=re.compile(r"user-profile__company|sched-person-company", re.I))
+    pos_el = soup.find(class_=re.compile(r"user-profile__position|sched-person-role", re.I))
     if comp_el:
-        raw_comp = comp_el.get_text(strip=True)
-        if "," in raw_comp:
-            parts = raw_comp.split(",", 1)
+        company = comp_el.get_text(strip=True)
+    if pos_el:
+        role = pos_el.get_text(strip=True)
+    if company and not role:
+        if "," in company:
+            parts = company.split(",", 1)
             role = parts[0].strip()
             company = parts[1].strip()
-        elif " at " in raw_comp:
-            parts = raw_comp.split(" at ", 1)
+        elif " at " in company:
+            parts = company.split(" at ", 1)
             role = parts[0].strip()
             company = parts[1].strip()
-        elif " @ " in raw_comp:
-            parts = raw_comp.split(" @ ", 1)
-            role = parts[0].strip()
-            company = parts[1].strip()
-        else:
-            company = raw_comp
+    if not company:
+        comp_el2 = soup.find(class_=re.compile(r"company|role|title", re.I))
+        if comp_el2:
+            raw_comp = comp_el2.get_text(strip=True)
+            if "," in raw_comp:
+                parts = raw_comp.split(",", 1)
+                role = role or parts[0].strip()
+                company = parts[1].strip()
+            elif " at " in raw_comp:
+                parts = raw_comp.split(" at ", 1)
+                role = role or parts[0].strip()
+                company = parts[1].strip()
+            elif " @ " in raw_comp:
+                parts = raw_comp.split(" @ ", 1)
+                role = role or parts[0].strip()
+                company = parts[1].strip()
+            else:
+                company = raw_comp
 
     # 3. Bio
     bio = ""
     bio_el = (
-        soup.find(class_=re.compile(r"sched-person-bio|tip-description|sched-event-details", re.I))
+        soup.find(class_=re.compile(r"user-profile__about-content|sched-person-bio|tip-description|sched-event-details", re.I))
         or soup.find("div", class_="description")
     )
     if bio_el:
@@ -158,7 +180,7 @@ def parse_sched_speaker_page(html: str, handle: str, base_url: str = "") -> dict
     session_ids = []
     for a in soup.find_all("a", href=True):
         href = a["href"].strip()
-        sm = re.search(r"/event/([a-zA-Z0-9]+)", href)
+        sm = re.search(r"event/([a-zA-Z0-9]{5})", href)
         if sm:
             sid = sm.group(1)
             if sid not in session_ids:
