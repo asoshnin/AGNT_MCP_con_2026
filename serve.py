@@ -597,6 +597,16 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             return
 
+        # Contribute Landing Redirect to Index with Token
+        if path == "/contribute":
+            tok = query_params.get("token", [""])[0]
+            target_url = f"/?token={tok}" if tok else "/"
+            self.send_response(302)
+            self.send_header("Location", target_url)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            return
+
         # Health endpoint
         if path == "/api/health":
             self.send_response(200)
