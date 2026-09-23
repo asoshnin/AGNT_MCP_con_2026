@@ -1154,6 +1154,7 @@
         const data = await res.json();
         if (res.ok && data.status === "approved") {
           alert(`Submission ${subId} successfully approved and indexed!`);
+          closeSubModal();
           loadSubmissions();
         } else {
           alert(`Approval failed: ${data.error || JSON.stringify(data)}`);
@@ -1174,11 +1175,12 @@
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json"
           },
-          body: json.stringify ? JSON.stringify({ reason }) : JSON.stringify({ reason })
+          body: JSON.stringify({ reason: reason || "Rejected by administrator" })
         });
         const data = await res.json();
         if (res.ok && data.status === "rejected") {
           alert(`Submission ${subId} rejected.`);
+          closeSubModal();
           loadSubmissions();
         } else {
           alert(`Rejection failed: ${data.error || JSON.stringify(data)}`);

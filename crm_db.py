@@ -98,8 +98,8 @@ def get_inquiries_list(status_filter: str = None, category_filter: str = None) -
         tm.sender_type AS last_message_sender,
         tm.created_at AS last_message_at,
         CASE 
-            WHEN i.type IN ('submission_review', 'speaker_dispute', 'Correction') THEN 'presenter'
-            WHEN i.type IN ('collaboration', 'partnership', 'enterprise_pilot') THEN 'collaboration'
+            WHEN LOWER(i.type) IN ('submission_review', 'submission review', 'speaker_dispute', 'correction', 'speaker') THEN 'presenter'
+            WHEN LOWER(i.type) IN ('collaboration', 'partnership', 'enterprise_pilot', 'pilot') THEN 'collaboration'
             ELSE 'general'
         END AS category,
         CASE 
@@ -129,8 +129,8 @@ def get_inquiries_list(status_filter: str = None, category_filter: str = None) -
     if category_filter and category_filter != "all":
         query += """ AND (
             CASE 
-                WHEN i.type IN ('submission_review', 'speaker_dispute', 'Correction') THEN 'presenter'
-                WHEN i.type IN ('collaboration', 'partnership', 'enterprise_pilot') THEN 'collaboration'
+                WHEN LOWER(i.type) IN ('submission_review', 'submission review', 'speaker_dispute', 'correction', 'speaker') THEN 'presenter'
+                WHEN LOWER(i.type) IN ('collaboration', 'partnership', 'enterprise_pilot', 'pilot') THEN 'collaboration'
                 ELSE 'general'
             END
         ) = ?"""
