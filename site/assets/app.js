@@ -1312,10 +1312,17 @@ function renderCards() {
         const cleanTitle = t.title.replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, "").trim();
         const isKeynote = (t.kind && t.kind.toLowerCase().includes("keynote")) || cleanTitle.toLowerCase().includes("keynote");
         const hasSlides = !!(t.has_slides || t.file_name);
+        const isCommunitySlide = (t.slide_source === "community") || t.id === "2RBA6";
         const hasRepo = !!(t.repos && t.repos.length > 0);
         let badgesHtml = "";
         if (isKeynote) badgesHtml += '<span class="badge badge-keynote">🎙️ Keynote</span>';
-        if (hasSlides) badgesHtml += '<span class="badge badge-slides">📄 Slides Available</span>';
+        if (hasSlides) {
+          if (isCommunitySlide) {
+            badgesHtml += '<span class="badge" style="background: rgba(168, 85, 247, 0.12); color: #a855f7; border: 1px solid rgba(168, 85, 247, 0.3);" title="Exclusively added by author/community — not available on the official Sched conference site!">🌟 Author Added Slides</span>';
+          } else {
+            badgesHtml += '<span class="badge badge-slides" title="Official slides from Sched conference archive">📄 Slides Available</span>';
+          }
+        }
         if (hasRepo) badgesHtml += '<span class="badge badge-repo">💻 GitHub Repo</span>';
 
         const profile = getUserProfile();
@@ -1337,8 +1344,13 @@ function renderCards() {
 
         let directSlideBtn = "";
         if (hasSlides) {
-          const slideHref = t.slide_url || `/assets/slides/${t.id}.pdf`;
-          directSlideBtn = `<a class="btn-sched" href="${escapeHtml(slideHref)}" target="_blank" rel="noopener" style="text-decoration: none; color: #16a34a; border-color: rgba(22, 163, 74, 0.4); background: rgba(22, 163, 74, 0.08); font-weight: 600;" title="View official presentation slides">📄 Slides ↗</a>`;
+          const isPptx = ["2RB8n", "2RB8q", "2RBAa"].includes(t.id);
+          const slideHref = t.slide_url || `/assets/slides/${t.id}.${isPptx ? "pptx" : "pdf"}`;
+          if (isCommunitySlide) {
+            directSlideBtn = `<a class="btn-sched" href="${escapeHtml(slideHref)}" target="_blank" rel="noopener" style="text-decoration: none; color: #a855f7; border-color: rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.08); font-weight: 600;" title="Exclusively added by author/community — not available on the official Sched website!">🌟 Slides (Author Added) ↗</a>`;
+          } else {
+            directSlideBtn = `<a class="btn-sched" href="${escapeHtml(slideHref)}" target="_blank" rel="noopener" style="text-decoration: none; color: #16a34a; border-color: rgba(22, 163, 74, 0.4); background: rgba(22, 163, 74, 0.08); font-weight: 600;" title="View official presentation slides (PDF/PPTX)">📄 Slides ↗</a>`;
+          }
         } else {
           directSlideBtn = `<button class="btn-view-essence" onclick="openContributeModal('${t.id}')" style="background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.4); color: var(--accent);" title="Upload missing presentation slides or claim session">[ + Add Slides ]</button>`;
         }
@@ -1475,13 +1487,16 @@ async function openEssenceModal(sid) {
         htmlOutput = `<div style="white-space: pre-wrap;">${escapeHtml(processed)}</div>`;
       }
 
+      const isCommunitySlide = (talkObj && talkObj.slide_source === "community") || sid === "2RBA6";
+      const isPptx = ["2RB8n", "2RB8q", "2RBAa"].includes(sid);
+      const slideHref = (talkObj && talkObj.slide_url) || `/assets/slides/${sid}.${isPptx ? "pptx" : "pdf"}`;
       const slideBanner = (talkObj && (talkObj.has_slides || talkObj.file_name))
-        ? `<div style="margin-bottom: 16px; padding: 10px 14px; background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+        ? `<div style="margin-bottom: 16px; padding: 10px 14px; background: ${isCommunitySlide ? "rgba(168, 85, 247, 0.08)" : "rgba(34, 197, 94, 0.08)"}; border: 1px solid ${isCommunitySlide ? "rgba(168, 85, 247, 0.3)" : "rgba(34, 197, 94, 0.3)"}; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
              <span style="font-size: 0.85rem; color: var(--text-primary); display: inline-flex; align-items: center; gap: 6px;">
-               <span style="font-size: 1.1rem;">📄</span>
-               <span><strong>Official Presentation Slides</strong> are available for this session.</span>
+               <span style="font-size: 1.1rem;">${isCommunitySlide ? "🌟" : "📄"}</span>
+               <span><strong>${isCommunitySlide ? "Community Contributed Slides" : "Official Presentation Slides"}</strong> ${isCommunitySlide ? "(exclusively added by author — not on Sched)" : "are available for this session"}.</span>
              </span>
-             <a href="${talkObj.slide_url || `/assets/slides/${sid}.pdf`}" target="_blank" rel="noopener" style="background: #16a34a; color: #fff; border: none; font-weight: 600; padding: 6px 12px; font-size: 0.82rem; text-decoration: none; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">Open Slides PDF ↗</a>
+             <a href="${escapeHtml(slideHref)}" target="_blank" rel="noopener" style="background: ${isCommunitySlide ? "#a855f7" : "#16a34a"}; color: #fff; border: none; font-weight: 600; padding: 6px 12px; font-size: 0.82rem; text-decoration: none; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">Open Slides ${isPptx ? "PPTX" : "PDF"} ↗</a>
            </div>`
         : "";
 

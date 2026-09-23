@@ -147,6 +147,8 @@ def incremental_upsert(
             for item in catalog:
                 if item.get("id") == session_id:
                     item["has_slides"] = True
+                    item["slide_source"] = "community"
+                    item["slide_url"] = f"/assets/slides/{session_id}.pdf"
                     if summary:
                         item["one_paragraph"] = summary
                     modified = True

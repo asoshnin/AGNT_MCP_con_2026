@@ -108,6 +108,8 @@ def tool_search_talks(query: str, topic: str = None, only_with_slides: bool = Fa
                 "sched_url": talk.get("sched_url", f"{SCHED_BASE_URL}/event/{talk['id']}/"),
                 "concepts": talk.get("concepts", []),
                 "has_slides": bool(talk.get("has_slides") or talk.get("file_name")),
+                "slide_source": talk.get("slide_source", "sched" if (talk.get("has_slides") or talk.get("file_name")) else None),
+                "slide_url": talk.get("slide_url", f"/assets/slides/{talk['id']}.pdf" if (talk.get("has_slides") or talk.get("file_name")) else None),
                 "one_paragraph": talk.get("one_paragraph", "")
             })
             
