@@ -57,6 +57,7 @@ import hub_incremental
 from cloudflare_analytics import fetch_cloudflare_edge_analytics
 from mcp_server import tool_answer_conference, tool_get_page, tool_search_talks
 from scripts.generate_speaker_tokens import verify_token
+from scripts.rescan_sched_slides import rescan_sched
 from submissions_db import SubmissionsDB
 
 SESSION_ID_REGEX = re.compile(r"^[0-9A-Za-z]{5}$")
@@ -2113,39 +2114,30 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 "recipient": to_email,
             }, ensure_ascii=False).encode("utf-8"))
             return
-            db = SubmissionsDB()
-            sub = db.get_submission(sub_id)
-            if not sub:
-                self.send_response(404)
+
+        # Admin Sched Re-Scan Endpoint (Sprint 17)
+        if path == "/api/admin/rescan-sched":
+            if not check_admin_auth(self.headers, query_params):
+                self.send_response(401)
                 self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
-                self.wfile.write(json.dumps({"error": "Submission not found"}).encode("utf-8"))
+                self.wfile.write(json.dumps({"error": "Unauthorized"}).encode("utf-8"))
                 return
 
             try:
-                content_length = int(self.headers.get("Content-Length", 0))
-                body = self.rfile.read(content_length).decode("utf-8")
-                payload = json.loads(body) if body else {}
-                reason = payload.get("reason", "Rejected by administrator")
-            except Exception:
-                reason = "Rejected by administrator"
-
-            # Unlink pending file
-            if sub.get("file_path"):
-                p_dir = os.path.dirname(sub["file_path"])
-                if os.path.isdir(p_dir) and "pending" in p_dir:
-                    shutil.rmtree(p_dir, ignore_errors=True)
-
-            db.update_status(sub_id, "rejected", rejection_reason=reason)
-
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "rejected",
-                "submission_id": sub_id,
-                "reason": reason,
-            }).encode("utf-8"))
+                rescan_result = rescan_sched(hub_dir=HUB_DIR, delay_s=0.2)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps(rescan_result, ensure_ascii=False).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": f"Failed to execute Sched re-scan: {e}"}).encode("utf-8"))
             return
         self.send_response(404)
         self.end_headers()

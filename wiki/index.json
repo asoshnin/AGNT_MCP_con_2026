@@ -77,7 +77,7 @@
     "relevance_score": 0.98,
     "relevance_rationale": "Directly addresses a critical challenge in MCP (context management for tool-use) and proposes concrete architectural solutions for agent harnesses.",
     "one_paragraph": "This talk refutes the common misconception that the Multi-tool Co-Pilot Protocol (MCP) inherently suffers from a 'context problem' due to excessive token usage for tool descriptions. Instead, it posits that the issue lies in a lack of sophisticated context engineering within MCP implementations. The speaker introduces `mcpi`, a custom agent harness, to demonstrate three progressive tool discovery strategies. The core insight is 'skills over MCP,' where high-level skill descriptions are initially provided, and specific tools are only enabled and described in detail upon skill invocation, signif",
-    "has_slides": false,
+    "has_slides": true,
     "wiki_path": "wiki/sources/2RB8t.md"
   },
   {
@@ -334,7 +334,7 @@
     "relevance_score": 0.98,
     "relevance_rationale": "Directly addresses the core problem of secure, verifiable identity and payment integration for AI agents, a fundamental challenge in agentic commerce and trust.",
     "one_paragraph": "This talk addresses the critical, often-overlooked challenge of securely integrating real-world, government-grade digital identity and payment credentials into AI agent workflows. It demonstrates a full architectural chain where an AI agent, via an MCP server, requests verifiable credentials (like mdoc or SD-JWT) from a user's hardware-secured mobile wallet (e.g., StrongBox, TEE, Secure Enclave). The process leverages open standards such as W3C Digital Credentials API, OpenID4VP, and FIDO caBLE for cross-device communication, ensuring user intent is explicitly bound and proven. The core insigh",
-    "has_slides": false,
+    "has_slides": true,
     "wiki_path": "wiki/sources/2RBAL.md"
   },
   {
@@ -492,7 +492,7 @@
     "relevance_score": 0.98,
     "relevance_rationale": "Directly addresses the fundamental shift towards agentic web interactions and the architectural implications for web development, central to AGNTCon and MCPCon themes.",
     "one_paragraph": "The browser, far from dead, is undergoing a profound transformation from a human-centric document reader to an agentic advocate. This shift is driven by AI agents increasingly interacting with websites, with legal rulings establishing that an agent's actions are attributable to the user. The core insight is that the web must evolve to explicitly expose capabilities for machine consumption, moving beyond visual UI. This necessitates a new architecture where sites expose their functionalities via WebMCP, host dedicated MCP servers, and deliver UI as 'MCP Apps,' enabling seamless interaction for ",
-    "has_slides": false,
+    "has_slides": true,
     "wiki_path": "wiki/sources/2RBq6.md"
   },
   {
@@ -572,7 +572,7 @@
     "relevance_score": 0.95,
     "relevance_rationale": "Directly addresses the architectural patterns and challenges of deploying multi-agent systems within an enterprise context, focusing on orchestration, shared resources (MCP), and cataloging for reusability.",
     "one_paragraph": "This talk addresses the common enterprise problem of fragmented, duplicated agent development by proposing a centralized, catalog-driven architecture. The core insight is to move from individual agent experiments to an organizational capability through a 'Chief of Staff' orchestrator delegating tasks to specialized agents, each with defined roles and skill libraries. A critical component is the platform AI catalog, which transforms agent definitions, workflows, and MCP server configurations into reusable organizational assets. This system enables composable skills and scoped memory (user, proj",
-    "has_slides": false,
+    "has_slides": true,
     "wiki_path": "wiki/sources/2RB8D.md"
   },
   {
@@ -628,7 +628,7 @@
     "relevance_score": 0.95,
     "relevance_rationale": "Directly addresses a core architectural evolution of MCP, a foundational protocol for agent communication, impacting scalability and deployment patterns.",
     "one_paragraph": "The talk announces a pivotal shift in the MCP (Multi-Agent Communication Protocol) architecture towards a stateless transport layer, marking one of its most significant changes since inception. This fundamental redesign aims to simplify the deployment of highly robust and scalable MCP servers, essential for accommodating the burgeoning demand from AI agents and new applications like MCP Apps. By moving to a stateless model, the protocol can better support serverless patterns for core operations such as Elicitation, Sampling, and Session management. The speakers, key members of the Transports W",
-    "has_slides": false,
+    "has_slides": true,
     "wiki_path": "wiki/sources/2RB8S.md"
   },
   {
@@ -838,7 +838,7 @@
     "relevance_score": 0.95,
     "relevance_rationale": "Directly addresses security and identity management within the MCP framework, a core theme of MCPCon, focusing on practical issues in multi-domain API interactions.",
     "one_paragraph": "This talk addresses critical security and operational challenges arising from cross-domain, multi-hop API calls within the Model Context Protocol (MCP) ecosystem, specifically focusing on 'elicitation in URL mode' and 'token exchange.' The core problem lies in ensuring consistent user identity and authorization across disparate domains when an MCP server needs to access an external API, each requiring its own access token. Elicitation in URL mode risks user swapping, while token exchange can lead to information leaks and fraudulent token use. The proposed solutions aim to mitigate these vulner",
-    "has_slides": false,
+    "has_slides": true,
     "wiki_path": "wiki/sources/2RB9x.md"
   },
   {
@@ -1512,7 +1512,7 @@
     "relevance_score": 0.92,
     "relevance_rationale": "Directly addresses the critical need for verifiable governance and compliance in production agent systems, a core concern for AGNTCon and MCPCon attendees.",
     "one_paragraph": "This talk introduces a novel approach to agent governance, shifting from unenforceable document-based policies to verifiable, checkable properties on live agent systems. It proposes decomposing any agentic system into a concise three-object model, against which specific, testable properties can be defined. The framework prioritizes identifying and mitigating Tier-1 risks that commonly lead to incidents, with regulatory compliance (e.g., EU AI Act, GDPR) emerging as a natural outcome of satisfying these core properties. This vendor-neutral methodology enables immediate application to production",
-    "has_slides": false,
+    "has_slides": true,
     "wiki_path": "wiki/sources/2RBAC.md"
   },
   {
@@ -1585,7 +1585,7 @@
     "relevance_score": 0.92,
     "relevance_rationale": "Directly addresses the strategic and architectural challenges of deploying agentic systems in an enterprise context, emphasizing the importance of business outcomes over pure technical prowess, which is critical for MCP adoption.",
     "one_paragraph": "Kierra Dotson's talk introduces \"Outcome Engineering,\" a paradigm shift for agentic system development that prioritizes business value over technical sophistication. It argues that current agentic architectures often fail to scale or gain sustained investment because engineers focus on model and tool selection as the outcome, rather than designing backward from competitive strategy. The core insight is that truly indispensable AI systems are deeply integrated with proprietary data and workflows, creating defensible moats that cannot be replicated by off-the-shelf solutions. This approach aims ",
-    "has_slides": false,
+    "has_slides": true,
     "wiki_path": "wiki/sources/2RCE4.md"
   },
   {

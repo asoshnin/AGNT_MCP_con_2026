@@ -174,6 +174,7 @@
             <option value="quarantined">Quarantined</option>
             <option value="all">All Submissions</option>
           </select>
+          <button id="btn-sched-rescan" class="btn-header" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4); color: #10b981; font-size: 0.8rem; padding: 6px 12px;" onclick="triggerSchedRescan()">🔄 Re-scan Sched for New Slides</button>
           <button class="btn-header" style="font-size: 0.8rem; padding: 6px 12px;" onclick="loadSubmissions()">🔄 Refresh</button>
         </div>
       </div>
@@ -1139,6 +1140,42 @@
     function closeSubModal() {
       document.getElementById("sub-preview-modal").style.display = "none";
       CURRENT_INSPECT_SUB_ID = null;
+    }
+
+    async function triggerSchedRescan() {
+      if (!confirm("Start polite re-scan of Sched.com for all unattached sessions? Any newly discovered presentations will be automatically ingested into RAG.")) {
+        return;
+      }
+      const token = localStorage.getItem("agntcon_admin_token");
+      const btn = document.getElementById("btn-sched-rescan");
+      const originalText = btn ? btn.innerText : "";
+      if (btn) {
+        btn.disabled = true;
+        btn.innerText = "⏳ Scanning Sched...";
+      }
+
+      try {
+        const res = await fetch("/api/admin/rescan-sched", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (res.ok && data.status === "completed") {
+          alert(`Re-scan Completed!\nScanned: ${data.scanned_count}\nNewly Ingested: ${data.newly_found_count}\nRemaining Missing: ${data.remaining_missing}`);
+          loadSubmissions();
+        } else if (data.status === "busy") {
+          alert("A re-scan is already in progress. Please wait for it to finish.");
+        } else {
+          alert(`Re-scan failed: ${data.error || JSON.stringify(data)}`);
+        }
+      } catch (err) {
+        alert("Re-scan error: " + err.message);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerText = originalText;
+        }
+      }
     }
 
     async function approveSubmission(subId) {
