@@ -1343,15 +1343,7 @@ function renderCards() {
         const takeawayBadge = `<div class="card-takeaway-badge">💡 <strong>Key Takeaway:</strong> ${escapeHtml(firstSentence)}</div>`;
 
         let directSlideBtn = "";
-        if (hasSlides) {
-          const isPptx = ["2RB8n", "2RB8q", "2RBAa"].includes(t.id);
-          const slideHref = t.slide_url || `/assets/slides/${t.id}.${isPptx ? "pptx" : "pdf"}`;
-          if (isCommunitySlide) {
-            directSlideBtn = `<a class="btn-sched" href="${escapeHtml(slideHref)}" target="_blank" rel="noopener" style="text-decoration: none; color: #a855f7; border-color: rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.08); font-weight: 600;" title="Exclusively added by author/community — not available on the official Sched website!">🌟 Slides (Author Added) ↗</a>`;
-          } else {
-            directSlideBtn = `<a class="btn-sched" href="${escapeHtml(slideHref)}" target="_blank" rel="noopener" style="text-decoration: none; color: #16a34a; border-color: rgba(22, 163, 74, 0.4); background: rgba(22, 163, 74, 0.08); font-weight: 600;" title="View official presentation slides (PDF/PPTX)">📄 Slides ↗</a>`;
-          }
-        } else {
+        if (!hasSlides) {
           directSlideBtn = `<button class="btn-view-essence" onclick="openContributeModal('${t.id}')" style="background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.4); color: var(--accent);" title="Upload missing presentation slides or claim session">[ + Add Slides ]</button>`;
         }
 
@@ -1420,7 +1412,7 @@ function renderCards() {
       <td style="text-align: right;">
         <div style="display: inline-flex; gap: 6px;">
           <a class="btn-sched" href="${escapeHtml(t.sched_url)}" target="_blank" rel="noopener" style="padding: 4px 8px; font-size: 0.78rem;">Sched ↗</a>
-          ${hasSlides ? `<a class="btn-sched" href="${t.slide_url || `/assets/slides/${t.id}.pdf`}" target="_blank" rel="noopener" style="padding: 4px 8px; font-size: 0.78rem; text-decoration: none; color: #16a34a; border-color: rgba(22, 163, 74, 0.4); background: rgba(22, 163, 74, 0.08); font-weight: 600;" title="View Slides PDF">📄 Slides ↗</a>` : `<button class="btn-view-essence" onclick="openContributeModal('${t.id}')" style="padding: 4px 8px; font-size: 0.78rem; background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.4); color: var(--accent);">+ Slides</button>`}
+          ${hasSlides ? '' : `<button class="btn-view-essence" onclick="openContributeModal('${t.id}')" style="padding: 4px 8px; font-size: 0.78rem; background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.4); color: var(--accent);">+ Slides</button>`}
           <button class="btn-view-essence" onclick="openEssenceModal('${t.id}')" style="padding: 4px 8px; font-size: 0.78rem;">View</button>
           <button class="btn-cite" onclick="copyCitation('${t.id}', this)" style="padding: 4px 8px; font-size: 0.78rem;" title="Copy academic citation to clipboard">📋 Citation</button>
         </div>
@@ -1480,6 +1472,16 @@ async function openEssenceModal(sid) {
         }
       });
 
+      const isCommunitySlide = (talkObj && talkObj.slide_source === "community") || sid === "2RBA6";
+      if (isCommunitySlide) {
+        const communityLink = `\n- [🌟 Author-Contributed Presentation Slides (Community Open Access)](/assets/slides/${sid}.pdf) — *Shared by presenter under community license*\n`;
+        if (processed.includes("## Discovered Resources")) {
+          processed = processed.replace("## Discovered Resources\n", `## Discovered Resources\n${communityLink}`);
+        } else {
+          processed += `\n\n## Discovered Resources\n${communityLink}`;
+        }
+      }
+
       let htmlOutput = "";
       if (typeof marked !== "undefined" && typeof DOMPurify !== "undefined") {
         htmlOutput = DOMPurify.sanitize(marked.parse(processed));
@@ -1487,21 +1489,8 @@ async function openEssenceModal(sid) {
         htmlOutput = `<div style="white-space: pre-wrap;">${escapeHtml(processed)}</div>`;
       }
 
-      const isCommunitySlide = (talkObj && talkObj.slide_source === "community") || sid === "2RBA6";
-      const isPptx = ["2RB8n", "2RB8q", "2RBAa"].includes(sid);
-      const slideHref = (talkObj && talkObj.slide_url) || `/assets/slides/${sid}.${isPptx ? "pptx" : "pdf"}`;
-      const slideBanner = (talkObj && (talkObj.has_slides || talkObj.file_name))
-        ? `<div style="margin-bottom: 16px; padding: 10px 14px; background: ${isCommunitySlide ? "rgba(168, 85, 247, 0.08)" : "rgba(34, 197, 94, 0.08)"}; border: 1px solid ${isCommunitySlide ? "rgba(168, 85, 247, 0.3)" : "rgba(34, 197, 94, 0.3)"}; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-             <span style="font-size: 0.85rem; color: var(--text-primary); display: inline-flex; align-items: center; gap: 6px;">
-               <span style="font-size: 1.1rem;">${isCommunitySlide ? "🌟" : "📄"}</span>
-               <span><strong>${isCommunitySlide ? "Community Contributed Slides" : "Official Presentation Slides"}</strong> ${isCommunitySlide ? "(exclusively added by author — not on Sched)" : "are available for this session"}.</span>
-             </span>
-             <a href="${escapeHtml(slideHref)}" target="_blank" rel="noopener" style="background: ${isCommunitySlide ? "#a855f7" : "#16a34a"}; color: #fff; border: none; font-weight: 600; padding: 6px 12px; font-size: 0.82rem; text-decoration: none; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">Open Slides ${isPptx ? "PPTX" : "PDF"} ↗</a>
-           </div>`
-        : "";
-
       if (modalBody) {
-        modalBody.innerHTML = `${slideBanner}<div class="markdown-content">${htmlOutput}</div>`;
+        modalBody.innerHTML = `<div class="markdown-content">${htmlOutput}</div>`;
       }
 
       // Enhance code blocks with copy snippet buttons
