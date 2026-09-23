@@ -423,7 +423,7 @@ def dispatch_resend_email(to_email: str, subject: str, html_body: str):
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
-                "User-Agent": "resend-python/2.0.0"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
             }
         )
         with urllib.request.urlopen(req, timeout=4.0) as res:
