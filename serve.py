@@ -755,7 +755,7 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": "Unauthorized"}).encode("utf-8"))
                 return
 
-            summary_path = HUB_DIR / "data" / "contacts_summary.json"
+            summary_path = Path(HUB_DIR) / "data" / "contacts_summary.json"
             if summary_path.exists():
                 try:
                     with open(summary_path, encoding="utf-8") as sf:
@@ -2184,7 +2184,7 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 return
 
             try:
-                sys.path.insert(0, str(HUB_DIR / "scripts"))
+                sys.path.insert(0, str(Path(HUB_DIR) / "scripts"))
                 try:
                     from extract_contacts import harvest_contacts
                 except ImportError:
