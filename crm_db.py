@@ -49,6 +49,8 @@ def init_crm_db():
         FOREIGN KEY (inquiry_id) REFERENCES inquiries(id)
     );
     """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_thread_inq_created ON thread_messages(inquiry_id, created_at DESC);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_thread_inq_id_desc ON thread_messages(inquiry_id, id DESC);")
     conn.commit()
     conn.close()
 
@@ -84,18 +86,63 @@ def create_inquiry(inquiry_type: str, name: str, email: str, org: str = "", prof
         "title": title
     }
 
-def get_inquiries_list(status_filter: str = None) -> list:
+def get_inquiries_list(status_filter: str = None, category_filter: str = None) -> list:
     init_crm_db()
     conn = get_db()
     cur = conn.cursor()
+
+    query = """
+    SELECT 
+        i.*,
+        tm.body AS last_message_body,
+        tm.sender_type AS last_message_sender,
+        tm.created_at AS last_message_at,
+        CASE 
+            WHEN i.type IN ('submission_review', 'speaker_dispute', 'Correction') THEN 'presenter'
+            WHEN i.type IN ('collaboration', 'partnership', 'enterprise_pilot') THEN 'collaboration'
+            ELSE 'general'
+        END AS category,
+        CASE 
+            WHEN i.status = 'new' OR (tm.sender_type IS NOT NULL AND tm.sender_type != 'operator') THEN 1
+            ELSE 0
+        END AS is_unread
+    FROM inquiries i
+    LEFT JOIN (
+        SELECT inquiry_id, body, sender_type, created_at,
+               ROW_NUMBER() OVER (PARTITION BY inquiry_id ORDER BY id DESC) as rn
+        FROM thread_messages
+        WHERE is_internal_note = 0
+    ) tm ON i.id = tm.inquiry_id AND tm.rn = 1
+    WHERE 1=1
+    """
+    params = []
+
     if status_filter == "archived":
-        cur.execute("SELECT * FROM inquiries WHERE status = 'archived' ORDER BY updated_at DESC")
+        query += " AND i.status = 'archived'"
     elif status_filter and status_filter != "all":
-        cur.execute("SELECT * FROM inquiries WHERE status = ? ORDER BY updated_at DESC", (status_filter,))
+        query += " AND i.status = ?"
+        params.append(status_filter)
     else:
         # Default 'all' inbox: show all active non-archived inquiries
-        cur.execute("SELECT * FROM inquiries WHERE status != 'archived' ORDER BY updated_at DESC")
+        query += " AND i.status != 'archived'"
+
+    if category_filter and category_filter != "all":
+        query += """ AND (
+            CASE 
+                WHEN i.type IN ('submission_review', 'speaker_dispute', 'Correction') THEN 'presenter'
+                WHEN i.type IN ('collaboration', 'partnership', 'enterprise_pilot') THEN 'collaboration'
+                ELSE 'general'
+            END
+        ) = ?"""
+        params.append(category_filter)
+
+    query += " ORDER BY COALESCE(tm.created_at, i.updated_at) DESC, i.id DESC"
+
+    cur.execute(query, params)
     rows = [dict(r) for r in cur.fetchall()]
+    # Ensure boolean is_unread is Python bool or int (dict row already provides int/bool)
+    for r in rows:
+        r["is_unread"] = bool(r["is_unread"])
     conn.close()
     return rows
 

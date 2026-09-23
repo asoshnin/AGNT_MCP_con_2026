@@ -66,6 +66,17 @@
     .hist-bar { width: 100%; background: rgba(56, 189, 248, 0.45); border-radius: 3px 3px 0 0; min-height: 2px; transition: background 0.2s, height 0.3s; }
     .hist-bar:hover { background: var(--accent); }
     .hist-label { font-size: 0.62rem; color: var(--text-secondary); margin-top: 6px; text-align: center; }
+
+    /* Category Filter Chips & Badges (Sprint 15) */
+    .crm-category-chips { display: flex; gap: 6px; margin: 8px 0 2px 0; overflow-x: auto; }
+    .crm-cat-btn { font-size: 0.72rem; padding: 3px 8px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-secondary); cursor: pointer; white-space: nowrap; transition: all 0.15s ease; }
+    .crm-cat-btn:hover { color: var(--text-primary); border-color: var(--accent); }
+    .crm-cat-btn.active { background: rgba(56, 189, 248, 0.15); color: var(--accent); font-weight: 700; border-color: var(--accent); }
+    .cat-badge { font-size: 0.7rem; font-weight: 600; padding: 1px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px; }
+    .cat-presenter { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); }
+    .cat-collaboration { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
+    .cat-general { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); }
+    .truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   </style>
 </head>
 <body>
@@ -108,6 +119,12 @@
       <aside class="crm-sidebar">
         <div class="crm-inbox-header">
           <input type="text" id="crm-search" class="search-input" placeholder="Filter by name, email, or ref..." style="padding: 6px 10px; font-size: 0.85rem;">
+          <div class="crm-category-chips">
+            <button class="crm-cat-btn active" data-cat="all">All (<span id="cat-count-all">0</span>)</button>
+            <button class="crm-cat-btn" data-cat="presenter">🎤 Presenters (<span id="cat-count-pres">0</span>)</button>
+            <button class="crm-cat-btn" data-cat="collaboration">🤝 Collab (<span id="cat-count-collab">0</span>)</button>
+            <button class="crm-cat-btn" data-cat="general">💬 General (<span id="cat-count-gen">0</span>)</button>
+          </div>
           <div class="crm-tabs">
             <button class="crm-tab active" data-filter="all">All</button>
             <button class="crm-tab" data-filter="new">New</button>
@@ -196,6 +213,7 @@
     let ACTIVE_TICKET_ID = null;
     let ALL_INQUIRIES = [];
     let CURRENT_STATUS_FILTER = "all";
+    let CURRENT_CATEGORY_FILTER = "all";
     let SELECTED_IDS = new Set();
 
     const loginSec = document.getElementById("login-section");
@@ -267,13 +285,58 @@
       }
     }
 
+    function formatRelativeTime(dateStr) {
+      if (!dateStr) return "";
+      try {
+        const d = new Date(dateStr.replace(" ", "T") + "Z");
+        const now = new Date();
+        const diffMs = now - d;
+        if (isNaN(diffMs)) return dateStr;
+        const diffSec = Math.floor(diffMs / 1000);
+        if (diffSec < 60) return "Just now";
+        const diffMin = Math.floor(diffSec / 60);
+        if (diffMin < 60) return `${diffMin}m ago`;
+        const diffHrs = Math.floor(diffMin / 60);
+        if (diffHrs < 24) return `${diffHrs}h ago`;
+        const diffDays = Math.floor(diffHrs / 24);
+        if (diffDays === 1) return "Yesterday";
+        if (diffDays < 7) return `${diffDays}d ago`;
+        return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      } catch (e) {
+        return dateStr;
+      }
+    }
+
+    function updateCategoryCounts() {
+      let countAll = 0, countPres = 0, countCollab = 0, countGen = 0;
+      ALL_INQUIRIES.forEach(inq => {
+        if (CURRENT_STATUS_FILTER !== "all" && CURRENT_STATUS_FILTER !== "archived" && inq.status !== CURRENT_STATUS_FILTER) return;
+        if (CURRENT_STATUS_FILTER === "archived" && inq.status !== "archived") return;
+        countAll++;
+        if (inq.category === "presenter") countPres++;
+        else if (inq.category === "collaboration") countCollab++;
+        else countGen++;
+      });
+      const elAll = document.getElementById("cat-count-all");
+      const elPres = document.getElementById("cat-count-pres");
+      const elCollab = document.getElementById("cat-count-collab");
+      const elGen = document.getElementById("cat-count-gen");
+      if (elAll) elAll.textContent = countAll;
+      if (elPres) elPres.textContent = countPres;
+      if (elCollab) elCollab.textContent = countCollab;
+      if (elGen) elGen.textContent = countGen;
+    }
+
     function renderInbox() {
+      updateCategoryCounts();
       const q = (document.getElementById("crm-search").value || "").toLowerCase().trim();
       let filtered = ALL_INQUIRIES.filter(inq => {
         if (CURRENT_STATUS_FILTER !== "all" && CURRENT_STATUS_FILTER !== "archived" && inq.status !== CURRENT_STATUS_FILTER) return false;
         if (CURRENT_STATUS_FILTER === "archived" && inq.status !== "archived") return false;
+        if (CURRENT_CATEGORY_FILTER !== "all" && inq.category !== CURRENT_CATEGORY_FILTER) return false;
         if (!q) return true;
-        return `${inq.id} ${inq.name} ${inq.email} ${inq.organization} ${inq.type} ${inq.title}`.toLowerCase().includes(q);
+        const lastMsg = inq.last_message_body || "";
+        return `${inq.id} ${inq.name} ${inq.email} ${inq.organization} ${inq.type} ${inq.title} ${lastMsg}`.toLowerCase().includes(q);
       });
 
       if (filtered.length === 0) {
@@ -284,20 +347,50 @@
       inboxList.innerHTML = filtered.map(inq => {
         const isSelected = inq.id === ACTIVE_TICKET_ID;
         const isChecked = SELECTED_IDS.has(inq.id);
-        const typeEmoji = inq.type === 'speaker_dispute' || inq.type === 'Correction' ? '🚨' : '💼';
+        const cat = inq.category || "general";
+        let catIcon = "💬", catLabel = "General";
+        if (cat === "presenter") {
+          catIcon = "🎤";
+          catLabel = "Presenter";
+        } else if (cat === "collaboration") {
+          catIcon = "🤝";
+          catLabel = "Collab";
+        }
+
+        const snippet = inq.last_message_body || inq.title || "No messages yet";
+        const isOperatorLast = inq.last_message_sender === "operator";
+        const relTime = formatRelativeTime(inq.last_message_at || inq.updated_at);
+
         return `
           <li class="crm-card ${isSelected ? 'selected' : ''}" onclick="selectInquiry('${inq.id}')">
             <div style="display: flex; align-items: flex-start; gap: 10px;">
               <input type="checkbox" ${isChecked ? 'checked' : ''} onclick="event.stopPropagation(); toggleSelect('${inq.id}');" style="margin-top: 3px; cursor: pointer;">
-              <div style="flex: 1;">
-                <div class="crm-card-title">
-                  <span>${typeEmoji} ${inq.name}</span>
-                  <span style="font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; background: var(--bg-secondary); border: 1px solid var(--border);">${inq.status}</span>
+              <div style="flex: 1; min-width: 0;">
+                <!-- Row 1: Category Badge + Name + Timestamp + Unread Indicator -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                  <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+                    <span class="cat-badge cat-${cat}">${catIcon} ${catLabel}</span>
+                    <strong class="truncate" style="font-size: 0.86rem;">${escapeHtml(inq.name)}</strong>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 4px; font-size: 0.72rem; color: var(--text-secondary); white-space: nowrap;">
+                    <span>${relTime}</span>
+                    ${inq.is_unread ? '<span class="unread-dot" title="New unread message">🔵</span>' : ''}
+                  </div>
                 </div>
-                <div class="crm-card-meta">
+
+                <!-- Row 2: Ticket ID • Session / Org • Status Pill -->
+                <div class="crm-card-meta" style="margin-bottom: 4px;">
                   <span>#${inq.id}</span>
+                  ${inq.session_id ? `<span>•</span><span style="color: var(--accent);">[${inq.session_id}]</span>` : ''}
                   <span>•</span>
-                  <span>${inq.organization || inq.type}</span>
+                  <span class="status-pill status-${inq.status}" style="font-size: 0.72rem; padding: 1px 6px; border-radius: 4px; background: var(--bg-secondary); border: 1px solid var(--border);">${inq.status}</span>
+                  ${isOperatorLast ? '<span style="color: var(--text-secondary); font-size: 0.7rem; margin-left: 2px;">✓ Replied</span>' : ''}
+                </div>
+
+                <!-- Row 3: Last Message Snippet (Strictly Escaped) -->
+                <div style="font-size: 0.78rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                  ${isOperatorLast ? '<strong style="color: var(--text-primary);">You: </strong>' : ''}
+                  ${escapeHtml(snippet)}
                 </div>
               </div>
             </div>
@@ -553,6 +646,15 @@
         tab.classList.add("active");
         CURRENT_STATUS_FILTER = tab.getAttribute("data-filter");
         fetchInquiries();
+      });
+    });
+
+    document.querySelectorAll(".crm-cat-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".crm-cat-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        CURRENT_CATEGORY_FILTER = btn.getAttribute("data-cat");
+        renderInbox();
       });
     });
 

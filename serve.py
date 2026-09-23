@@ -672,7 +672,8 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": "Unauthorized"}).encode("utf-8"))
                 return
             status_filter = query_params.get("status", [None])[0]
-            inqs = crm_db.get_inquiries_list(status_filter)
+            category_filter = query_params.get("category", [None])[0]
+            inqs = crm_db.get_inquiries_list(status_filter, category_filter)
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
