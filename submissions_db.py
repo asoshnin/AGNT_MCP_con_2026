@@ -61,7 +61,8 @@ class SubmissionsDB:
             relevance_score INTEGER DEFAULT NULL,
             authenticity_verdict TEXT DEFAULT NULL,
             authenticity_rationale TEXT DEFAULT NULL,
-            crm_inquiry_id TEXT DEFAULT NULL
+            crm_inquiry_id TEXT DEFAULT NULL,
+            match_confidence REAL DEFAULT NULL
         );
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_sub_session ON submissions(session_id);")
@@ -75,6 +76,7 @@ class SubmissionsDB:
             ("authenticity_verdict", "TEXT DEFAULT NULL"),
             ("authenticity_rationale", "TEXT DEFAULT NULL"),
             ("crm_inquiry_id", "TEXT DEFAULT NULL"),
+            ("match_confidence", "REAL DEFAULT NULL"),
         ]
         for col_name, col_def in migrations:
             if col_name not in existing_cols:
@@ -94,14 +96,16 @@ class SubmissionsDB:
             page_count, text_yield_chars, ocr_required, injection_risk_score,
             injection_details, status, client_ip_hash, user_agent, created_at,
             reviewed_at, rejection_reason, draft_summary,
-            relevance_score, authenticity_verdict, authenticity_rationale, crm_inquiry_id
+            relevance_score, authenticity_verdict, authenticity_rationale, crm_inquiry_id,
+            match_confidence
         ) VALUES (
             :id, :session_id, :token, :submitter_name, :submitter_email, :submitter_role,
             :submission_type, :source_url, :file_path, :file_hash, :file_size_bytes,
             :page_count, :text_yield_chars, :ocr_required, :injection_risk_score,
             :injection_details, :status, :client_ip_hash, :user_agent, :created_at,
             :reviewed_at, :rejection_reason, :draft_summary,
-            :relevance_score, :authenticity_verdict, :authenticity_rationale, :crm_inquiry_id
+            :relevance_score, :authenticity_verdict, :authenticity_rationale, :crm_inquiry_id,
+            :match_confidence
         )
         """, {
             "id": sub_id,
@@ -131,6 +135,7 @@ class SubmissionsDB:
             "authenticity_verdict": data.get("authenticity_verdict"),
             "authenticity_rationale": data.get("authenticity_rationale"),
             "crm_inquiry_id": data.get("crm_inquiry_id"),
+            "match_confidence": data.get("match_confidence"),
         })
         conn.commit()
         conn.close()

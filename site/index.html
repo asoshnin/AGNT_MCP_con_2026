@@ -108,6 +108,9 @@
               <button type="button" id="tab-filter-slides" class="filter-tab">
                 📄 Slides Only
               </button>
+              <button type="button" id="tab-filter-missing-slides" class="filter-tab">
+                ⚠️ Missing Slides (<span id="missing-slides-count">38</span>)
+              </button>
               <button type="button" id="tab-filter-depth" class="filter-tab">
                 ⭐ Deep Topic (≥ 70%)
               </button>
@@ -734,6 +737,13 @@
             <input type="hidden" id="contrib-input-session-id" name="session_id">
             <input type="hidden" id="contrib-input-token" name="token">
 
+            <div id="contrib-session-picker-wrap" style="display: none; margin-bottom: 12px;">
+              <label style="display: block; font-weight: 600; font-size: 0.82rem; margin-bottom: 4px;">Select Session *</label>
+              <select id="contrib-select-session" class="search-input" style="width: 100%; padding: 8px 10px; font-size: 0.85rem;">
+                <!-- Populated dynamically with missing sessions -->
+              </select>
+            </div>
+
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
               <div>
                 <label style="display: block; font-weight: 600; font-size: 0.82rem; margin-bottom: 4px;">Your Name *</label>
@@ -768,7 +778,7 @@
             <div style="margin-bottom: 16px; background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 6px; padding: 10px 12px;">
               <label style="display: flex; align-items: flex-start; gap: 8px; font-size: 0.78rem; cursor: pointer; color: var(--text-secondary);">
                 <input type="checkbox" id="contrib-license" name="license_accepted" required style="margin-top: 2px;">
-                <span>I confirm I am authorized to share these materials under a non-exclusive license for indexing into the AGNTCon community archive.</span>
+                <span id="contrib-license-label">I confirm that I am the author or authorized co-presenter of this presentation. I grant AGNTCon Community Hub a non-exclusive, revocable, royalty-free license to host, display, index, and summarize this material for community search.</span>
               </label>
             </div>
 

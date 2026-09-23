@@ -2,12 +2,19 @@ let ALL_TALKS = [];
 let ACTIVE_TOPIC = null;
 let HIGH_RELEVANCE_ONLY = false;
 let SLIDES_ONLY = false;
+let MISSING_SLIDES_ONLY = false;
 let CURRENT_VIEW_MODE = localStorage.getItem("agntcon_view_mode") || "grid";
 let CURRENT_SORT = "relevance";
 let CURRENT_INFERENCE_TIER = localStorage.getItem("agntcon_inference_tier") || "cloud";
 
 let IS_RECOMMENDED_MODE = false;
 let IS_TRACK_FILTER_ACTIVE = false;
+
+function updateMissingSlidesCount() {
+  const missing = ALL_TALKS.filter((t) => !t.has_slides).length;
+  const el = document.getElementById("missing-slides-count");
+  if (el) el.textContent = missing;
+}
 
 // ── Zero-PII Non-Blocking Engagement Telemetry Beacon ──────────────
 function sendTelemetry(eventType, metadata = {}) {
@@ -325,6 +332,7 @@ async function loadCatalog() {
   } catch (e) {
     console.log("Could not load /api/search, attempting local JSON...", e);
   }
+  updateMissingSlidesCount();
   renderConceptPills();
   applyViewMode(CURRENT_VIEW_MODE);
   renderCards();
@@ -621,16 +629,18 @@ function setupEventListeners() {
     });
   }
 
-  // Unified Filter Tabs (My Track, Recommended, Slides, Topic Depth)
+  // Unified Filter Tabs (My Track, Recommended, Slides, Missing Slides, Topic Depth)
   const updateFilterTabs = () => {
     const tabTrack = document.getElementById("tab-filter-track");
     const tabRec = document.getElementById("tab-filter-recommended");
     const tabSlides = document.getElementById("tab-filter-slides");
+    const tabMissing = document.getElementById("tab-filter-missing-slides");
     const tabDepth = document.getElementById("tab-filter-depth");
 
     if (tabTrack) tabTrack.classList.toggle("active", IS_TRACK_FILTER_ACTIVE);
     if (tabRec) tabRec.classList.toggle("active", IS_RECOMMENDED_MODE);
     if (tabSlides) tabSlides.classList.toggle("active", SLIDES_ONLY);
+    if (tabMissing) tabMissing.classList.toggle("active", MISSING_SLIDES_ONLY);
     if (tabDepth) tabDepth.classList.toggle("active", HIGH_RELEVANCE_ONLY);
   };
 
@@ -656,6 +666,21 @@ function setupEventListeners() {
   if (tabSlides) {
     tabSlides.addEventListener("click", () => {
       SLIDES_ONLY = !SLIDES_ONLY;
+      if (SLIDES_ONLY) {
+        MISSING_SLIDES_ONLY = false;
+      }
+      updateFilterTabs();
+      renderCards();
+    });
+  }
+
+  const tabMissing = document.getElementById("tab-filter-missing-slides");
+  if (tabMissing) {
+    tabMissing.addEventListener("click", () => {
+      MISSING_SLIDES_ONLY = !MISSING_SLIDES_ONLY;
+      if (MISSING_SLIDES_ONLY) {
+        SLIDES_ONLY = false;
+      }
       updateFilterTabs();
       renderCards();
     });
@@ -1199,6 +1224,7 @@ function calculateMatchScore(talk, query) {
 }
 
 function renderCards() {
+  updateMissingSlidesCount();
   const grid = document.getElementById("sessions-grid");
   const tableBody = document.getElementById("sessions-table-body");
   const searchInput = document.getElementById("search-input");
@@ -1213,6 +1239,7 @@ function renderCards() {
   let filtered = ALL_TALKS.filter((t) => {
     if (HIGH_RELEVANCE_ONLY && (t.relevance_score || 0) < 0.7) return false;
     if (SLIDES_ONLY && !(t.has_slides || t.file_name)) return false;
+    if (MISSING_SLIDES_ONLY && t.has_slides) return false;
     if (ACTIVE_TOPIC && !(t.concepts || []).map((c) => c.toLowerCase()).includes(ACTIVE_TOPIC)) return false;
     if (IS_TRACK_FILTER_ACTIVE && !getTrack().includes(t.id)) return false;
 
@@ -2695,32 +2722,160 @@ function setupModalsAndSettings() {
   if (contribForm) {
     contribForm.addEventListener("submit", handleContributeSubmit);
   }
+
+  const contribRole = document.getElementById("contrib-role");
+  if (contribRole) {
+    contribRole.addEventListener("change", (e) => {
+      updateConsentText(e.target.value);
+      updateSessionPickerVisibility();
+    });
+  }
+
+  const contribPicker = document.getElementById("contrib-select-session");
+  if (contribPicker) {
+    contribPicker.addEventListener("change", (e) => {
+      updateSelectedSessionPreview(e.target.value);
+    });
+  }
 }
 
-async function openContributeModal(sessionId, token = "") {
+function updateConsentText(role) {
+  const label = document.getElementById("contrib-license-label");
+  if (!label) return;
+  if (role === "organizer") {
+    label.innerHTML = "I confirm that I am an authorized representative of the AGNTCon organizing committee, and these presentations were publicly presented and cleared for attendee distribution.";
+  } else {
+    label.innerHTML = "I confirm that I am the author or authorized co-presenter of this presentation. I grant AGNTCon Community Hub a non-exclusive, revocable, royalty-free license to host, display, index, and summarize this material for community search.";
+  }
+}
+
+function updateSessionPickerVisibility() {
+  const pickerWrap = document.getElementById("contrib-session-picker-wrap");
+  const tokenInput = document.getElementById("contrib-input-token");
+  const roleSelect = document.getElementById("contrib-role");
+  if (!pickerWrap) return;
+
+  const hasToken = !!(tokenInput && tokenInput.value.trim());
+  const role = roleSelect ? roleSelect.value : "speaker";
+
+  // Lock-In Precedence (CLA-3009-01):
+  // When opened via ?token=***, session ID is hard-locked; dropdown is hidden.
+  // Dropdown is active only without token or with role 'organizer'.
+  if (hasToken) {
+    pickerWrap.style.display = "none";
+  } else {
+    pickerWrap.style.display = "block";
+  }
+}
+
+function populateContribSessionPicker(selectedId = "") {
+  const picker = document.getElementById("contrib-select-session");
+  if (!picker) return;
+
+  const unattached = ALL_TALKS.filter((t) => !t.has_slides);
+  const items = unattached.map((t) => {
+    const cleanTitle = (t.title || "").replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, "").trim();
+    const spk = (t.speakers || []).join(", ") || "Speaker";
+    return {
+      id: t.id,
+      title: cleanTitle,
+      speakers: spk,
+      label: `[${t.id}] ${cleanTitle} — ${spk}`,
+    };
+  });
+
+  items.sort((a, b) => a.label.localeCompare(b.label));
+
+  picker.innerHTML = items
+    .map((it) => `<option value="${escapeHtml(it.id)}">${escapeHtml(it.label)}</option>`)
+    .join("");
+
+  if (selectedId) {
+    if (!Array.from(picker.options).some((o) => o.value === selectedId)) {
+      const talk = ALL_TALKS.find((t) => t.id === selectedId);
+      if (talk) {
+        const cleanTitle = (talk.title || "").replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, "").trim();
+        const spk = (talk.speakers || []).join(", ") || "Speaker";
+        const opt = document.createElement("option");
+        opt.value = selectedId;
+        opt.textContent = `[${talk.id}] ${cleanTitle} — ${spk}`;
+        picker.prepend(opt);
+      }
+    }
+    picker.value = selectedId;
+  }
+}
+
+function updateSelectedSessionPreview(sessionId) {
+  if (!sessionId) return;
+  const inputSid = document.getElementById("contrib-input-session-id");
+  if (inputSid) inputSid.value = sessionId;
+
+  const sessIdEl = document.getElementById("contrib-session-id");
+  if (sessIdEl) sessIdEl.textContent = `Session [[${sessionId}]]`;
+
+  const talk = ALL_TALKS.find((t) => t.id === sessionId);
+  if (talk) {
+    const cleanTitle = (talk.title || "").replace(/^(?:AGNTCon\s*\+\s*MCPCon(?:\s*Europe)?\s*2026\s*:\s*)/i, "").trim();
+    const titleEl = document.getElementById("contrib-session-title");
+    if (titleEl) titleEl.textContent = cleanTitle || "Session";
+    const spkEl = document.getElementById("contrib-session-speakers");
+    if (spkEl) spkEl.textContent = (talk.speakers || []).join(", ") || "Speaker";
+  } else {
+    fetch(`/api/contribute/session-info?session_id=${sessionId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data) {
+          const titleEl = document.getElementById("contrib-session-title");
+          if (titleEl) titleEl.textContent = data.title || "Session";
+          const spkEl = document.getElementById("contrib-session-speakers");
+          if (spkEl) spkEl.textContent = (data.speakers || []).join(", ") || "Speaker";
+        }
+      })
+      .catch(() => {});
+  }
+}
+
+async function openContributeModal(sessionId = "", token = "") {
   const backdrop = document.getElementById("contribute-modal-backdrop");
   if (!backdrop) return;
 
-  document.getElementById("contrib-input-session-id").value = sessionId;
-  document.getElementById("contrib-input-token").value = token || "";
-  document.getElementById("contrib-session-id").textContent = `Session [[${sessionId}]]`;
-  document.getElementById("contrib-session-title").textContent = "Loading session details...";
-  document.getElementById("contrib-session-speakers").textContent = "";
+  const tokenInput = document.getElementById("contrib-input-token");
+  if (tokenInput) tokenInput.value = token || "";
+
+  populateContribSessionPicker(sessionId);
+  updateSessionPickerVisibility();
+
+  const picker = document.getElementById("contrib-select-session");
+  const effectiveSessionId = sessionId || (picker ? picker.value : "");
+
+  const idInput = document.getElementById("contrib-input-session-id");
+  if (idInput) idInput.value = effectiveSessionId;
+
+  const roleSelect = document.getElementById("contrib-role");
+  const role = roleSelect ? roleSelect.value : "speaker";
+  updateConsentText(role);
+
+  updateSelectedSessionPreview(effectiveSessionId);
 
   const statusMsg = document.getElementById("contrib-status-msg");
   if (statusMsg) statusMsg.style.display = "none";
 
   backdrop.classList.add("open");
 
-  try {
-    const res = await fetch(`/api/contribute/session-info?session_id=${sessionId}${token ? `&token=${token}` : ""}`);
-    if (res.ok) {
-      const data = await res.json();
-      document.getElementById("contrib-session-title").textContent = data.title || "Session";
-      document.getElementById("contrib-session-speakers").textContent = (data.speakers || []).join(", ") || "Speaker";
+  if (token && effectiveSessionId) {
+    try {
+      const res = await fetch(`/api/contribute/session-info?session_id=${effectiveSessionId}&token=${token}`);
+      if (res.ok) {
+        const data = await res.json();
+        const titleEl = document.getElementById("contrib-session-title");
+        if (titleEl) titleEl.textContent = data.title || "Session";
+        const spkEl = document.getElementById("contrib-session-speakers");
+        if (spkEl) spkEl.textContent = (data.speakers || []).join(", ") || "Speaker";
+      }
+    } catch (e) {
+      // preview already updated from ALL_TALKS
     }
-  } catch (e) {
-    document.getElementById("contrib-session-title").textContent = `Session [[${sessionId}]]`;
   }
 }
 
@@ -2770,14 +2925,39 @@ async function handleContributeSubmit(e) {
       statusMsg.style.background = "rgba(16, 185, 129, 0.15)";
       statusMsg.style.color = "#10b981";
       statusMsg.style.border = "1px solid rgba(16, 185, 129, 0.4)";
-      statusMsg.innerHTML = `✓ <strong>Received!</strong> Reference ID: <code>${data.submission_id}</code>.<br>Your presentation has been queued for verification. Thank you for contributing to AGNTCon!`;
+      statusMsg.innerHTML = `
+        <div style="margin-bottom: 8px;">
+          ✓ <strong>Received!</strong> Reference ID: <code>${escapeHtml(data.submission_id)}</code>.<br>
+          Your presentation has been queued for verification. Thank you for contributing to AGNTCon!
+        </div>
+        <div style="margin-top: 8px;">
+          <button type="button" id="btn-submit-another" class="btn-header" style="background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; color: #10b981; font-weight: 600; padding: 6px 14px; font-size: 0.82rem; cursor: pointer; border-radius: 4px;">
+            + Submit Another Presentation
+          </button>
+        </div>
+      `;
       submitBtn.textContent = "✓ Uploaded";
-      setTimeout(() => {
-        closeContributeModal();
-        form.reset();
-        submitBtn.disabled = false;
-        submitBtn.textContent = "🚀 Submit for Indexing";
-      }, 4000);
+
+      const btnAnother = document.getElementById("btn-submit-another");
+      if (btnAnother) {
+        btnAnother.addEventListener("click", () => {
+          if (fileInput) fileInput.value = "";
+          if (urlInput) urlInput.value = "";
+          const licenseCheck = document.getElementById("contrib-license");
+          if (licenseCheck) licenseCheck.checked = false;
+
+          statusMsg.style.display = "none";
+          submitBtn.disabled = false;
+          submitBtn.textContent = "🚀 Submit for Indexing";
+
+          populateContribSessionPicker();
+          const pickerEl = document.getElementById("contrib-select-session");
+          if (pickerEl && pickerEl.options.length > 0) {
+            updateSelectedSessionPreview(pickerEl.value);
+          }
+          updateMissingSlidesCount();
+        });
+      }
     } else {
       statusMsg.style.background = "rgba(239, 68, 68, 0.15)";
       statusMsg.style.color = "#f87171";
