@@ -745,6 +745,39 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": f"Failed to get analytics summary: {e}"}).encode("utf-8"))
             return
 
+        # API: Admin Contacts Summary (Sprint 18)
+        if path == "/api/admin/contacts-summary":
+            if not check_admin_auth(self.headers, query_params):
+                self.send_response(401)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Unauthorized"}).encode("utf-8"))
+                return
+
+            summary_path = HUB_DIR / "data" / "contacts_summary.json"
+            if summary_path.exists():
+                try:
+                    with open(summary_path, encoding="utf-8") as sf:
+                        summary_data = json.load(sf)
+                except Exception as e:
+                    summary_data = {"error": f"Failed to read summary: {e}"}
+            else:
+                summary_data = {
+                    "updated_at": None,
+                    "total_speakers": 0,
+                    "total_organizers": 0,
+                    "cohort_organizers_count": 0,
+                    "cohort_missing_slides_count": 0,
+                    "cohort_slides_available_count": 0,
+                }
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps(summary_data, ensure_ascii=False).encode("utf-8"))
+            return
+
         # API: Admin Submissions List (FR-4.2)
         if path == "/api/admin/submissions":
             if not check_admin_auth(self.headers, query_params):
@@ -2138,6 +2171,37 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": f"Failed to execute Sched re-scan: {e}"}).encode("utf-8"))
+            return
+
+        # Admin Refresh Contacts Endpoint (Sprint 18)
+        if path == "/api/admin/refresh-contacts":
+            if not check_admin_auth(self.headers, query_params):
+                self.send_response(401)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Unauthorized"}).encode("utf-8"))
+                return
+
+            try:
+                sys.path.insert(0, str(HUB_DIR / "scripts"))
+                try:
+                    from extract_contacts import harvest_contacts
+                except ImportError:
+                    from scripts.extract_contacts import harvest_contacts
+
+                result = harvest_contacts(hub_dir=HUB_DIR, delay_s=0.3)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": f"Failed to refresh contacts: {e}"}).encode("utf-8"))
             return
         self.send_response(404)
         self.end_headers()

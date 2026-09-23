@@ -175,8 +175,17 @@
             <option value="all">All Submissions</option>
           </select>
           <button id="btn-sched-rescan" class="btn-header" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4); color: #10b981; font-size: 0.8rem; padding: 6px 12px;" onclick="triggerSchedRescan()">🔄 Re-scan Sched for New Slides</button>
+          <button id="btn-refresh-contacts" class="btn-header" style="background: rgba(56, 189, 248, 0.15); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; font-size: 0.8rem; padding: 6px 12px;" onclick="triggerRefreshContacts()">👥 Refresh Contacts</button>
           <button class="btn-header" style="font-size: 0.8rem; padding: 6px 12px;" onclick="loadSubmissions()">🔄 Refresh</button>
         </div>
+      </div>
+      <div style="margin-bottom: 16px; display: flex; align-items: center; justify-content: flex-end;">
+        <span id="contacts-cohort-badge" style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.78rem; background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; color: var(--text-secondary);">
+          👥 Contacts: <strong id="badge-total-speakers" style="color: var(--text-primary);">0</strong> speakers | 
+          <strong id="badge-organizers" style="color: #10b981;">0</strong> orgs | 
+          <strong id="badge-missing-slides" style="color: #f59e0b;">0</strong> missing slides | 
+          <strong id="badge-slides-ready" style="color: #38bdf8;">0</strong> slides ready
+        </span>
       </div>
       <div id="submissions-table-wrap" class="analytics-panel" style="overflow-x: auto; padding: 0;">
         <div style="padding: 40px; text-align: center; color: var(--text-secondary);">Loading submissions...</div>
@@ -726,6 +735,7 @@
         subTab.classList.add("active");
         subLayout.style.display = "block";
         loadSubmissions();
+        loadContactsSummary();
       } else {
         crmTab.classList.add("active");
         crmLayout.style.display = "grid";
@@ -1170,6 +1180,62 @@
         }
       } catch (err) {
         alert("Re-scan error: " + err.message);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerText = originalText;
+        }
+      }
+    }
+
+    async function loadContactsSummary() {
+      const token = localStorage.getItem("agntcon_admin_token");
+      try {
+        const res = await fetch("/api/admin/contacts-summary", {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const spkEl = document.getElementById("badge-total-speakers");
+          const orgEl = document.getElementById("badge-organizers");
+          const missEl = document.getElementById("badge-missing-slides");
+          const readyEl = document.getElementById("badge-slides-ready");
+          if (spkEl) spkEl.innerText = data.total_speakers || 0;
+          if (orgEl) orgEl.innerText = data.cohort_organizers_count || 0;
+          if (missEl) missEl.innerText = data.cohort_missing_slides_count || 0;
+          if (readyEl) readyEl.innerText = data.cohort_slides_available_count || 0;
+        }
+      } catch (err) {
+        console.error("Failed to load contacts summary:", err);
+      }
+    }
+
+    async function triggerRefreshContacts() {
+      if (!confirm("Harvest/refresh contacts from Sched and Linux Foundation directory? This will update speaker/organizer profiles and recalculate cohorts.")) {
+        return;
+      }
+      const token = localStorage.getItem("agntcon_admin_token");
+      const btn = document.getElementById("btn-refresh-contacts");
+      const originalText = btn ? btn.innerText : "";
+      if (btn) {
+        btn.disabled = true;
+        btn.innerText = "⏳ Harvesting...";
+      }
+
+      try {
+        const res = await fetch("/api/admin/refresh-contacts", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (res.ok && data.status === "success") {
+          alert(`Contacts Refreshed Successfully!\nTotal Speakers: ${data.total_speakers}\nOrganizers: ${data.total_organizers}\nMissing Slides: ${data.cohorts ? data.cohorts.cohort_missing_slides : 0}\nSlides Available: ${data.cohorts ? data.cohorts.cohort_slides_available : 0}`);
+          loadContactsSummary();
+        } else {
+          alert(`Refresh failed: ${data.error || JSON.stringify(data)}`);
+        }
+      } catch (err) {
+        alert("Refresh contacts error: " + err.message);
       } finally {
         if (btn) {
           btn.disabled = false;

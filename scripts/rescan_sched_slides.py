@@ -49,6 +49,78 @@ def run_extract_worker(hub_dir: Path, pdf_path: Path, max_pages: int = 120) -> d
     return None
 
 
+def sync_speaker_cohort(hub_dir: Path | str, session_id: str, has_slides: bool = True) -> bool:
+    """Updates the speaker's session slide status and transitions their cohort from cohort_missing_slides to cohort_slides_available."""
+    hub_path = Path(hub_dir)
+    contacts_path = hub_path / "data" / "contacts.json"
+    summary_path = hub_path / "data" / "contacts_summary.json"
+
+    if not contacts_path.exists():
+        return False
+
+    try:
+        with open(contacts_path, encoding="utf-8") as f:
+            contacts_data = json.load(f)
+
+        speakers = contacts_data.get("speakers", [])
+        modified = False
+
+        for spk in speakers:
+            sessions = spk.get("sessions", [])
+            spk_has_sid = False
+            for s in sessions:
+                if s.get("session_id") == session_id:
+                    s["has_slides"] = has_slides
+                    s["slide_url"] = f"/assets/slides/{session_id}.pdf" if has_slides else None
+                    spk_has_sid = True
+                    modified = True
+
+            if spk_has_sid:
+                if any(s.get("has_slides") for s in sessions):
+                    spk["cohort"] = "cohort_slides_available"
+                else:
+                    spk["cohort"] = "cohort_missing_slides"
+
+        if not modified:
+            return False
+
+        organizers = contacts_data.get("organizers", [])
+        missing_count = sum(1 for s in speakers if s.get("cohort") == "cohort_missing_slides")
+        available_count = sum(1 for s in speakers if s.get("cohort") == "cohort_slides_available")
+        org_count = len(organizers)
+
+        now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        contacts_data["updated_at"] = now_iso
+        contacts_data["cohorts_summary"] = {
+            "cohort_organizers": org_count,
+            "cohort_missing_slides": missing_count,
+            "cohort_slides_available": available_count,
+        }
+
+        tmp_contacts = contacts_path.with_suffix(".tmp")
+        with open(tmp_contacts, "w", encoding="utf-8") as f:
+            json.dump(contacts_data, f, indent=2, ensure_ascii=False)
+        os.replace(tmp_contacts, contacts_path)
+
+        summary_payload = {
+            "updated_at": now_iso,
+            "total_speakers": len(speakers),
+            "total_organizers": org_count,
+            "cohort_organizers_count": org_count,
+            "cohort_missing_slides_count": missing_count,
+            "cohort_slides_available_count": available_count,
+        }
+        tmp_summary = summary_path.with_suffix(".tmp")
+        with open(tmp_summary, "w", encoding="utf-8") as f:
+            json.dump(summary_payload, f, indent=2, ensure_ascii=False)
+        os.replace(tmp_summary, summary_path)
+
+        return True
+    except Exception as e:
+        logger.warning(f"Error syncing speaker cohort for {session_id}: {e}")
+        return False
+
+
 def _download_pdf_safely(url: str, dest_path: Path, headers: dict) -> tuple[bool, str]:
     """Downloads PDF from hosted-files.sched.co strictly, verifying SSRF rules, size, and %PDF- magic bytes."""
     parsed = urllib.parse.urlparse(url)
@@ -184,6 +256,11 @@ def _execute_rescan(hub_dir: Path, delay_s: float = 0.2) -> dict:
                 os.replace(tmp_sessions_path, sessions_json_path)
         except Exception as e:
             logger.warning(f"Failed to update data/sessions.json: {e}")
+
+    # Synchronize speaker cohorts in data/contacts.json (Sprint 18)
+    if ingested_sessions:
+        for sid in ingested_sessions:
+            sync_speaker_cohort(hub_dir, sid, has_slides=True)
 
     remaining_missing = scanned_count - len(ingested_sessions)
 
