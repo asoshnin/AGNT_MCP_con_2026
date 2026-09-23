@@ -18,7 +18,7 @@ We take security, data privacy, and intellectual property seriously.
 If you discover a security vulnerability or potential credential leak:
 1. **Do NOT open a public GitHub issue.**
 2. Report the vulnerability privately to the project maintainers via email at:
-   **`alex@onexcare.com`** or via private speaker inquiry on the live hub (`/admin#ticket`).
+   **`alex@vwoosh.com`** or via private speaker inquiry on the live hub (`/admin#ticket`).
 3. Include:
    - Description of the issue (e.g. prompt injection, SSRF, or XSS vector).
    - Steps to reproduce.

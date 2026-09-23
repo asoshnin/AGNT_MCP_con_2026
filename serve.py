@@ -404,6 +404,7 @@ def verify_submission_authenticity(
 def dispatch_resend_email(to_email: str, subject: str, html_body: str):
     api_key = os.environ.get("RESEND_API_KEY")
     from_email = os.environ.get("RESEND_FROM_EMAIL", "Alexey Soshnin <alex@onexcare.com>")
+    reply_to = os.environ.get("RESEND_REPLY_TO", "alex@vwoosh.com")
     if not api_key or api_key == "YOUR_RESEND_KEY_HERE":
         sys.stdout.write(f"[INFO] RESEND_API_KEY not configured. Skipping email to {to_email}.\n")
         return
@@ -411,12 +412,15 @@ def dispatch_resend_email(to_email: str, subject: str, html_body: str):
     try:
         import urllib.request
         url = "https://api.resend.com/emails"
-        payload = json.dumps({
+        payload_dict = {
             "from": from_email,
             "to": [to_email],
             "subject": subject,
-            "html": html_body
-        }).encode("utf-8")
+            "html": html_body,
+        }
+        if reply_to:
+            payload_dict["reply_to"] = reply_to
+        payload = json.dumps(payload_dict).encode("utf-8")
         req = urllib.request.Request(
             url,
             data=payload,
@@ -1353,7 +1357,7 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
             dispatch_resend_email(email, f"[#{ticket_id}] Your AGNTCon 2026 Collaboration Inquiry", email_html)
 
             # Also notify maintainer by email
-            maintainer_email = os.environ.get("MAINTAINER_NOTIFICATION_EMAIL") or os.environ.get("RESEND_MAINTAINER_EMAIL", "alex@onexcare.com")
+            maintainer_email = os.environ.get("MAINTAINER_NOTIFICATION_EMAIL") or os.environ.get("RESEND_MAINTAINER_EMAIL", "alex@vwoosh.com")
             if maintainer_email and maintainer_email != email:
                 maintainer_html = f"""
                 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;">
@@ -1488,7 +1492,7 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
             dispatch_resend_email(email, f"[#{ticket_id}] AGNTCon 2026 Speaker Request: Session [[{session_id}]]", email_html)
 
             # Also notify maintainer by email
-            maintainer_email = os.environ.get("MAINTAINER_NOTIFICATION_EMAIL") or os.environ.get("RESEND_MAINTAINER_EMAIL", "alex@onexcare.com")
+            maintainer_email = os.environ.get("MAINTAINER_NOTIFICATION_EMAIL") or os.environ.get("RESEND_MAINTAINER_EMAIL", "alex@vwoosh.com")
             if maintainer_email and maintainer_email != email:
                 maintainer_html = f"""
                 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;">
