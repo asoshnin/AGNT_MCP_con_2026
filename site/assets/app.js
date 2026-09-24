@@ -1499,6 +1499,14 @@ async function openEssenceModal(sid) {
 
       if (modalBody) {
         modalBody.innerHTML = `<div class="markdown-content">${htmlOutput}</div>`;
+        
+        // Enforce target="_blank" on all external links so navigation never evicts the SPA or resets chat
+        modalBody.querySelectorAll("a").forEach((a) => {
+          if (a.hostname && a.hostname !== window.location.hostname) {
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+          }
+        });
       }
 
       // Enhance code blocks with copy snippet buttons
@@ -1670,11 +1678,57 @@ function setupChat() {
     `;
   }
 
+  const CHAT_STORAGE_KEY = "agntcon_chat_history_v2";
+
+  function saveChatToSession() {
+    try {
+      const msgs = [];
+      chatMessages.querySelectorAll(".chat-msg").forEach((el) => {
+        if (el.querySelector(".ai-spinner") || el.querySelector(".ai-loading-container")) return;
+        const role = el.classList.contains("user") ? "user" : "bot";
+        msgs.push({ role, html: el.innerHTML });
+      });
+      const capped = msgs.slice(-40);
+      sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(capped));
+    } catch (e) {
+      // ignore storage errors
+    }
+  }
+
+  function restoreChatFromSession() {
+    try {
+      const stored = sessionStorage.getItem(CHAT_STORAGE_KEY);
+      if (stored) {
+        const msgs = JSON.parse(stored);
+        if (Array.isArray(msgs) && msgs.length > 0) {
+          chatMessages.innerHTML = "";
+          msgs.forEach((m) => {
+            const div = document.createElement("div");
+            div.className = `chat-msg ${m.role}`;
+            div.innerHTML = m.html;
+            chatMessages.appendChild(div);
+          });
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+      }
+    } catch (e) {
+      // ignore restore parse errors
+    }
+  }
+
+  function clearChatSession() {
+    try {
+      sessionStorage.removeItem(CHAT_STORAGE_KEY);
+    } catch (e) {}
+  }
+
   updateChatEngineBadge();
   updateChatProfileIndicator();
+  restoreChatFromSession();
 
   if (chatReset) {
     chatReset.addEventListener("click", () => {
+      clearChatSession();
       chatMessages.innerHTML = `
         <div class="chat-msg bot">
           Hello! I am your research assistant for <strong>AGNTCon + MCPCon Europe 2026</strong>.<br><br>
@@ -1734,6 +1788,7 @@ function setupChat() {
 
     lastSubmittedQuestion = q;
     appendMsg(q, "user");
+    saveChatToSession();
     chatInput.value = "";
 
     const loadingHtml = `
@@ -1971,6 +2026,7 @@ CRITICAL INVARIANTS:
         registerBotResponse(responseId, q, data.answer, data.citations);
         html += renderBotActionsHtml(responseId);
         botEl.innerHTML = html;
+        saveChatToSession();
       } else if (res.status === 429) {
         botEl.innerHTML = `
           <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px; color: var(--text-primary); font-size: 0.85rem; line-height: 1.5;">
@@ -2012,6 +2068,7 @@ CRITICAL INVARIANTS:
         []
       );
     } finally {
+      saveChatToSession();
       if (queuePollInterval) {
         clearInterval(queuePollInterval);
         queuePollInterval = null;

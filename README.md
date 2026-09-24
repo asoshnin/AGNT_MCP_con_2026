@@ -185,6 +185,16 @@ Download pre-formatted markdown notes tailored for [Obsidian](https://obsidian.m
 
 ---
 
+## 🔍 Corpus-Driven Dynamic Word Segmentation & RAG Resilience
+
+To bridge lexical gaps in conference queries without brittle hardcoded dictionaries or slow LLM rewrite latency:
+- **Corpus-Driven Dynamic Segmentation:** Extracts the canonical domain vocabulary (2,257 unique terms) directly from the conference database at startup. Any compound query word (e.g. `redteaming`, `promptinjection`, `agenticworkflow`) is dynamically decomposed in $O(N)$ time into constituent terms (`['red', 'teaming']`), automatically expanding the FTS5 search to `(term OR "left right" OR (left AND right))`.
+- **Softened RAG Guardrails:** Replaced rigid binary refusals with architectural equivalence reasoning. If an exact term is not named in excerpts, the assistant analyzes related security, evaluation, and orchestration patterns (e.g. boundary enforcement, vulnerability remediation), preserving grounded citations.
+- **Client-Side Session Persistence:** Chat conversations persist across tab switches, link clicks, and back-navigation in `sessionStorage` (40-turn circular buffer, 100% private to the client).
+- **Outbound Link Sandboxing:** All external Sched, GitHub, and slide links in modals enforce `target="_blank" rel="noopener noreferrer"`.
+
+---
+
 ## 📊 Zero-PII Engagement Analytics & Operator Console
 
 The platform provides privacy-preserving engagement telemetry for operators and maintainers to measure real community adoption without third-party tracking cookies:

@@ -63,6 +63,44 @@ def get_vector_scores(query: str) -> dict:
     except Exception:
         return {}
 
+def load_conference_vocab() -> set[str]:
+    """Dynamically extract canonical domain vocabulary from conference corpus (Zero Hardcoding)."""
+    vocab = set()
+    try:
+        if os.path.exists(INDEX_JSON):
+            with open(INDEX_JSON, encoding="utf-8") as f:
+                data = json.load(f)
+            for item in data:
+                text = f"{item.get('title', '')} {item.get('one_paragraph', '')} {' '.join(item.get('concepts', []))}".lower()
+                vocab.update(re.findall(r"[a-z]{3,}", text))
+        elif os.path.exists(SQLITE_PATH):
+            conn = sqlite3.connect(SQLITE_PATH)
+            cur = conn.cursor()
+            cur.execute("SELECT title, one_paragraph FROM talks")
+            for t, s in cur.fetchall():
+                text = f"{t} {s or ''}".lower()
+                vocab.update(re.findall(r"[a-z]{3,}", text))
+            conn.close()
+    except Exception:
+        pass
+    return vocab
+
+CONFERENCE_VOCAB = load_conference_vocab()
+
+def segment_compound_term(word: str, vocab: set[str]) -> list[str]:
+    """Dynamically segment compound word into constituent corpus terms (zero hardcoding, O(N))."""
+    w = word.lower()
+    if w in vocab or len(w) < 6 or len(w) > 32:
+        return [w]
+    for i in range(3, len(w) - 2):
+        left = w[:i]
+        right = w[i:]
+        left_ok = left in vocab or left[:-1] in vocab
+        right_ok = right in vocab or right[:-1] in vocab or (right.endswith("ing") and right[:-3] in vocab)
+        if left_ok and right_ok:
+            return [left, right]
+    return [w]
+
 # Tool 1: search_talks
 def tool_search_talks(query: str, topic: str = None, only_with_slides: bool = False, limit: int = 200) -> list:
     """Search conference sessions by query, keywords, speaker, or topic tag."""
@@ -72,7 +110,16 @@ def tool_search_talks(query: str, topic: str = None, only_with_slides: bool = Fa
     with open(INDEX_JSON, encoding="utf-8") as f:
         catalog = json.load(f)
         
-    q_tokens = [w.lower() for w in re.findall(r"\b\w+\b", query)] if query else []
+    expanded_tokens = []
+    if query:
+        raw_tokens = [w.lower() for w in re.findall(r"\b\w+\b", query)]
+        for tok in raw_tokens:
+            expanded_tokens.append(tok)
+            segmented = segment_compound_term(tok, CONFERENCE_VOCAB)
+            if len(segmented) > 1:
+                expanded_tokens.extend(segmented)
+                expanded_tokens.append(" ".join(segmented))
+
     topic_clean = topic.lower().strip() if topic else None
     vector_scores = get_vector_scores(query) if query else {}
     
@@ -87,7 +134,7 @@ def tool_search_talks(query: str, topic: str = None, only_with_slides: bool = Fa
         if topic_clean and topic_clean in [c.lower() for c in talk.get("concepts", [])]:
             score += 5
             
-        for tok in q_tokens:
+        for tok in expanded_tokens:
             if tok in text_blob:
                 score += 1
                 if tok in talk.get("title", "").lower():
@@ -96,7 +143,7 @@ def tool_search_talks(query: str, topic: str = None, only_with_slides: bool = Fa
         vec_sim = float(vector_scores.get(talk["id"], 0.0))
         hybrid_score = float(score + (vec_sim * 4.0))
                     
-        if not q_tokens or score > 0 or vec_sim >= 0.60:
+        if not expanded_tokens or score > 0 or vec_sim >= 0.60:
             scored.append({
                 "score": int(score),
                 "vector_sim": round(vec_sim, 3),
@@ -203,7 +250,7 @@ Answer the user's question clearly, thoroughly, and completely based strictly on
 CRITICAL INVARIANTS:
 1. Every major claim or practice described MUST cite the session ID (e.g. [2RBBJ]) and include an outbound Markdown link to the canonical Sched presentation: [Presentation Title](https://agntconmcpconeu26.sched.com/event/...).
 2. If the user asks for a list, ranking, or comparison of multiple talks, enumerate all matching candidates using a structured numbered list or Markdown table. Complete all requested points in full without truncation.
-3. If the topic was not discussed in the provided excerpts, state: "This topic was not covered in the conference sessions."
+3. If the attendee asks about a topic or terminology that is not explicitly named in the excerpts, analyze closely related architectural, security, evaluation, or tool concepts that are present (e.g. vulnerability remediation, adversarial guardrails, boundary enforcement), explicitly explaining the connection to the attendee's query. Only state a topic was not covered if no related concepts exist in the excerpts.
 4. Always cite speakers by name.
 5. Tailor technical depth, architectural framing, and practical takeaways to the attendee's declared profile where applicable."""
 

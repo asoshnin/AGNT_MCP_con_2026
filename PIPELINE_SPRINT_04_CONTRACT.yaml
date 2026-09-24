@@ -1,0 +1,151 @@
+id: pipe-final-sprint-hybrid-rag-and-ux-v1
+name: AGNTCon Final Sprint Corpus-Driven Hybrid RAG and UX Persistence
+version: "1.0.0"
+status: canonical
+domain: refactoring
+tags:
+  - hybrid_rag
+  - corpus_segmentation
+  - prompt_softening
+  - session_persistence
+  - external_links
+  - multi_cloud
+required_inputs:
+  - mcp_server.py
+  - serve.py
+  - site/assets/app.js
+  - site/index.html
+  - README.md
+target_deliverables:
+  - out/SPRINT_04_FINAL_CERTIFICATION.md
+description: >
+  End-to-end VWOOSH Kahn DAG pipeline for Sprint 04: adversarial proposal refinement,
+  Spec-First sprint generation via vwoosh-sprint-engine, adversarial prompt audit,
+  implementation of corpus-driven dynamic word segmentation, system prompt softening,
+  external link target=_blank enforcement, chat sessionStorage persistence, README updates,
+  repo hygiene audit, and multi-cloud production redeployment.
+budget_limit_usd: 0.50
+timeout_seconds: 600
+circuit_breakers:
+  max_consecutive_errors: 2
+  abort_on_degradation: true
+stages:
+  - id: stage_01_proposal_refinement
+    name: Adversarial Proposal Refinement
+    type: single_pass
+    depends_on: []
+    inputs:
+      - mcp_server.py
+      - serve.py
+    outputs:
+      - docs/PROPOSAL_HYBRID_RAG_AND_UX_REFINED.md
+    role: red_team_lead
+    skill: vwoosh-adversarial-refinement
+    tools_allow:
+      - read
+      - write
+      - exec
+    sandbox_policy: inherit
+
+  - id: stage_02_sprint_spec_generation
+    name: Spec-First Sprint Bundle Generation
+    type: single_pass
+    depends_on:
+      - stage_01_proposal_refinement
+    inputs:
+      - docs/PROPOSAL_HYBRID_RAG_AND_UX_REFINED.md
+    outputs:
+      - out/sprint_spec_manifest.json
+    role: sprint_master
+    skill: vwoosh-sprint-engine
+    tools_allow:
+      - read
+      - write
+      - exec
+    sandbox_policy: inherit
+
+  - id: stage_03_specs_and_prompt_refinement
+    name: Adversarial Audit of Sprint Specs and Agent Prompt
+    type: single_pass
+    depends_on:
+      - stage_02_sprint_spec_generation
+    inputs:
+      - out/sprint_spec_manifest.json
+    outputs:
+      - out/specs_and_prompt_audit.json
+    role: security_auditor
+    skill: vwoosh-adversarial-refinement
+    tools_allow:
+      - read
+      - write
+      - exec
+    sandbox_policy: inherit
+
+  - id: stage_04_implementation
+    name: PI Agent Sprint Implementation and Readme Update
+    type: single_pass
+    depends_on:
+      - stage_03_specs_and_prompt_refinement
+    inputs:
+      - out/specs_and_prompt_audit.json
+    outputs:
+      - out/stage_04_implementation.json
+    role: system_architect
+    skill: vwoosh-pipeline-engine
+    tools_allow:
+      - read
+      - write
+      - edit
+      - exec
+    sandbox_policy: inherit
+
+  - id: stage_05_quality_gates
+    name: Deterministic Quality Gates and FTS5 Verification
+    type: single_pass
+    depends_on:
+      - stage_04_implementation
+    inputs:
+      - out/stage_04_implementation.json
+    outputs:
+      - out/stage_05_quality_gates.json
+    role: qa_lead
+    skill: test-suite-architect
+    tools_allow:
+      - read
+      - write
+      - exec
+    sandbox_policy: inherit
+
+  - id: stage_06_cleanup_and_safety
+    name: Zero-PII and Leftovers Security Audit
+    type: single_pass
+    depends_on:
+      - stage_05_quality_gates
+    inputs:
+      - out/stage_05_quality_gates.json
+    outputs:
+      - out/stage_06_cleanup_and_safety.json
+    role: security_auditor
+    skill: secure-code-review
+    tools_allow:
+      - read
+      - write
+      - exec
+    sandbox_policy: inherit
+
+  - id: stage_07_sync_and_redeploy
+    name: Multi-Cloud Production Sync and Final Certification
+    type: single_pass
+    depends_on:
+      - stage_06_cleanup_and_safety
+    inputs:
+      - out/stage_06_cleanup_and_safety.json
+    outputs:
+      - out/SPRINT_04_FINAL_CERTIFICATION.md
+    role: delivery_architect
+    skill: diagnose-gateway
+    tools_allow:
+      - read
+      - write
+      - exec
+    sandbox_policy: inherit
