@@ -9,6 +9,7 @@
   --text-secondary: #475569;
   --text-muted: #94a3b8;
   --accent: #0284c7;
+  --accent-text: #ffffff;
   --accent-hover: #0369a1;
   --badge-bg: rgba(2, 132, 199, 0.08);
   --badge-border: rgba(2, 132, 199, 0.2);
@@ -25,6 +26,7 @@ html[data-theme='dark'] {
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
   --accent: #38bdf8;
+  --accent-text: #0b0f19;
   --accent-hover: #60a5fa;
   --badge-bg: rgba(56, 189, 248, 0.12);
   --badge-border: rgba(56, 189, 248, 0.25);

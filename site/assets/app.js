@@ -740,7 +740,7 @@ function setupEventListeners() {
             <p style="color: var(--text-secondary); margin-bottom: 14px; font-size: 0.82rem; line-height: 1.45;">
               Declare your technical role, focus areas, and goals so the AI can automatically curate and rank a personalized conference itinerary for you.
             </p>
-            <button type="button" id="btn-setup-profile-from-track" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; padding: 7px 16px; font-size: 0.82rem;">
+            <button type="button" id="btn-setup-profile-from-track" class="btn-header" style="background: var(--accent); color: var(--accent-text); font-weight: 600; padding: 7px 16px; font-size: 0.82rem;">
               👤 Set Up My Profile First
             </button>
           </div>
@@ -778,7 +778,7 @@ function setupEventListeners() {
             <p style="color: var(--text-secondary); margin-bottom: 14px; font-size: 0.8rem; line-height: 1.4;">
               Focus: ${(profile.focus_areas || []).map(escapeHtml).join(", ") || "General"}
             </p>
-            <button type="button" id="btn-auto-curate-track" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; padding: 7px 16px; font-size: 0.82rem;">
+            <button type="button" id="btn-auto-curate-track" class="btn-header" style="background: var(--accent); color: var(--accent-text); font-weight: 600; padding: 7px 16px; font-size: 0.82rem;">
               ✨ Curate My Track with AI (≥${getTrackThreshold()}% Fit)
             </button>
           </div>
@@ -1666,7 +1666,7 @@ function setupChat() {
         </div>
         <p style="margin: 0 0 10px 0; color: var(--text-secondary); font-size: 0.83rem;">${description}</p>
         <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 4px;">
-          <button type="button" class="btn-header" onclick="window.retryLastChatQuestion(this)" style="background: var(--accent); color: #0b0f19; font-weight: 600; padding: 4px 12px; font-size: 0.8rem; border: none; border-radius: 5px; cursor: pointer;">
+          <button type="button" class="btn-header" onclick="window.retryLastChatQuestion(this)" style="background: var(--accent); color: var(--accent-text); font-weight: 600; padding: 4px 12px; font-size: 0.8rem; border: none; border-radius: 5px; cursor: pointer;">
             🔄 Retry Question
           </button>
           <button type="button" class="btn-header" onclick="document.getElementById('btn-open-settings').click()" style="padding: 4px 10px; font-size: 0.8rem; border-radius: 5px; cursor: pointer;">
@@ -2033,7 +2033,7 @@ CRITICAL INVARIANTS:
             <strong style="color: #ef4444;">⏳ Concurrency Queue Full (HTTP 429)</strong><br><br>
             ${escapeHtml(data.message || data.error || "The server is currently experiencing high concurrent traffic. Please wait a few seconds and try again.")}
             <div style="margin-top: 10px;">
-              <button type="button" class="btn-header" onclick="window.retryLastChatQuestion(this)" style="background: var(--accent); color: #0b0f19; font-weight: 600; padding: 4px 12px; font-size: 0.8rem;">🔄 Retry Now</button>
+              <button type="button" class="btn-header" onclick="window.retryLastChatQuestion(this)" style="background: var(--accent); color: var(--accent-text); font-weight: 600; padding: 4px 12px; font-size: 0.8rem;">🔄 Retry Now</button>
             </div>
           </div>
         `;
@@ -2414,7 +2414,7 @@ function setupModalsAndSettings() {
               </p>
               <div style="display: flex; gap: 8px; justify-content: center; max-width: 520px; margin: 0 auto 24px auto;">
                 <input type="text" class="search-input" value="${fullLink}" readonly style="font-size: 0.82rem; padding: 8px 12px;">
-                <button type="button" id="btn-copy-feedback-link" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; white-space: nowrap;">
+                <button type="button" id="btn-copy-feedback-link" class="btn-header" style="background: var(--accent); color: var(--accent-text); font-weight: 600; white-space: nowrap;">
                   📋 Copy Link
                 </button>
               </div>
@@ -2514,7 +2514,7 @@ function setupModalsAndSettings() {
               </p>
               <div style="display: flex; gap: 8px; justify-content: center; max-width: 520px; margin: 0 auto 24px auto;">
                 <input type="text" class="search-input" value="${fullLink}" readonly style="font-size: 0.82rem; padding: 8px 12px;">
-                <button type="button" id="btn-copy-collab-link" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600; white-space: nowrap;">
+                <button type="button" id="btn-copy-collab-link" class="btn-header" style="background: var(--accent); color: var(--accent-text); font-weight: 600; white-space: nowrap;">
                   📋 Copy Link
                 </button>
               </div>
@@ -2711,29 +2711,57 @@ function setupModalsAndSettings() {
     btnTestCloud.addEventListener("click", async () => {
       if (testCloudResult) {
         testCloudResult.style.color = "var(--text-secondary)";
-        testCloudResult.textContent = "Pinging AGNTCon Cloud Proxy...";
+        testCloudResult.innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px;">⏳ Checking Hub & Cloud Gateway...</span>`;
       }
+      const startTime = Date.now();
       try {
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: "Ping test", breadth: "focused" })
-        });
-        if (res.ok) {
+        const healthRes = await fetch("/api/health");
+        const queueRes = await fetch("/api/queue-status").catch(() => null);
+        let queueData = null;
+        if (queueRes && queueRes.ok) {
+          queueData = await queueRes.json().catch(() => null);
+        }
+
+        if (!healthRes.ok) {
           if (testCloudResult) {
-            testCloudResult.style.color = "#22c55e";
-            testCloudResult.textContent = "✓ Cloud Demo Online";
+            testCloudResult.innerHTML = `
+              <div style="margin-top: 6px; padding: 8px 12px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 6px;">
+                <div style="font-weight: 600; color: #ef4444; font-size: 0.84rem;">✕ Hub Gateway Unreachable (HTTP ${healthRes.status})</div>
+                <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 2px;">
+                  The conference backend did not respond. Try refreshing the page.
+                </div>
+              </div>`;
           }
-        } else {
-          if (testCloudResult) {
-            testCloudResult.style.color = "#f87171";
-            testCloudResult.textContent = "✕ Cloud Demo Offline (HTTP " + res.status + ")";
-          }
+          return;
+        }
+
+        const elapsedMs = Date.now() - startTime;
+        const isQueueBusy = queueData && (queueData.waiting_depth > 0 || queueData.active_tasks >= (queueData.max_concurrent || 2));
+        const statusMsg = isQueueBusy
+          ? `🟢 Hub Online (${elapsedMs}ms) · Cloud Inference Busy (${queueData.waiting_depth || 1} ahead)`
+          : `🟢 Cloud Gateway Online (${elapsedMs}ms) · Inference Ready`;
+        const subMsg = isQueueBusy
+          ? "High community traffic. Free cascade is active; queries queue briefly, or switch to the Custom / BYOM tab for dedicated private models."
+          : "AGNTCon Core & Free Tier Inference Cascade operational. Ready to answer questions.";
+
+        if (testCloudResult) {
+          testCloudResult.innerHTML = `
+            <div style="margin-top: 6px; padding: 8px 12px; background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: 6px;">
+              <div style="font-weight: 600; color: #16a34a; font-size: 0.84rem;">${statusMsg}</div>
+              <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 2px;">
+                ${subMsg}
+              </div>
+            </div>`;
         }
       } catch (e) {
         if (testCloudResult) {
-          testCloudResult.style.color = "#f87171";
-          testCloudResult.textContent = "✕ Connection Error";
+          testCloudResult.innerHTML = `
+            <div style="margin-top: 6px; padding: 8px 12px; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 6px;">
+              <div style="font-weight: 600; color: #d97706; font-size: 0.84rem;">⚠️ Network Connectivity Issue</div>
+              <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 2px;">
+                Could not connect to /api/health. Please verify your internet connection.
+              </div>
+            </div>`;
         }
       }
     });

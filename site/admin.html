@@ -1058,12 +1058,12 @@
       const txtFrame = document.getElementById("studio-text-frame");
 
       if (mode === "pdf") {
-        if (pdfBtn) { pdfBtn.style.background = "var(--accent)"; pdfBtn.style.color = "#0b0f19"; }
+        if (pdfBtn) { pdfBtn.style.background = "var(--accent)"; pdfBtn.style.color = "var(--accent-text)"; }
         if (txtBtn) { txtBtn.style.background = "var(--bg-secondary)"; txtBtn.style.color = "var(--text-secondary)"; }
         if (pdfFrame) pdfFrame.style.display = "block";
         if (txtFrame) txtFrame.style.display = "none";
       } else {
-        if (txtBtn) { txtBtn.style.background = "var(--accent)"; txtBtn.style.color = "#0b0f19"; }
+        if (txtBtn) { txtBtn.style.background = "var(--accent)"; txtBtn.style.color = "var(--accent-text)"; }
         if (pdfBtn) { pdfBtn.style.background = "var(--bg-secondary)"; pdfBtn.style.color = "var(--text-secondary)"; }
         if (pdfFrame) pdfFrame.style.display = "none";
         if (txtFrame) txtFrame.style.display = "block";
