@@ -101,6 +101,20 @@ def segment_compound_term(word: str, vocab: set[str]) -> list[str]:
             return [left, right]
     return [w]
 
+QUERY_STOP_WORDS = {
+    "a", "about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "aren't", "as", "at",
+    "be", "because", "been", "before", "being", "below", "between", "both", "but", "by",
+    "can", "can't", "cannot", "could", "couldn't", "did", "didn't", "do", "does", "doesn't", "doing", "don't", "down", "during",
+    "each", "few", "for", "from", "further", "had", "hadn't", "has", "hasn't", "have", "haven't", "having", "he", "he'd", "he'll", "he's", "her", "here", "here's", "hers", "herself", "him", "himself", "his", "how", "how's",
+    "i", "i'd", "i'll", "i'm", "i've", "if", "in", "into", "is", "isn't", "it", "it's", "its", "itself",
+    "let", "let's", "me", "more", "most", "mustn't", "my", "myself", "no", "nor", "not", "of", "off", "on", "once", "only", "or", "other", "ought", "our", "ours", "ourselves", "out", "over", "own",
+    "same", "shan't", "she", "she'd", "she'll", "she's", "should", "shouldn't", "so", "some", "such",
+    "than", "that", "that's", "the", "their", "theirs", "them", "themselves", "then", "there", "there's", "these", "they", "they'd", "they'll", "they're", "they've", "this", "those", "through", "to", "too",
+    "under", "until", "up", "very", "was", "wasn't", "we", "we'd", "we'll", "we're", "we've", "were", "weren't", "what", "what's", "whats", "when", "when's", "where", "where's", "which", "while", "who", "who's", "whom", "why", "why's", "with", "won't", "would", "wouldn't",
+    "you", "you'd", "you'll", "you're", "you've", "your", "yours", "yourself", "yourselves",
+    "takeaway", "takeaways", "presentation", "presentations", "talk", "talks", "session", "sessions", "tell", "give", "summary", "summaries", "summarize", "keynote", "workshop", "event", "events"
+}
+
 # Tool 1: search_talks
 def tool_search_talks(query: str, topic: str = None, only_with_slides: bool = False, limit: int = 200) -> list:
     """Search conference sessions by query, keywords, speaker, or topic tag."""
@@ -111,9 +125,13 @@ def tool_search_talks(query: str, topic: str = None, only_with_slides: bool = Fa
         catalog = json.load(f)
         
     expanded_tokens = []
+    q_lower = query.lower().strip() if query else ""
+    raw_tokens = []
     if query:
         raw_tokens = [w.lower() for w in re.findall(r"\b\w+\b", query)]
-        for tok in raw_tokens:
+        content_tokens = [t for t in raw_tokens if t not in QUERY_STOP_WORDS and len(t) > 1]
+        active_tokens = content_tokens if content_tokens else [t for t in raw_tokens if len(t) > 1]
+        for tok in active_tokens:
             expanded_tokens.append(tok)
             segmented = segment_compound_term(tok, CONFERENCE_VOCAB)
             if len(segmented) > 1:
@@ -128,17 +146,41 @@ def tool_search_talks(query: str, topic: str = None, only_with_slides: bool = Fa
         if only_with_slides and not (talk.get("has_slides") or talk.get("file_name")):
             continue
 
-        text_blob = f"{talk.get('id', '')} {talk.get('title', '')} {' '.join(talk.get('speakers', []))} {' '.join(talk.get('concepts', []))} {talk.get('one_paragraph', '')}".lower()
+        sid_lower = str(talk.get("id", "")).lower()
+        title_lower = str(talk.get("title", "")).lower()
+        speakers_list = [str(s).lower() for s in talk.get("speakers", [])]
+        concepts_list = [str(c).lower() for c in talk.get("concepts", [])]
+        one_par_lower = str(talk.get("one_paragraph", "")).lower()
+
+        text_blob = f"{sid_lower} {title_lower} {' '.join(speakers_list)} {' '.join(concepts_list)} {one_par_lower}"
         score = 0
         
-        if topic_clean and topic_clean in [c.lower() for c in talk.get("concepts", [])]:
-            score += 5
-            
+        # 1. Exact Session ID Match (e.g. "2RB8Y" in query)
+        if q_lower and (sid_lower == q_lower or sid_lower in raw_tokens):
+            score += 50
+        elif sid_lower and sid_lower in q_lower:
+            score += 40
+
+        # 2. Speaker Entity Boosting
+        if q_lower and speakers_list:
+            for spk in speakers_list:
+                if spk and spk in q_lower:
+                    score += 30
+                else:
+                    for spk_part in re.findall(r"\b\w+\b", spk):
+                        if len(spk_part) > 2 and spk_part in raw_tokens and spk_part not in QUERY_STOP_WORDS:
+                            score += 15
+
+        # 3. Topic match
+        if topic_clean and topic_clean in concepts_list:
+            score += 10
+
+        # 4. Keyword / content token matches
         for tok in expanded_tokens:
-            if tok in text_blob:
-                score += 1
-                if tok in talk.get("title", "").lower():
-                    score += 2
+            if tok in title_lower:
+                score += 8
+            elif tok in text_blob:
+                score += 2
 
         vec_sim = float(vector_scores.get(talk["id"], 0.0))
         hybrid_score = float(score + (vec_sim * 4.0))

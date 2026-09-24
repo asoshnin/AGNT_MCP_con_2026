@@ -42,3 +42,26 @@ def test_search_ranking_relevance():
     assert len(results) > 0
     # Top results should have positive hybrid score
     assert results[0]["hybrid_score"] > 0
+
+
+def test_search_speaker_entity_boosting():
+    # Conversational natural query asking for a speaker's presentation
+    results = tool_search_talks("what's your takeaway from Dylan Ratcliffe's presentation?", limit=5)
+    assert len(results) > 0
+    # Dylan Ratcliffe (2RB8Y) MUST be the #1 result
+    assert results[0]["id"] == "2RB8Y"
+    assert "Dylan Ratcliffe" in results[0]["speakers"]
+
+
+def test_search_session_id_boosting():
+    results = tool_search_talks("tell me about 2RB8Y", limit=5)
+    assert len(results) > 0
+    assert results[0]["id"] == "2RB8Y"
+
+
+def test_search_conversational_stop_words_fallback():
+    # If a query is only stop words, fallback gracefully without crash
+    results = tool_search_talks("what is it", limit=5)
+    assert isinstance(results, list)
+    assert len(results) > 0
+
