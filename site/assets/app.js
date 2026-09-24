@@ -1628,11 +1628,48 @@ function setupChat() {
     });
   }
 
+  const chatExpand = document.getElementById("chat-expand");
+  if (chatExpand) {
+    chatExpand.addEventListener("click", () => {
+      chatPanel.classList.toggle("expanded");
+      const isExp = chatPanel.classList.contains("expanded");
+      chatExpand.textContent = isExp ? "🗗" : "⛶";
+      chatExpand.title = isExp ? "Collapse to compact view" : "Expand chat to wide view";
+    });
+  }
+
   toggleBtn.addEventListener("click", () => {
     chatPanel.classList.toggle("open");
+    if (chatPanel.classList.contains("open")) {
+      toggleBtn.style.display = "none";
+      chatInput.focus();
+    } else {
+      toggleBtn.style.display = "flex";
+    }
     updateChatProfileIndicator();
   });
-  chatClose.addEventListener("click", () => chatPanel.classList.remove("open"));
+
+  chatClose.addEventListener("click", () => {
+    chatPanel.classList.remove("open");
+    chatPanel.classList.remove("expanded");
+    if (chatExpand) {
+      chatExpand.textContent = "⛶";
+      chatExpand.title = "Expand / Maximize chat window";
+    }
+    toggleBtn.style.display = "flex";
+  });
+
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && chatPanel.classList.contains("open")) {
+      chatPanel.classList.remove("open");
+      chatPanel.classList.remove("expanded");
+      if (chatExpand) {
+        chatExpand.textContent = "⛶";
+        chatExpand.title = "Expand / Maximize chat window";
+      }
+      toggleBtn.style.display = "flex";
+    }
+  });
 
   chatForm.addEventListener("submit", async (e) => {
     e.preventDefault();
