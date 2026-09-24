@@ -3,45 +3,52 @@ id: "2RB8M"
 title: "An Orchestra of Agents: What I Learned Running a Multi-Agent System for 5,000+ Developers"
 speakers: ["Muhammad Ahsan Ayaz"]
 sched_url: "https://agntconmcpconeu26.sched.com/event/2RB8M/an-orchestra-of-agents-what-i-learned-running-a-multi-agent-system-for-5000+-developers-muhammad-ahsan-ayaz-scania"
-concepts: ["orchestration", "tool-use", "rag", "observability", "mcp"]
-relevance_score: 0.98
-relevance_rationale: "The talk directly addresses the challenges and architectural patterns for running multi-agent systems in production, covering orchestration, tool-use (MCP), and critical operational concerns like observability and data handling, which are central to AGNTCon and MCPCon themes."
+concepts: ["mcp", "orchestration", "evaluation", "security", "observability"]
+relevance_score: 0.95
+relevance_rationale: "Production case study of a 16-agent ADK system serving 5,000+ developers with concrete orchestration patterns, MCP tool integration, and battle-tested fixes for stream draining, recency drift, and root-agent anti-patterns."
 resources:
-  - url: "https://twitter.com/codewith_ahsan"
-    label: "Muhammad Ahsan Ayaz's Twitter"
   - url: "https://github.com/AhsanAyaz/code-with-ahsan"
-    label: "Code from the session"
+    label: "Production Multi-Agent System Code"
   - url: "https://bio.link/codewithahsan"
-    label: "Muhammad Ahsan Ayaz's Bio Link"
+    label: "Speaker Profile & Links"
+  - url: "https://twitter.com/codewith_ahsan"
+    label: "Speaker Twitter"
 ---
 
 # An Orchestra of Agents: What I Learned Running a Multi-Agent System for 5,000+ Developers
 
 **Canonical Presentation on Sched:** [An Orchestra of Agents: What I Learned Running a Multi-Agent System for 5,000+ Developers](https://agntconmcpconeu26.sched.com/event/2RB8M/an-orchestra-of-agents-what-i-learned-running-a-multi-agent-system-for-5000+-developers-muhammad-ahsan-ayaz-scania)  
 **Speakers:** Muhammad Ahsan Ayaz (Software Architect, Scania)  
-**Relevance Score:** `0.98`
+**Relevance Score:** `0.95`
 
 ## Essence
 
-This talk dissects the journey of building and operating a multi-agent system for 5,000+ developers, moving beyond single-LLM agents to a robust 'orchestra' of 12 specialist agents. The core insight is the necessity of sophisticated orchestration primitives, including sequential pipelines, parallel fan-out, and LLM-driven dynamic routing, to handle real-world complexity and scale. Each agent is equipped with MCP tools, enabling them to interact with external systems like GitHub and StackOverflow. The speaker highlights critical production challenges such as drain-loop bugs, recency drift in RAG, and the essential, often overlooked, callback layers for PII sanitization, caching, and observability, emphasizing that production systems demand deterministic design where possible, reserving LLMs for dynamic routing and complex decision-making.
+Muhammad Ahsan Ayaz details the production architecture of a 16-agent system serving 5,000+ developers, built on Google's Agent Development Kit (ADK) with MCP tool integration. The system decomposes community queries into a tree of specialist agents coordinated through three orchestration primitives: sequential pipelines (onboarding chains three agents), parallel fan-out (external knowledge agents query GitHub, Dev.to, and StackOverflow simultaneously), and LLM-driven dynamic routing at the root. The critical architectural invariant is a route-only root agent—stripped of tools and opinions—that delegates exclusively to leaf agents, avoiding the "busy conductor pitfall" where a tool-holding root starves sub-agents. Recency drift (surfacing 2020 content in 2026) was fixed with a ten-token callback injecting the current UTC date into system_instruction, eliminating a round-trip get_date tool call. A drain-loop bug cancelled ParallelAgent mid-flight because ADK's Event.is_final_response() returns true per participating agent; the fix requires fully draining the event stream and handling synthesizer/leaf race conditions in fan-out. A cross-cutting callback layer handles PII sanitization, caching, and observability—none documented in tutorials. The guiding principle: determinism where possible, LLMs only where necessary, and always drain the whole stream.
 
 ## Key Takeaways & Recommendations
 
-- Implement determinism wherever possible in agent workflows, using LLMs only where dynamic routing or complex reasoning is strictly necessary.
-- Design robust orchestration primitives for sequential, parallel, and dynamically routed agent interactions.
-- Build essential callback layers for PII sanitization, caching, and comprehensive observability, as these are critical for production stability and compliance.
-- Ensure proper stream draining mechanisms to prevent issues like agents cancelling mid-flight or resource leaks.
+- Enforce route-only root agents: orchestrators route, leaves work. Never attach tools to the root agent; all MCP tool use lives in specialist leaf agents.
+- Inject current date via callback_context.append_instructions() (≈10 tokens) instead of a get_date tool to eliminate latency and prevent recency drift in external knowledge retrieval.
+- Always drain the complete event stream in multi-agent invocations; handle Event.is_final_response() per participant and write regression tests for fan-out race conditions (synthesizer vs. fastest leaf).
+- Build a reusable callback layer for cross-cutting concerns: PII sanitization, response caching, and structured observability hooks before they become production incidents.
+- Prefer deterministic orchestration primitives (sequential, parallel, explicit routing) over LLM-driven planning for predictable latency and debuggability at scale.
+
+## Production Gotchas & Failure Modes
+
+- Drain-loop cancels ParallelAgent mid-flight when the orchestrator stops consuming events after the first Event.is_final_response(), leaving parallel branches unfinished.
+- Recency drift surfaces stale third-party content (e.g., 2020 articles in 2026) because the LLM lacks a grounded current date; fixed by callback-injected date, not a tool call.
+- Root agent hoarding tools (busy conductor pitfall) starves leaf agents of turns, breaking delegation; the root must be route-only with zero tools.
 
 ## Discovered Resources
 
-- [Muhammad Ahsan Ayaz's Twitter](https://twitter.com/codewith_ahsan)
-- [Code from the session](https://github.com/AhsanAyaz/code-with-ahsan)
-- [Muhammad Ahsan Ayaz's Bio Link](https://bio.link/codewithahsan)
+- [Production Multi-Agent System Code](https://github.com/AhsanAyaz/code-with-ahsan)
+- [Speaker Profile & Links](https://bio.link/codewithahsan)
+- [Speaker Twitter](https://twitter.com/codewith_ahsan)
 
 ## Related Concepts
 
-- [[orchestration]]
-- [[tool-use]]
-- [[rag]]
-- [[observability]]
 - [[mcp]]
+- [[orchestration]]
+- [[evaluation]]
+- [[security]]
+- [[observability]]
