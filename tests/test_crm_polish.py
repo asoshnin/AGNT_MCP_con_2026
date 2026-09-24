@@ -65,8 +65,8 @@ def test_crm_inquiries_enrichment_and_categories(temp_crm_db):
         initial_message="We want to sponsor AGNTCon."
     )
 
-    # 3. General inquiry (feedback)
-    inq_gen = crm_db.create_inquiry(
+    # 3. Community Feedback inquiry (feedback)
+    inq_fb = crm_db.create_inquiry(
         inquiry_type="feedback",
         name="Visitor Charlie",
         email="charlie@gmail.com",
@@ -74,18 +74,29 @@ def test_crm_inquiries_enrichment_and_categories(temp_crm_db):
         initial_message="When will recordings be available?"
     )
 
+    # 4. General inquiry (other)
+    inq_gen = crm_db.create_inquiry(
+        inquiry_type="general",
+        name="Visitor Dave",
+        email="dave@gmail.com",
+        title="General Question",
+        initial_message="Where is RAI Amsterdam located?"
+    )
+
     # Fetch all
     items = crm_db.get_inquiries_list()
-    assert len(items) == 3
+    assert len(items) == 4
 
     item_map = {i["id"]: i for i in items}
     pres_item = item_map[inq_pres["id"]]
     collab_item = item_map[inq_collab["id"]]
+    fb_item = item_map[inq_fb["id"]]
     gen_item = item_map[inq_gen["id"]]
 
     # Check categories
     assert pres_item["category"] == "presenter"
     assert collab_item["category"] == "collaboration"
+    assert fb_item["category"] == "feedback"
     assert gen_item["category"] == "general"
 
     # Check initial unread status (status='new' and last sender was client)

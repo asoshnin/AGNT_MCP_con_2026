@@ -100,6 +100,7 @@ def get_inquiries_list(status_filter: str = None, category_filter: str = None) -
         CASE 
             WHEN LOWER(i.type) IN ('submission_review', 'submission review', 'speaker_dispute', 'correction', 'speaker') THEN 'presenter'
             WHEN LOWER(i.type) IN ('collaboration', 'partnership', 'enterprise_pilot', 'pilot') THEN 'collaboration'
+            WHEN LOWER(i.type) IN ('feedback', 'community_feedback', 'community feedback') THEN 'feedback'
             ELSE 'general'
         END AS category,
         CASE 

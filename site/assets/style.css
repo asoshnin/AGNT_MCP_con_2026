@@ -81,6 +81,17 @@ html[data-theme='light'] header {
   color: var(--text-primary);
 }
 
+.site-title a {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.site-title a:hover {
+  opacity: 0.85;
+}
+
 .site-title span {
   color: var(--accent);
 }

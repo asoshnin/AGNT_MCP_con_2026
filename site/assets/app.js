@@ -279,6 +279,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   initApp();
   initTheme();
   sendTelemetry("page_view");
+
+  const siteLogoLink = document.getElementById("site-logo-link");
+  if (siteLogoLink) {
+    siteLogoLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }
   // Prevent browser form history from auto-filling into search box
   const searchInput = document.getElementById("search-input");
   const searchClear = document.getElementById("search-clear");

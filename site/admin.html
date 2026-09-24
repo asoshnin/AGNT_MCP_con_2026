@@ -75,7 +75,8 @@
     .cat-badge { font-size: 0.7rem; font-weight: 600; padding: 1px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px; }
     .cat-presenter { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); }
     .cat-collaboration { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
-    .cat-general { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); }
+    .cat-feedback { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); }
+    .cat-general { background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.4); }
     .truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   </style>
 </head>
@@ -123,7 +124,8 @@
             <button class="crm-cat-btn active" data-cat="all">All (<span id="cat-count-all">0</span>)</button>
             <button class="crm-cat-btn" data-cat="presenter">🎤 Presenters (<span id="cat-count-pres">0</span>)</button>
             <button class="crm-cat-btn" data-cat="collaboration">🤝 Collab (<span id="cat-count-collab">0</span>)</button>
-            <button class="crm-cat-btn" data-cat="general">💬 General (<span id="cat-count-gen">0</span>)</button>
+            <button class="crm-cat-btn" data-cat="feedback">💬 Feedback (<span id="cat-count-feedback">0</span>)</button>
+            <button class="crm-cat-btn" data-cat="general">🌐 General (<span id="cat-count-gen">0</span>)</button>
           </div>
           <div class="crm-tabs">
             <button class="crm-tab active" data-filter="all">All</button>
@@ -319,22 +321,25 @@
     }
 
     function updateCategoryCounts() {
-      let countAll = 0, countPres = 0, countCollab = 0, countGen = 0;
+      let countAll = 0, countPres = 0, countCollab = 0, countFb = 0, countGen = 0;
       ALL_INQUIRIES.forEach(inq => {
         if (CURRENT_STATUS_FILTER !== "all" && CURRENT_STATUS_FILTER !== "archived" && inq.status !== CURRENT_STATUS_FILTER) return;
         if (CURRENT_STATUS_FILTER === "archived" && inq.status !== "archived") return;
         countAll++;
         if (inq.category === "presenter") countPres++;
         else if (inq.category === "collaboration") countCollab++;
+        else if (inq.category === "feedback") countFb++;
         else countGen++;
       });
       const elAll = document.getElementById("cat-count-all");
       const elPres = document.getElementById("cat-count-pres");
       const elCollab = document.getElementById("cat-count-collab");
+      const elFb = document.getElementById("cat-count-feedback");
       const elGen = document.getElementById("cat-count-gen");
       if (elAll) elAll.textContent = countAll;
       if (elPres) elPres.textContent = countPres;
       if (elCollab) elCollab.textContent = countCollab;
+      if (elFb) elFb.textContent = countFb;
       if (elGen) elGen.textContent = countGen;
     }
 
@@ -359,13 +364,16 @@
         const isSelected = inq.id === ACTIVE_TICKET_ID;
         const isChecked = SELECTED_IDS.has(inq.id);
         const cat = inq.category || "general";
-        let catIcon = "💬", catLabel = "General";
+        let catIcon = "🌐", catLabel = "General";
         if (cat === "presenter") {
           catIcon = "🎤";
           catLabel = "Presenter";
         } else if (cat === "collaboration") {
           catIcon = "🤝";
           catLabel = "Collab";
+        } else if (cat === "feedback") {
+          catIcon = "💬";
+          catLabel = "Feedback";
         }
 
         const snippet = inq.last_message_body || inq.title || "No messages yet";
