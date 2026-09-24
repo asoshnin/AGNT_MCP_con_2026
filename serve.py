@@ -1184,6 +1184,20 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
             # 5. Call MCP tool_answer_conference via Async Semaphore Queue
             loop = get_or_create_loop()
 
+            # Pre-compute citations for guaranteed graceful degradation on timeout (DOM-02 Invariant)
+            fallback_citations = []
+            try:
+                raw_talks = tool_search_talks(question, only_with_slides=only_slides, limit=3)
+                for t in raw_talks:
+                    if isinstance(t, dict) and "id" in t:
+                        fallback_citations.append({
+                            "id": t["id"],
+                            "title": t.get("title", ""),
+                            "sched_url": t.get("sched_url", f"https://agntconmcpconeu26.sched.com/event/{t['id']}/")
+                        })
+            except Exception:
+                pass
+
             async def _execute_chat():
                 global ACTIVE_TASKS, WAITING_TASKS
                 acquired = False
@@ -1224,7 +1238,8 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(json.dumps({
                     "error": "gateway_timeout",
-                    "message": "Inference request timed out after 45 seconds in queue/generation."
+                    "message": "Free cloud inference is experiencing high demand and timed out after 45 seconds.",
+                    "citations": fallback_citations
                 }).encode("utf-8"))
                 return
             except Exception as e:
@@ -1234,7 +1249,8 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(json.dumps({
                     "error": "cascade_unavailable",
-                    "message": f"Inference execution error: {e}"
+                    "message": f"Inference execution error: {e}",
+                    "citations": fallback_citations
                 }).encode("utf-8"))
                 return
 

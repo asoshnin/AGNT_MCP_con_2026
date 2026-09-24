@@ -1,0 +1,121 @@
+id: pipe-assistant-resilience-refactoring-v1
+name: AGNTCon Assistant Resilience Cascade Timeouts and UX Hardening Pipeline
+version: "1.0.0"
+status: canonical
+domain: refactoring
+tags:
+  - refactor
+  - resilience
+  - timeout_cascade
+  - defensive_ui
+  - multi_cloud
+required_inputs:
+  - mcp_server.py
+  - serve.py
+  - site/assets/app.js
+  - site/assets/style.css
+  - docs/PROPOSAL_ASSISTANT_RESILIENCE_AND_UX.md
+target_deliverables:
+  - out/ASSISTANT_RESILIENCE_CERTIFICATION.md
+description: >
+  Canonical VWOOSH Kahn DAG refactoring pipeline implementing adversarially-refined resilience:
+  rebalancing per-provider gateway timeouts to 18s, pre-computing citations for 504 payloads,
+  defensive JSON response parsing, and stateful retry UX with XSS prevention.
+budget_limit_usd: 0.50
+timeout_seconds: 600
+circuit_breakers:
+  max_consecutive_errors: 2
+  abort_on_degradation: true
+stages:
+  - id: stage_01_backend_refactor
+    name: Backend Timeout Rebalancing and Citation Preservation
+    type: single_pass
+    depends_on: []
+    inputs:
+      - mcp_server.py
+      - serve.py
+      - docs/PROPOSAL_ASSISTANT_RESILIENCE_AND_UX.md
+    outputs:
+      - out/stage_01_backend_refactor.json
+    role: backend_architect
+    skill: vwoosh-pipeline-engine
+    tools_allow:
+      - read
+      - write
+      - edit
+      - exec
+    sandbox_policy: inherit
+
+  - id: stage_02_frontend_refactor
+    name: Defensive Response Parsing and Stateful Retry UX
+    type: single_pass
+    depends_on:
+      - stage_01_backend_refactor
+    inputs:
+      - site/assets/app.js
+      - site/assets/style.css
+      - out/stage_01_backend_refactor.json
+    outputs:
+      - out/stage_02_frontend_refactor.json
+    role: frontend_architect
+    skill: vwoosh-pipeline-engine
+    tools_allow:
+      - read
+      - write
+      - edit
+      - exec
+    sandbox_policy: inherit
+
+  - id: stage_03_quality_gates
+    name: Deterministic Unit Testing and Quality Gates
+    type: single_pass
+    depends_on:
+      - stage_02_frontend_refactor
+    inputs:
+      - out/stage_01_backend_refactor.json
+      - out/stage_02_frontend_refactor.json
+    outputs:
+      - out/stage_03_quality_gates.json
+    role: qa_engineer
+    skill: test-suite-architect
+    tools_allow:
+      - read
+      - write
+      - exec
+    sandbox_policy: inherit
+
+  - id: stage_04_deployment_and_sync
+    name: Multi-Cloud Production Deployment and Service Verification
+    type: single_pass
+    depends_on:
+      - stage_03_quality_gates
+    inputs:
+      - out/stage_03_quality_gates.json
+    outputs:
+      - out/stage_04_deployment_and_sync.json
+    role: devops_engineer
+    skill: diagnose-gateway
+    tools_allow:
+      - read
+      - write
+      - exec
+    sandbox_policy: inherit
+
+  - id: stage_05_certification
+    name: Final Architecture Certification and Delivery
+    type: single_pass
+    depends_on:
+      - stage_04_deployment_and_sync
+    inputs:
+      - out/stage_01_backend_refactor.json
+      - out/stage_02_frontend_refactor.json
+      - out/stage_03_quality_gates.json
+      - out/stage_04_deployment_and_sync.json
+    outputs:
+      - out/ASSISTANT_RESILIENCE_CERTIFICATION.md
+    role: delivery_architect
+    skill: vwoosh-autonomous-doc-factory
+    tools_allow:
+      - read
+      - write
+    sandbox_policy: inherit

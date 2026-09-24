@@ -1614,6 +1614,62 @@ function setupChat() {
   const chatInput = document.getElementById("chat-input");
   const chatMessages = document.getElementById("chat-messages");
 
+  let lastSubmittedQuestion = "";
+
+  window.retryLastChatQuestion = function(btn) {
+    if (!lastSubmittedQuestion) return;
+    if (btn) {
+      btn.disabled = true;
+      const originalText = btn.textContent;
+      btn.textContent = "⏳ Retrying...";
+      setTimeout(() => {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = originalText;
+        }
+      }, 3000);
+    }
+    if (chatInput && chatForm) {
+      chatInput.value = lastSubmittedQuestion;
+      chatForm.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+    }
+  };
+
+  function renderResilienceCard(title, description, statusBadge, citations = []) {
+    let citationsHtml = "";
+    if (citations && citations.length > 0) {
+      citationsHtml = `
+        <div class="chat-citations" style="margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(234, 179, 8, 0.25); font-size: 0.8rem;">
+          <strong style="color: var(--accent);">📖 Relevant Conference Presentations (from local RAG index):</strong><br>
+          ${citations.map((c) => `
+            <div style="margin-top: 6px; line-height: 1.4;">
+              <strong>[${escapeHtml(c.id)}]</strong> <a href="${escapeHtml(c.sched_url)}" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: underline;">${escapeHtml(c.title)}</a>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    return `
+      <div style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.3); border-radius: 10px; padding: 14px; color: var(--text-primary); font-size: 0.85rem; line-height: 1.5;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
+          <strong style="color: #eab308; font-size: 0.9rem;">${title}</strong>
+          ${statusBadge ? `<span style="font-size: 0.7rem; background: rgba(234, 179, 8, 0.2); color: #eab308; padding: 1px 6px; border-radius: 4px; font-family: monospace;">${statusBadge}</span>` : ""}
+        </div>
+        <p style="margin: 0 0 10px 0; color: var(--text-secondary); font-size: 0.83rem;">${description}</p>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 4px;">
+          <button type="button" class="btn-header" onclick="window.retryLastChatQuestion(this)" style="background: var(--accent); color: #0b0f19; font-weight: 600; padding: 4px 12px; font-size: 0.8rem; border: none; border-radius: 5px; cursor: pointer;">
+            🔄 Retry Question
+          </button>
+          <button type="button" class="btn-header" onclick="document.getElementById('btn-open-settings').click()" style="padding: 4px 10px; font-size: 0.8rem; border-radius: 5px; cursor: pointer;">
+            ⚙️ Connect Local LLM / Own Key
+          </button>
+        </div>
+        ${citationsHtml}
+      </div>
+    `;
+  }
+
   updateChatEngineBadge();
   updateChatProfileIndicator();
 
@@ -1676,6 +1732,7 @@ function setupChat() {
     const q = chatInput.value.trim();
     if (!q) return;
 
+    lastSubmittedQuestion = q;
     appendMsg(q, "user");
     chatInput.value = "";
 
@@ -1883,10 +1940,17 @@ CRITICAL INVARIANTS:
         }),
       });
 
-      const data = await res.json();
+      let data = {};
+      try {
+        const rawText = await res.text();
+        data = JSON.parse(rawText);
+      } catch (parseErr) {
+        data = { error: "non_json_response", status: res.status };
+      }
+
       const botEl = document.getElementById(loadingId);
 
-      if (res.ok) {
+      if (res.ok && data.answer) {
         let html = `<div>${formatBotMarkdown(data.answer)}</div>`;
         if (data.citations && data.citations.length > 0) {
           html += `<div class="chat-citations" style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 0.82rem;">
@@ -1912,43 +1976,41 @@ CRITICAL INVARIANTS:
           <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px; color: var(--text-primary); font-size: 0.85rem; line-height: 1.5;">
             <strong style="color: #ef4444;">⏳ Concurrency Queue Full (HTTP 429)</strong><br><br>
             ${escapeHtml(data.message || data.error || "The server is currently experiencing high concurrent traffic. Please wait a few seconds and try again.")}
+            <div style="margin-top: 10px;">
+              <button type="button" class="btn-header" onclick="window.retryLastChatQuestion(this)" style="background: var(--accent); color: #0b0f19; font-weight: 600; padding: 4px 12px; font-size: 0.8rem;">🔄 Retry Now</button>
+            </div>
           </div>
         `;
-      } else if (res.status === 504) {
-        botEl.innerHTML = `
-          <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px; color: var(--text-primary); font-size: 0.85rem; line-height: 1.5;">
-            <strong style="color: #ef4444;">⏱️ Request Timeout (HTTP 504)</strong><br><br>
-            ${escapeHtml(data.message || data.error || "Inference request timed out after 45 seconds in queue/generation.")}
-          </div>
-        `;
+      } else if (res.status === 504 || res.status === 524) {
+        botEl.innerHTML = renderResilienceCard(
+          "⏳ Free Cloud AI is Experiencing High Demand",
+          "Public free inference models took longer than 45 seconds to generate an answer. You can retry immediately, browse matched sessions, or connect your local model in Settings.",
+          `HTTP ${res.status}`,
+          data.citations || []
+        );
       } else if (res.status === 503 || (data && (data.error === "cascade_unavailable" || data.error === "gateway_busy"))) {
-        let citationsHtml = "";
-        if (data.citations && data.citations.length > 0) {
-          citationsHtml = `<div class="chat-citations" style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(234, 179, 8, 0.3); font-size: 0.8rem;">
-            <strong>Relevant Presentations Matched by RAG:</strong><br>
-            ${data.citations.map((c) => `
-              <div style="margin-top: 4px;">
-                <strong>[${escapeHtml(c.id)}]</strong> <a href="${escapeHtml(c.sched_url)}" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: underline;">${escapeHtml(c.title)}</a>
-              </div>
-            `).join("")}
-          </div>`;
-        }
-        botEl.innerHTML = `
-          <div style="background: rgba(234, 179, 8, 0.12); border: 1px solid rgba(234, 179, 8, 0.35); border-radius: 8px; padding: 12px; color: var(--text-primary); font-size: 0.85rem; line-height: 1.5;">
-            <strong style="color: #eab308; display: block; margin-bottom: 4px;">⚠️ Public Free Cloud Gateway Currently at Capacity</strong>
-            All public free-tier models are currently busy or rate-limited.<br><br>
-            <strong>To continue immediately without limits:</strong><br>
-            • Connect local Ollama / LM Studio or your own free API key: <button class="btn-header" onclick="document.getElementById('btn-open-settings').click()" style="padding: 2px 8px; font-size: 0.78rem; margin: 2px 0;">⚙️ Open Settings</button><br>
-            • Or query offline using our pre-indexed SQLite bundle.
-            ${citationsHtml}
-          </div>
-        `;
+        botEl.innerHTML = renderResilienceCard(
+          "⚠️ Public Free Cloud Gateway at Capacity",
+          "All public free-tier models are temporarily busy or rate-limited. Retrying typically connects on the next available slot.",
+          `HTTP ${res.status || 503}`,
+          data.citations || []
+        );
       } else {
-        botEl.innerHTML = `<div style="color: #f87171;">${escapeHtml(data.error || "Error retrieving response.")}</div>`;
+        botEl.innerHTML = renderResilienceCard(
+          "📡 Inference Gateway Interrupted",
+          escapeHtml(data.message || data.error || "The request could not be completed at this moment."),
+          res.status ? `HTTP ${res.status}` : null,
+          data.citations || []
+        );
       }
     } catch (err) {
       const botEl = document.getElementById(loadingId);
-      botEl.innerHTML = `<div style="color: #f87171;">Connection error to /api/chat. Is serve.py running?</div>`;
+      botEl.innerHTML = renderResilienceCard(
+        "📡 Network or Gateway Interrupted",
+        "The connection to the inference gateway was momentarily interrupted or closed. Please retry your question.",
+        "Connection Closed",
+        []
+      );
     } finally {
       if (queuePollInterval) {
         clearInterval(queuePollInterval);

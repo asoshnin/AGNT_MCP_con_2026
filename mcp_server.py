@@ -248,7 +248,8 @@ CRITICAL INVARIANTS:
         
     for gw in gateways:
         try:
-            async with httpx.AsyncClient(timeout=45.0) as client:
+            # Rebalanced cascade budget: 18.0s per provider ensures fallback within outer 45.0s server timeout
+            async with httpx.AsyncClient(timeout=18.0) as client:
                 req_json = {
                     "model": gw["model"],
                     "messages": [
