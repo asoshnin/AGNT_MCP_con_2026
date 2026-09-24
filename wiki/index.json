@@ -1,48 +1,5 @@
 [
   {
-    "id": "2RB8n",
-    "title": "We Built AI Agents To Fix Security Findings in Production — Here's What Developers Actually Merged",
-    "speakers": [
-      "Amine Boudraa",
-      "Ruchita Kshirsagar",
-      "Nihit Gupta",
-      "Gianfranco Romani"
-    ],
-    "sched_url": "https://agntconmcpconeu26.sched.com/event/2RB8n/we-built-ai-agents-to-fix-security-findings-in-production-heres-what-developers-actually-merged-amine-boudraa-ruchita-kshirsagar-nihit-gupta-gianfranco-romani-thomson-reuters",
-    "concepts": [
-      "mcp",
-      "security",
-      "orchestration",
-      "evaluation",
-      "tool-use"
-    ],
-    "relevance_score": 0.98,
-    "relevance_rationale": "Directly addresses the practical application and challenges of building and deploying AI agents for security remediation in a production enterprise environment, including architectural considerations for trust and scale.",
-    "one_paragraph": "Thomson Reuters developed and deployed specialized AI agents to autonomously remediate security vulnerabilities (SAST and SCA findings) in production codebases, addressing the growing 'remediation gap' where vulnerability discovery outpaces manual fixes. Unlike general-purpose AI assistants, these agents are integrated into a comprehensive remediation system that manages the entire lifecycle of a fix, from creating optimized pull requests to tracking their status, repairing breaking changes, and re-verifying until merged. The core insight is that achieving developer trust and high merge rates ",
-    "has_slides": true,
-    "wiki_path": "wiki/sources/2RB8n.md"
-  },
-  {
-    "id": "2RB8q",
-    "title": "A2A Goes Stable: What Changed, Why, and What's Next",
-    "speakers": [
-      "Sam Betts",
-      "Kuba Herczyński"
-    ],
-    "sched_url": "https://agntconmcpconeu26.sched.com/event/2RB8q/a2a-goes-stable-what-changed-why-and-whats-next-sam-betts-cisco-systems-kuba-herczynski-google",
-    "concepts": [
-      "orchestration",
-      "security",
-      "mcp",
-      "evaluation"
-    ],
-    "relevance_score": 0.98,
-    "relevance_rationale": "Directly addresses the stabilization and future of agent-to-agent communication, a core theme of AGNTCon, with explicit mentions of MCP and architectural considerations for agent systems.",
-    "one_paragraph": "The A2A Protocol v1.0 marks a critical transition from an experimental agent-to-agent communication standard to a stable, production-ready foundation. This release prioritizes maturity and enterprise capabilities, introducing features like signed Agent Cards, multi-tenancy, and modern OAuth flows, all built on a web-aligned architecture. Key changes include a single normative source of truth (a2a.proto), explicit compatibility rules with per-interface versioning, and formally specified bindings for JSON-RPC, HTTP+JSON, and gRPC. The protocol maintains backward compatibility with v0.3 through o",
-    "has_slides": true,
-    "wiki_path": "wiki/sources/2RB8q.md"
-  },
-  {
     "id": "2RB8t",
     "title": "MCP Doesn't Have a Context Problem",
     "speakers": [
@@ -651,25 +608,6 @@
     "one_paragraph": "The MCP's new asynchronous Tasks primitive, designed for long-running tool calls, presents significant implementation challenges regarding durability, state management, and exactly-once delivery. This talk proposes an append-only event log as a robust, vendor-neutral backend for these tasks. By modeling tasks as state machines where transitions are logged as events, the system achieves durability through log replay for recovery and enables stateless servers. This architecture addresses critical production failure modes like orphaned tasks and duplicate side effects, while acknowledging current",
     "has_slides": false,
     "wiki_path": "wiki/sources/2RB8b.md"
-  },
-  {
-    "id": "2RB8h",
-    "title": "From Opaque To Observable: Tracing Multi-Agent OpenClaw Workflows With OpenTelemetry",
-    "speakers": [
-      "Jordan Augé"
-    ],
-    "sched_url": "https://agntconmcpconeu26.sched.com/event/2RB8h/from-opaque-to-observable-tracing-multi-agent-openclaw-workflows-with-opentelemetry-jordan-auge-cisco-systems",
-    "concepts": [
-      "observability",
-      "orchestration",
-      "evaluation",
-      "mcp"
-    ],
-    "relevance_score": 0.95,
-    "relevance_rationale": "Directly addresses critical observability challenges in multi-agent systems (MCP) and provides a concrete OpenTelemetry-based architectural solution for tracing complex agent workflows, which is central to AGNTCon and MCPCon themes.",
-    "one_paragraph": "The talk introduces InsightClaw, an OpenTelemetry-based observability plugin for OpenClaw multi-agent systems, addressing the inherent opaqueness of complex agentic workflows. It tackles critical blind spots like context assembly, routing, memory lifecycle, and decision checkpoints by providing a unified telemetry story. InsightClaw achieves this through typed lifecycle hooks, diagnostic events for model usage and costs, and optional provider SDK auto-instrumentation, generating connected traces, operational metrics, and cross-session lineage. This enables comprehensive 'agent forensics' by co",
-    "has_slides": true,
-    "wiki_path": "wiki/sources/2RB8h.md"
   },
   {
     "id": "2RB8k",
@@ -1390,6 +1328,29 @@
     "wiki_path": "wiki/sources/2RBSY.md"
   },
   {
+    "id": "2RB8n",
+    "title": "We Built AI Agents To Fix Security Findings in Production — Here's What Developers Actually Merged",
+    "speakers": [
+      "Amine Boudraa",
+      "Ruchita Kshirsagar",
+      "Nihit Gupta",
+      "Gianfranco Romani"
+    ],
+    "sched_url": "https://agntconmcpconeu26.sched.com/event/2RB8n/we-built-ai-agents-to-fix-security-findings-in-production-heres-what-developers-actually-merged-amine-boudraa-ruchita-kshirsagar-nihit-gupta-gianfranco-romani-thomson-reuters",
+    "concepts": [
+      "mcp",
+      "security",
+      "sandboxing",
+      "orchestration",
+      "agent-gateway"
+    ],
+    "relevance_score": 0.93,
+    "relevance_rationale": "High-relevance production case study on MCP‑based automated remediation agents operating at enterprise scale with measurable PR throughput and token efficiency.",
+    "one_paragraph": "The session described a production‑grade remediation system that deploys two specialized AI agents—one for SAST findings in first‑party code and another for SCA findings in third‑party libraries—to autonomously raise and manage pull requests across hundreds of repositories. The core problem addressed is the widening gap between vulnerability discovery (driven by AI‑assisted scanners) and manual remediation, where CVE submissions grew 263% from 2020 to 2025 while remediation improved only 19% year‑over‑year. To bridge this gap, the team built a remediation loop that combines deterministic, mode",
+    "has_slides": true,
+    "wiki_path": "wiki/sources/2RB8n.md"
+  },
+  {
     "id": "2RBMy",
     "title": "AGNTCon + MCPCon Europe 2026: Keynote: MCP and the Era of Connectivity...",
     "speakers": [
@@ -1405,23 +1366,24 @@
     "wiki_path": "wiki/sources/2RBMy.md"
   },
   {
-    "id": "2RB8P",
-    "title": "Legal Implications Under EU Law When Deploying AI Agents",
+    "id": "2RB8h",
+    "title": "From Opaque To Observable: Tracing Multi-Agent OpenClaw Workflows With OpenTelemetry",
     "speakers": [
-      "Mirela Takacs"
+      "Jordan Augé"
     ],
-    "sched_url": "https://agntconmcpconeu26.sched.com/event/2RB8P/legal-implications-under-eu-law-when-deploying-ai-agents-mirela-takacs-law-office-takacs-mirela",
+    "sched_url": "https://agntconmcpconeu26.sched.com/event/2RB8h/from-opaque-to-observable-tracing-multi-agent-openclaw-workflows-with-opentelemetry-jordan-auge-cisco-systems",
     "concepts": [
       "mcp",
       "security",
-      "evaluation",
+      "agent-gateway",
+      "observability",
       "orchestration"
     ],
     "relevance_score": 0.92,
-    "relevance_rationale": "Directly addresses the critical legal and compliance aspects of deploying AI agents, which is central to the AGNTCon and MCPCon themes, especially concerning risk management and architectural considerations for responsible AI.",
-    "one_paragraph": "This talk posits that legal compliance, particularly under EU law, should be an integral part of AI agent system architecture from the design phase, rather than an afterthought. The EU AI Act serves as the foundational regulation, categorizing AI systems by risk (minimal, limited, high, unacceptable) and imposing corresponding obligations on both providers and deployers. However, the speaker emphasizes that an agent's specific functions can activate a broader array of adjacent EU legislation, such as GDPR or consumer protection laws. Proactive mapping of an agent's actions, data access, and ou",
+    "relevance_rationale": "This session directly addresses the critical gap between OpenClaw's basic OpenTelemetry diagnostics and the operational needs of multi-agent workflows requiring cross-agent traceability, context continuity, and semantic-compliant telemetry. The proposed plugin bridges the observability gap with concrete architectural patterns (typed lifecycle hooks, fork/join span linking, derived metrics) and ties into established standards (OTel GenAI semconv), making it immediately applicable to production deployments seeking observable, auditable agent systems.",
+    "one_paragraph": "This session presents an open observability extension for OpenClaw (InsightClaw) that transforms opaque multi-agent workflows into connected telemetry stories using OpenTelemetry. The core problem is that OpenClaw's built-in diagnostics-otel exporter provides only local runtime diagnostics—agent logs, tool calls, session state—and lacks cross-agent, lifecycle-level visibility needed for 'agent forensics' such as agent-to-agent interactions, sub-agent trees, memory changes, and end-to-end correlation across workflows. The proposed solution introduces a new plugin that unifies four signal paths:",
     "has_slides": true,
-    "wiki_path": "wiki/sources/2RB8P.md"
+    "wiki_path": "wiki/sources/2RB8h.md"
   },
   {
     "id": "2RB9W",
@@ -1613,6 +1575,27 @@
     "slide_url": "/assets/slides/2RB8Y.pdf"
   },
   {
+    "id": "2RB8q",
+    "title": "A2A Goes Stable: What Changed, Why, and What's Next",
+    "speakers": [
+      "Sam Betts",
+      "Kuba Herczyński"
+    ],
+    "sched_url": "https://agntconmcpconeu26.sched.com/event/2RB8q/a2a-goes-stable-what-changed-why-and-whats-next-sam-betts-cisco-systems-kuba-herczynski-google",
+    "concepts": [
+      "a2a",
+      "security",
+      "identity",
+      "orchestration",
+      "governance"
+    ],
+    "relevance_score": 0.91,
+    "relevance_rationale": "High-relevance production case study on A2A Protocol v1.0 stabilization, covering security architecture (signed Agent Cards, OAuth hardening), enterprise multi-tenancy, and migration strategy from v0.3 — directly applicable to platform engineers building agent-to-agent communication systems.",
+    "one_paragraph": "A2A Protocol v1.0 marks the transition from experimental agent-to-agent communication to a production-grade, Linux Foundation-governed standard. The core architectural shift addresses v0.3's trust-on-first-use Agent Card model, which was unacceptable for enterprise deployment. v1.0 establishes a single normative artifact (a2a.proto) as the universal protocol definition, decoupled from any specific transport. Three binding formats — JSON-RPC, HTTP+JSON, and gRPC — are formally specified with equivalence guarantees, enabling heterogeneous environments without stack lock-in. The web-aligned archi",
+    "has_slides": true,
+    "wiki_path": "wiki/sources/2RB8q.md"
+  },
+  {
     "id": "2RBB4",
     "title": "How we Reclaimed Significant Engineering Capacity at Salesforce with AI Agents",
     "speakers": [
@@ -1736,6 +1719,26 @@
     "one_paragraph": "The Accord Project provides an open-source framework for creating 'smart legal agreements' that are machine-readable and executable, bridging the gap between traditional legal contracts and the agentic economy. It enables the automation of contractual obligations and payments within multi-agent systems by formalizing legal clauses into computable logic. This framework facilitates secure and verifiable interactions between autonomous agents, supporting various agent-to-agent (A2A) communication protocols and emerging payment standards like Ap2, UCP, and x402. By embedding legal enforceability d",
     "has_slides": false,
     "wiki_path": "wiki/sources/2Wt2P.md"
+  },
+  {
+    "id": "2RB8P",
+    "title": "Legal Implications Under EU Law When Deploying AI Agents",
+    "speakers": [
+      "Mirela Takacs"
+    ],
+    "sched_url": "https://agntconmcpconeu26.sched.com/event/2RB8P/legal-implications-under-eu-law-when-deploying-ai-agents-mirela-takacs-law-office-takacs-mirela",
+    "concepts": [
+      "mcp",
+      "security",
+      "governance",
+      "agent-gateway",
+      "orchestration"
+    ],
+    "relevance_score": 0.85,
+    "relevance_rationale": "High-relevance session on treating legal compliance as an architectural constraint for AI agents in the EU, with concrete article-level mappings and production failure modes around post-deployment reclassification.",
+    "one_paragraph": "The core architectural thesis is that EU legal compliance must be treated as a system constraint from the design stage, not a post-deployment checkbox. The EU AI Act provides the horizontal regulation using a four-tier risk-based classification: minimal risk (Art. 4 AI literacy only), limited risk (Art. 50 transparency obligations), high risk (Annex III use cases, Annex I regulated products), and unacceptable risk (prohibited practices under Art. 5). The critical architectural challenge is that agent classification is dynamic, not static. Three use cases illustrate this: an AI Schedule Agent m",
+    "has_slides": true,
+    "wiki_path": "wiki/sources/2RB8P.md"
   },
   {
     "id": "2W6hi",

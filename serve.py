@@ -2165,6 +2165,13 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 hub_dir=HUB_DIR,
             )
 
+            # 2.5 Trigger Background v2.2 Technical Essence Synthesis
+            try:
+                import essence_pipeline
+                essence_pipeline.trigger_background_essence_synthesis(sess_id, target_slide_path, HUB_DIR)
+            except Exception as e:
+                sys.stderr.write(f"[WARN] Failed to trigger background essence synthesis: {e}\n")
+
             # 3. Update status in submissions.sqlite
             db.update_status(sub_id, "approved")
 
