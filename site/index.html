@@ -70,6 +70,7 @@
           </button>
           <button id="btn-open-settings" class="btn-header">⚙️ Settings & MCP</button>
           <button id="btn-open-collab" class="btn-header" style="border-color: rgba(56, 189, 248, 0.4); font-weight: 600;">💼 Collaboration</button>
+          <button id="btn-open-feedback" class="btn-header" style="border-color: rgba(56, 189, 248, 0.4); font-weight: 500;">💬 Feedback</button>
         </div>
       </div>
     </header>
@@ -352,6 +353,59 @@
             <button type="button" id="collab-cancel-btn" class="btn-header">Cancel</button>
             <button type="submit" id="collab-submit-btn" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600;">
               Send Collaboration Inquiry →
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal for Community Feedback Form -->
+    <div id="feedback-community-modal-backdrop" class="modal-backdrop">
+      <div class="modal-box" style="max-width: 620px;">
+        <div class="modal-header-bar">
+          <span class="modal-title">💬 Community Feedback & Suggestions</span>
+          <button id="feedback-community-close" class="modal-close" style="position: static; font-size: 1.4rem; padding: 2px 8px; line-height: 1;">&times;</button>
+        </div>
+        <form id="community-feedback-form" class="modal-scroll-body" style="display: flex; flex-direction: column; gap: 14px;">
+          <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">
+            Found a typo in session takeaways, have an idea for an agent tool, or want to share feedback? We read every note privately.
+          </p>
+
+          <!-- Honeypot anti-spam trap -->
+          <input type="text" id="community-fb-hp" style="display: none;" tabindex="-1" autocomplete="off">
+
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 4px;">
+              <label for="community-fb-name" style="font-size: 0.78rem; font-weight: 600; color: var(--text-secondary);">Your Name (optional)</label>
+              <input type="text" id="community-fb-name" class="search-input" style="padding: 6px 10px;" placeholder="e.g. Alex (or leave blank)">
+            </div>
+            <div style="flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 4px;">
+              <label for="community-fb-email" style="font-size: 0.78rem; font-weight: 600; color: var(--text-secondary);">Your Email (optional)</label>
+              <input type="email" id="community-fb-email" class="search-input" style="padding: 6px 10px;" placeholder="If you'd like a personal reply">
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <label for="community-fb-category" style="font-size: 0.78rem; font-weight: 600; color: var(--text-secondary);">Feedback Category</label>
+            <select id="community-fb-category" class="search-input" style="padding: 6px 10px; background: var(--bg-secondary); color: var(--text-primary);">
+              <option value="General Feedback">💡 General Feedback / Suggestion</option>
+              <option value="Session Correction">📝 Correction in Session Takeaways</option>
+              <option value="MCP Feature Request">⚡ MCP Server / Agent Tool Request</option>
+              <option value="Bug Report">🐛 Bug / Display Issue</option>
+            </select>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <label for="community-fb-message" style="font-size: 0.78rem; font-weight: 600; color: var(--text-secondary);">Your Feedback *</label>
+            <textarea id="community-fb-message" class="search-input" rows="4" style="padding: 8px 12px; resize: vertical;" placeholder="Tell us what worked well, what was confusing, or what you'd like to see next..." required></textarea>
+          </div>
+
+          <div id="community-fb-status" style="font-size: 0.85rem; display: none;"></div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px;">
+            <button type="button" id="community-fb-cancel" class="btn-header">Cancel</button>
+            <button type="submit" id="community-fb-submit" class="btn-header" style="background: var(--accent); color: #0b0f19; font-weight: 600;">
+              Send Feedback →
             </button>
           </div>
         </form>
@@ -839,6 +893,8 @@
       <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
         <span>Source code & MCP server:</span>
         <a href="https://github.com/asoshnin/AGNT_MCP_con_2026" target="_blank" rel="noopener" style="color: var(--accent); font-weight: 500;">asoshnin/AGNT_MCP_con_2026</a>
+        <span style="opacity: 0.4; margin: 0 4px;">•</span>
+        <a href="javascript:void(0)" onclick="document.getElementById('btn-open-feedback').click()" style="color: var(--accent); font-weight: 500;">💬 Share Feedback</a>
       </div>
       <div>
         <span>Designed and built by <a href="https://vwoosh.com" target="_blank" rel="noopener" style="color: var(--accent); font-weight: 600;">vwoosh.com</a></span>
@@ -850,6 +906,6 @@
   <script src="assets/vendor/marked.min.js"></script>
   <script src="assets/vendor/purify.min.js"></script>
   <script src="assets/jszip.min.js"></script>
-  <script src="assets/app.js?v=20260923-v2.0.3"></script>
+  <script src="assets/app.js?v=20260924-v2.1.0"></script>
 </body>
 </html>

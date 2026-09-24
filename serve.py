@@ -27,6 +27,7 @@ import argparse
 import asyncio
 import concurrent.futures
 import csv
+import datetime
 import hashlib
 import html
 import io
@@ -1522,6 +1523,122 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 "message": "Thank you. Your feedback has been safely received and queued for review within 48 hours.",
                 "ticket_id": ticket_id,
                 "ticket_url": ticket_url
+            }).encode("utf-8"))
+            return
+
+        # General Community Feedback Endpoint (Private to Admin/Telegram/Email)
+        if path == "/api/community-feedback":
+            try:
+                content_length = int(self.headers.get("Content-Length", 0))
+                if content_length > 8192:
+                    self.send_response(400)
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": "Payload too large."}).encode("utf-8"))
+                    return
+
+                body = self.rfile.read(content_length).decode("utf-8")
+                payload = json.loads(body)
+            except Exception:
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Invalid JSON request body."}).encode("utf-8"))
+                return
+
+            # Honeypot spam trap
+            if payload.get("website_hp"):
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "ok", "message": "Feedback received."}).encode("utf-8"))
+                return
+
+            name = str(payload.get("name", "")).strip() or "Anonymous Attendee"
+            email = str(payload.get("email", "")).strip()
+            category = str(payload.get("category", "General Feedback")).strip()
+            message = str(payload.get("message", "")).strip()
+            session_id = str(payload.get("session_id", "")).strip()
+
+            if not message:
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Feedback message is required."}).encode("utf-8"))
+                return
+
+            # Register in CRM DB as private feedback
+            inq = crm_db.create_inquiry(
+                inquiry_type="feedback",
+                name=name,
+                email=email or "unspecified@community.vwoosh.com",
+                org="",
+                profile="",
+                session_id=session_id,
+                title=f"Feedback: {category} ({name})",
+                initial_message=message
+            )
+            ticket_id = inq["id"]
+
+            # Log to append-only JSONL
+            feedback_dir = os.path.join(HUB_DIR, "data")
+            os.makedirs(feedback_dir, exist_ok=True)
+            with open(os.path.join(feedback_dir, "community_feedback.jsonl"), "a", encoding="utf-8") as f:
+                f.write(json.dumps({
+                    "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    "ticket_id": ticket_id,
+                    "ip": client_ip,
+                    "name": name,
+                    "email": email,
+                    "category": category,
+                    "session_id": session_id,
+                    "message": message
+                }, ensure_ascii=False) + "\n")
+
+            # Real-time Telegram alert to maintainer
+            dispatch_telegram_alert(
+                event_emoji="💬",
+                event_type=f"Feedback: {category}",
+                ticket_id=ticket_id,
+                sender_name=name,
+                org=f"Session [[{session_id}]]" if session_id else "",
+                email=email or "No email provided",
+                profile="",
+                body=message
+            )
+
+            # Email notification to maintainer
+            maintainer_email = os.environ.get("MAINTAINER_NOTIFICATION_EMAIL", "alex@vwoosh.com")
+            email_body = f"""
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5; color: #1e293b;">
+              <h2 style="color: #0284c7; margin-top: 0;">💬 New Community Feedback Received</h2>
+              <p>A visitor has submitted feedback on the AGNTCon Knowledge Hub:</p>
+              <table style="border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 0.9rem;">
+                <tr><td style="padding: 6px; font-weight: bold; width: 130px;">Sender:</td><td style="padding: 6px;">{name}</td></tr>
+                <tr><td style="padding: 6px; font-weight: bold;">Email:</td><td style="padding: 6px;">{email or 'None provided'}</td></tr>
+                <tr><td style="padding: 6px; font-weight: bold;">Category:</td><td style="padding: 6px;">{category}</td></tr>
+                {f'<tr><td style="padding: 6px; font-weight: bold;">Session ID:</td><td style="padding: 6px;">{session_id}</td></tr>' if session_id else ''}
+                <tr><td style="padding: 6px; font-weight: bold;">Ticket:</td><td style="padding: 6px;">#{ticket_id}</td></tr>
+              </table>
+              <div style="background: #f8fafc; border-left: 4px solid #0284c7; padding: 12px; margin: 16px 0; font-size: 0.95rem;">
+                {message}
+              </div>
+            </div>
+            """
+            dispatch_resend_email(
+                to_email=maintainer_email,
+                subject=f"[AGNTCon Feedback] {category} from {name}",
+                html_body=email_body
+            )
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "ok",
+                "message": "Thank you! Your feedback has been sent directly to the project maintainer.",
+                "ticket_id": ticket_id
             }).encode("utf-8"))
             return
 

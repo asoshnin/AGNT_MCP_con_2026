@@ -2376,6 +2376,73 @@ function setupModalsAndSettings() {
     });
   }
 
+  // Community Feedback Modal
+  const communityFbModal = document.getElementById("feedback-community-modal-backdrop");
+  const btnOpenCommunityFb = document.getElementById("btn-open-feedback");
+  const communityFbClose = document.getElementById("feedback-community-close");
+  const communityFbCancel = document.getElementById("community-fb-cancel");
+  const communityFbForm = document.getElementById("community-feedback-form");
+  const communityFbStatus = document.getElementById("community-fb-status");
+
+  const openCommunityFb = () => communityFbModal && communityFbModal.classList.add("open");
+  const closeCommunityFb = () => communityFbModal && communityFbModal.classList.remove("open");
+
+  if (btnOpenCommunityFb) btnOpenCommunityFb.addEventListener("click", openCommunityFb);
+  if (communityFbClose) communityFbClose.addEventListener("click", closeCommunityFb);
+  if (communityFbCancel) communityFbCancel.addEventListener("click", closeCommunityFb);
+  if (communityFbModal) communityFbModal.addEventListener("click", (e) => { if (e.target === communityFbModal) closeCommunityFb(); });
+
+  if (communityFbForm) {
+    communityFbForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const hp = document.getElementById("community-fb-hp").value;
+      const name = document.getElementById("community-fb-name").value.trim();
+      const email = document.getElementById("community-fb-email").value.trim();
+      const category = document.getElementById("community-fb-category").value;
+      const message = document.getElementById("community-fb-message").value.trim();
+
+      communityFbStatus.style.display = "block";
+      communityFbStatus.style.color = "var(--text-secondary)";
+      communityFbStatus.textContent = "Delivering your feedback...";
+
+      try {
+        const res = await fetch("/api/community-feedback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            website_hp: hp,
+            name: name,
+            email: email,
+            category: category,
+            message: message
+          })
+        });
+        const result = await res.json();
+        if (res.ok && result.status === "ok") {
+          communityFbModal.querySelector(".modal-box").innerHTML = `
+            <button class="modal-close" onclick="document.getElementById('feedback-community-modal-backdrop').classList.remove('open'); location.reload();">&times;</button>
+            <div style="text-align: center; padding: 24px 12px;">
+              <div style="font-size: 2.5rem; margin-bottom: 8px;">💌</div>
+              <h2 style="margin: 0 0 8px 0; font-size: 1.3rem;">Thank You for Your Feedback!</h2>
+              <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.6; max-width: 480px; margin: 0 auto 20px auto;">
+                Your message has been delivered directly to the project maintainer. We appreciate you helping make this community tool better.
+              </p>
+              <button type="button" class="btn-header" onclick="document.getElementById('feedback-community-modal-backdrop').classList.remove('open'); location.reload();" style="padding: 8px 24px;">
+                Close
+              </button>
+            </div>
+          `;
+        } else {
+          communityFbStatus.style.color = "#f87171";
+          communityFbStatus.textContent = "Error: " + (result.error || "Submission failed.");
+        }
+      } catch (err) {
+        communityFbStatus.style.color = "#f87171";
+        communityFbStatus.textContent = "Connection error: Failed to reach /api/community-feedback.";
+      }
+    });
+  }
+
   // Disclaimer Modal
   const disclaimerModal = document.getElementById("disclaimer-modal-backdrop");
   const btnOpenDisclaimer = document.getElementById("btn-open-disclaimer");

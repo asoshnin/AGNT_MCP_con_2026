@@ -17,7 +17,9 @@
     "relevance_rationale": "The talk directly addresses the challenges and architectural patterns for running multi-agent systems in production, covering orchestration, tool-use (MCP), and critical operational concerns like observability and data handling, which are central to AGNTCon and MCPCon themes.",
     "one_paragraph": "Executive summary of the session deck.",
     "has_slides": true,
-    "wiki_path": "wiki/sources/2RB8M.md"
+    "wiki_path": "wiki/sources/2RB8M.md",
+    "slide_source": "community",
+    "slide_url": "/assets/slides/2RB8M.pdf"
   },
   {
     "id": "2RB8n",

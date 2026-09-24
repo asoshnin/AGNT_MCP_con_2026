@@ -1,8 +1,10 @@
 {
-  "updated_at": "2026-09-23T12:13:02.807271+00:00",
+  "updated_at": "2026-09-24T08:52:45.049960+00:00",
   "total_speakers": 111,
   "total_organizers": 2,
   "cohort_organizers_count": 2,
   "cohort_missing_slides_count": 43,
-  "cohort_slides_available_count": 68
+  "cohort_slides_available_count": 68,
+  "speakers_with_linkedin": 45,
+  "speakers_with_twitter": 20
 }
