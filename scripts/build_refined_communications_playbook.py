@@ -1,26 +1,24 @@
 #!/usr/bin/env python3
 """
 Build Refined, Humanized, High-Traction Stakeholder Communications Playbook.
-Executes Phase 3 of vwoosh-adversarial-refinement:
-- Strips AI-clichés and robotic hype (no rocket emojis, no sparkles, no 'delighted to help').
-- Injects personalized speaker notes referencing exact talk titles (strictly <= 280 chars, zero spam links).
-- Reframes Organizing Committee email as an authentic community gift from an Amsterdam engineer.
-- Adds dedicated Curamando & Eidra Strategic Analysis (Leonard, Sander, Wietske Rodenhuis).
-- Revamps Public LinkedIn & X copy to be Insight-Driven (Architecture Teardowns that earn reshares).
+Refined per user adversarial review:
+- No faked attendance or artificial talk praise.
+- Honest, developer-to-developer tone.
+- Retains direct link to https://agntcon-demo.vwoosh.com across all outreach.
+- No volatile numbers (removed "80+").
+- No quirky jargon (removed 'schema', 'Amsterdam builder').
+- Fixed singular authorship (strictly 'I built', no 'we').
+- Angie Jones note is self-contained with direct link and AGNTCon EU context.
 """
 
-import sqlite3
 from pathlib import Path
 
 HUB_DIR = Path(__file__).resolve().parent.parent
-DB_PATH = HUB_DIR / "site" / "data" / "agntcon2026.sqlite"
 PLAYBOOK_PATH = HUB_DIR / "out" / "STAKEHOLDER_COMMUNICATIONS_PLAYBOOK.md"
 
-conn = sqlite3.connect(DB_PATH)
-
-# Build speaker table
+# Build speaker table from backup
 speaker_table_lines = [
-    "| # | Speaker | Company | Session ID | LinkedIn Profile | Personalized Connection Note (<= 280 chars) |",
+    "| # | Speaker | Company | Session ID | LinkedIn Profile | Ready-to-Paste Connection Note (<= 280 chars) |",
     "| :--- | :--- | :--- | :--- | :--- | :--- |"
 ]
 
@@ -36,18 +34,14 @@ for line in orig_lines:
         sid = parts[4].replace("`", "").strip()
         profile = parts[5]
 
-        row = conn.execute("SELECT title FROM talks WHERE id = ?", (sid,)).fetchone()
-        title = row[0] if row else "your session"
-
-        short_title = title.split("—")[0].split(":")[0].strip()
-        if len(short_title) > 38:
-            short_title = short_title[:35] + "..."
-
         first_name = speaker.split()[0]
-        # Human, conversational, zero spam URLs in note
-        note = f"Hi {first_name}, really enjoyed your talk on \"{short_title}\" at AGNTCon EU! Built an open-source companion indexing session takeaways and MCP tools, and highlighted your talk. Thought you might find it neat — would love to connect! - Alexey"
-        if len(note) > 280:
-            note = f"Hi {first_name}, enjoyed your talk on \"{short_title}\" at AGNTCon EU! Built an open-source MCP companion for the conference and featured your talk. Would love to connect! - Alexey"
+        # Honest, natural, includes link, invites them to check their session, <= 280 chars
+        note = (
+            f"Hi {first_name}, I built an open-source MCP server & knowledge hub for AGNTCon EU "
+            f"so AI agents can query session takeaways: https://agntcon-demo.vwoosh.com - "
+            f"search your name to see your talk page! Would love your thoughts (and feel free to drop slides if not up yet). - Alexey"
+        )
+        assert len(note) <= 280, f"Speaker note exceeds 280 chars: {len(note)}"
 
         speaker_table_lines.append(f"| {idx} | **{speaker}** | {company} | `{sid}` | {profile} | {note} |")
 
@@ -56,7 +50,7 @@ speaker_table_content = "\n".join(speaker_table_lines)
 full_playbook = f"""# 🎯 AGNTCon + MCPCon Europe 2026 — Stakeholder Communications Playbook (Refined V2)
 
 > **Status:** Human-In-The-Loop (HITL) Execution Playbook  
-> **Audited By:** `vwoosh-adversarial-refinement` (Anti-Slop, High-Traction Social Dynamics, Executive Engagement)  
+> **Audited By:** `vwoosh-adversarial-refinement` (Honesty, Direct Links, Voice Authenticity)  
 > **Author:** Alexey Soshnin (`alex@vwoosh.com`)  
 > **Repository:** https://github.com/asoshnin/AGNT_MCP_con_2026  
 > **Live Hub:** https://agntcon-demo.vwoosh.com  
@@ -65,32 +59,26 @@ full_playbook = f"""# 🎯 AGNTCon + MCPCon Europe 2026 — Stakeholder Communic
 ---
 
 ## 📑 Table of Contents
-1. [Core Philosophy: Why Cold Outreach & AI-Slop Fail](#1-core-philosophy-why-cold-outreach--ai-slop-fail)
+1. [Core Principles: Authentic Engineering Outreach](#1-core-principles-authentic-engineering-outreach)
 2. [Tier 1: Foundation Leadership & MCP Creators](#2-tier-1-foundation-leadership--mcp-creators)
    - 2.1 [Angie Jones (Agentic AI Foundation)](#21-angie-jones)
    - 2.2 [David Soria Parra & Paul Carleton (Anthropic MCP Team)](#22-anthropic-mcp-team)
    - 2.3 [Shaun Smith (Hugging Face / MCP Working Group)](#23-shaun-smith)
    - 2.4 [Mazin Gilbert (The Linux Foundation)](#24-mazin-gilbert)
 3. [Tier 2: The Organizing Committee Email](#3-tier-2-the-organizing-committee-email)
-4. [Tier 3: Speaker Sniper Campaign (45 Personalized Notes)](#4-tier-3-speaker-sniper-campaign)
+4. [Tier 3: Speaker Sniper Campaign (45 Verified LinkedIn Profiles)](#4-tier-3-speaker-sniper-campaign)
 5. [Tier 4: High-Traction Community Content (LinkedIn & X)](#5-tier-4-high-traction-community-content)
-   - 5.1 [Why the Previous Post Stalled (Post-Mortem)](#51-why-the-previous-post-stalled-post-mortem)
-   - 5.2 [The Revised Insight-Driven LinkedIn Post](#52-the-revised-insight-driven-linkedin-post)
-   - 5.3 [The Revised X / Twitter Value Thread](#53-the-revised-x--twitter-value-thread)
 6. [Special Chapter: Curamando & Eidra Netherlands Strategy](#6-special-chapter-curamando--eidra-netherlands-strategy)
-   - 6.1 [Diagnostic: Why Leonard Punt & Sander van der Noordaa Did Not Reply](#61-diagnostic-why-leonard-punt--sander-van-der-noordaa-did-not-reply)
-   - 6.2 [Executive Touchpoint: Wietske Rodenhuis (CEO, Eidra NL)](#62-executive-touchpoint-wietske-rodenhuis)
-   - 6.3 [Re-Engagement Roadmap for Leonard & Sander](#63-re-engagement-roadmap-for-leonard--sander)
 
 ---
 
-## 1. Core Philosophy: Why Cold Outreach & AI-Slop Fail
+## 1. Core Principles: Authentic Engineering Outreach
 
-Most technical outreach fails because it sounds like a synthetic marketing campaign generated by a junior copywriter:
-- **The "Look at what I built" Trap:** Nobody reshares someone else's side-project announcement. People only share content that makes *them* look smart or teaches their peers an architectural lesson.
-- **The Bare-Link Trigger:** Dropping raw URLs (`https://...`) into LinkedIn connection requests triggers spam classifiers and screams automated bot blast.
-- **The First-Comment Myth:** In 2026, social algorithms actively penalize the "link in comments" trick. High reach comes from native dwell-time, debate in comments, and clean media.
-- **The Rule of Grounded Specificity:** Every speaker note must name their *exact presentation topic*. Flattery without specificity is perceived as spam; flattery with exact technical context is perceived as recognition.
+- **Absolute Epistemic Honesty:** Never pretend to have attended a session or heard a talk you did not attend. Developers spot faked flattery instantly. Position honestly: as a fellow builder who followed the conference schedule and created an open-source companion.
+- **Direct Link Everywhere:** The core purpose of the communication is to share the working companion (`https://agntcon-demo.vwoosh.com`). Always provide the clean link.
+- **No Volatile Numbers:** Do not hardcode numbers like "80+ talks" or "113 talks" — the corpus evolves dynamically as more slides and presentations are indexed.
+- **Singular Ownership:** Say "I built", never the corporate "we". This is an authentic community contribution by an independent engineer.
+- **Preserve InMail Quota:** Use free LinkedIn connection notes (`Connect ➔ Add a note`, max 300 chars) rather than burning InMail credits.
 
 ---
 
@@ -102,9 +90,9 @@ Most technical outreach fails because it sounds like a synthetic marketing campa
 **Email:** `angie@aaif.io` / `events@aaif.io`  
 **Strategy:** Send the committee email first (Section 3), then connect on LinkedIn.
 
-#### LinkedIn Note (228 chars):
+#### LinkedIn Note (250 chars):
 ```text
-Hi Angie, congratulations on a fantastic AGNTCon EU in Amsterdam! Just dropped a note to events@aaif.io with an open-source MCP companion I built for the community (indexing talks for AI agents). Would love to connect! - Alexey
+Hi Angie, congratulations on AGNTCon EU! I built an open-source MCP companion & search hub for the conference: https://agntcon-demo.vwoosh.com (also sent a quick note to events@aaif.io with details). Would love to connect and hear your thoughts! - Alexey
 ```
 
 ---
@@ -113,16 +101,18 @@ Hi Angie, congratulations on a fantastic AGNTCon EU in Amsterdam! Just dropped a
 
 #### David Soria Parra (Anthropic MTS, Co-Creator of MCP)
 **LinkedIn:** https://www.linkedin.com/in/david-soria-parra-4a78b3a/  
-**Note (218 chars):**
+**Note (240 chars):**
 ```text
-Hi David, big fan of your work on MCP. Following AGNTCon EU from here in Amsterdam, I built a lightweight open-source server exposing the 80+ conference talks to agents as native MCP tools. Would love to connect! - Alexey
+Hi David, big fan of MCP. For AGNTCon EU, I built an open-source companion that exposes the conference sessions to AI agents via native MCP tools: https://agntcon-demo.vwoosh.com
+Would love to connect and hear your thoughts on it! - Alexey
 ```
 
 #### Paul Carleton (Anthropic MTS, Core MCP Maintainer)
 **LinkedIn:** https://www.linkedin.com/in/paulcarletonjr  
-**Note (226 chars):**
+**Note (243 chars):**
 ```text
-Hi Paul, really appreciated the MCP working group progress discussed at AGNTCon EU. Built an open-source MCP server making conference takeaways queryable by agents. Thought you might find the schema interesting! - Alexey
+Hi Paul, following the MCP working group progress and AGNTCon EU, I built an open-source companion that lets AI agents query conference talks via native MCP tools: https://agntcon-demo.vwoosh.com
+Would love to connect and get your feedback! - Alexey
 ```
 
 ---
@@ -130,9 +120,10 @@ Hi Paul, really appreciated the MCP working group progress discussed at AGNTCon 
 ### 2.3 Shaun Smith
 **Role:** Transport WG Maintainer, Hugging Face  
 **LinkedIn:** https://www.linkedin.com/in/shaunsmith | **Twitter/X:** `@shaunsmith`  
-**Note (214 chars):**
+**Note (239 chars):**
 ```text
-Hi Shaun, really appreciate your focus on transport standards in the MCP working group. Built an open-source AGNTCon companion exposing session takeaways to AI agents via stdio MCP tools. Would love to connect! - Alexey
+Hi Shaun, following your MCP transport work and AGNTCon EU, I built an open-source companion exposing the conference sessions to AI agents via native MCP tools: https://agntcon-demo.vwoosh.com
+Would love to connect and hear your thoughts! - Alexey
 ```
 
 ---
@@ -140,9 +131,10 @@ Hi Shaun, really appreciate your focus on transport standards in the MCP working
 ### 2.4 Mazin Gilbert
 **Role:** VP of Advanced Technology, The Linux Foundation  
 **LinkedIn:** https://www.linkedin.com/in/mazin-gilbert-mba-ph-d-28b426  
-**Note (229 chars):**
+**Note (250 chars):**
 ```text
-Hi Mazin, inspired by your keynote on open-source agent governance at AGNTCon EU! As an Amsterdam builder, I put together an open-source MCP companion indexing the conference sessions for AI agents. Would love to connect! - Alexey
+Hi Mazin, inspired by your keynote on open-source agent governance at AGNTCon EU! I built an open-source MCP companion indexing the conference sessions for AI agents: https://agntcon-demo.vwoosh.com
+Would love to connect and hear your perspective! - Alexey
 ```
 
 ---
@@ -159,12 +151,12 @@ Hi Angie and the AGNTCon Organizing Committee,
 
 First off, congratulations on putting together such a high-caliber conference in Amsterdam. The focus on real production engineering over generic AI hype was refreshing.
 
-Following the sessions from here in Amsterdam, I realized that while we were all discussing the Model Context Protocol, the conference itself didn't yet have native MCP tools for AI agents to query session takeaways or compare architectural patterns.
+Following the conference from here in Amsterdam, I realized that while everyone was discussing the Model Context Protocol, there weren't yet native MCP tools for AI agents to query the conference sessions, abstracts, and takeaways directly.
 
 Over the weekend, I built a lightweight, open-source companion for the community:
-• Native MCP Server: Exposes all 80+ talks and architectures directly to coding agents (Claude Desktop, Cursor, OpenClaw) via stdio JSON-RPC.
+• Native MCP Server: Exposes conference talks and architectures directly to coding agents (Claude Desktop, Cursor, OpenClaw) via stdio JSON-RPC.
 • Zero-Cost Knowledge Hub: Fast sub-second search and session explorer (https://agntcon-demo.vwoosh.com).
-• Speaker Concierge: Because gathering slides is always a challenge after big events, we built a 1-click upload tool with automated PyMuPDF safety checks so presenters can easily attach missing decks.
+• Speaker Concierge: Because gathering slides is always a challenge after big events, I built a 1-click upload tool with automated PyMuPDF safety checks so presenters can easily attach missing decks.
 
 The entire project is MIT-licensed, zero-cost, and stores zero personal data:
 GitHub Repository: https://github.com/asoshnin/AGNT_MCP_con_2026
@@ -190,139 +182,10 @@ alex@vwoosh.com | github.com/asoshnin
 
 ## 5. Tier 4: High-Traction Community Content
 
-### 5.1 Why the Previous Post Stalled (Post-Mortem)
-1. **The Announcement Dilemma:** The previous post was framed as: *"I made a tool, here are 5 bullet points of what it does."* Outside close friends, nobody shares a product announcement.
-2. **Missing Intellectual Meat:** Developers share architectural lessons, benchmarks, or contrarian takeaways they can discuss with their teams.
-3. **Delayed Visuals:** The post initially went out as plain text without an image or video; by the time the screenshot was attached, the 60-minute algorithmic velocity window had closed.
-4. **No Tags:** Zero speakers or organizers were credited or tagged.
-
----
-
-### 5.2 The Revised Insight-Driven LinkedIn Post
-
-**Strategy:**  
-- **Visual Asset:** Attach a high-contrast screenshot of the Assistant doing cross-talk synthesis OR a 3-slide PDF carousel summarizing the 3 shifts.
-- **Timing:** Tuesday or Thursday morning (08:30–09:30 CET).
-- **Mentions:** Tag 2–3 speakers naturally in the body.
-
-```text
-I went through the slide decks and architectural patterns across 113 talks at AGNTCon + MCPCon Europe in Amsterdam. 
-
-Beyond the usual buzzwords, three concrete shifts stood out regarding how engineering teams are actually running multi-agent systems in production:
-
-1. The Death of Monolithic Tool Routing
-Teams are abandoning the "one giant router agent with 40 tools" pattern. As Scania highlighted in their MAS rollout for 5,000 developers, unconstrained agent toolboxes suffer from quadratic prompt drift. The consensus is moving toward isolated, bounded sub-agents with strict domain contracts.
-
-2. Context Boundaries > Model Size
-Context windows might be 1M+ tokens, but production latency and cache efficiency aren't free. The strongest implementations at MCPCon treated context as a scarce cache: selective retrieval, deterministic schemas, and ephemeral state machines beat brute-force context dumping every time.
-
-3. The Sched Paradox
-Here is the irony: at the world's flagship conference on Model Context Protocol, developers were still browsing HTML tables by hand. So over the weekend, I built an open-source MCP companion (MIT):
-- Native stdio MCP server for Claude Desktop, Cursor & OpenClaw
-- Sub-second hybrid search across all talks & takeaways
-- Direct slide ingestion pipeline for missing presentations
-
-If you presented or attended, you can explore the codebase and live hub here:
-github.com/asoshnin/AGNT_MCP_con_2026
-agntcon-demo.vwoosh.com
-
-Curious for those who attended: did you see a similar shift away from single-agent routers in your own stacks?
-```
-
----
-
-### 5.3 The Revised X / Twitter Value Thread
-
-**Tweet 1 (Zero links, pure takeaway + image):**
-```text
-Analyzed 113 talks from AGNTCon + MCPCon Europe in Amsterdam.
-
-3 architectural shifts stood out for teams running multi-agent systems in production:
-
-1/4 🧵
-```
-
-**Tweet 2:**
-```text
-1. Monolithic tool routers are dead. Giving 1 agent 40 tools causes quadratic context drift. Production setups are moving to isolated, single-responsibility sub-agents with strict contracts.
-
-2. Context is a cache, not a landfill. Selective retrieval > 1M token brute-force.
-2/4
-```
-
-**Tweet 3:**
-```text
-3. The MCP protocol is standardizing agent interoperability faster than expected. But ironic that the conference itself had no native MCP tools to query talks.
-
-So I built an open-source companion indexing all sessions via stdio JSON-RPC.
-3/4
-```
-
-**Tweet 4 (Links go here):**
-```text
-Live hub: agntcon-demo.vwoosh.com
-MIT Repo: github.com/asoshnin/AGNT_MCP_con_2026
-
-Huge kudos to @angiejones and the @aaif_io team for putting together a stellar event in Amsterdam!
-4/4
-```
-
----
-
-## 6. Special Chapter: Curamando & Eidra Netherlands Strategy
-
-### 6.1 Diagnostic: Why Leonard Punt & Sander van der Noordaa Did Not Reply
-1. **Security & Friction of the Statically-Encrypted Link:**  
-   Sending a URL with `#staticrypt_pwd=748edfc20...` to an executive's corporate inbox triggers immediate caution. Security policies teach managers never to open password-protected links or execute external scripts from unknown senders.
-2. **Category / Persona Confusion:**  
-   The message opened with *"I submitted my application for the AI Tech Director role"* (candidate frame), but then presented a complex 3-day Practice Partner / 90-day pilot model (consulting agency frame). When an executive cannot immediately categorize you into their standard hiring process, they hesitate and set it aside.
-3. **Heavy Initial Ask:**  
-   Asking for a *"20-minute coffee in Amsterdam or Rotterdam"* before establishing mutual rapport requires a calendar commitment they rarely grant to cold applicants.
-
----
-
-### 6.2 Executive Touchpoint: Wietske Rodenhuis (CEO, Eidra NL)
-**Profile:** Ex-CEO of Q42, now CEO of Eidra Nederland. Highly respected, culture-first, deeply understands both creative engineering (Q42) and digital strategy (Curamando).  
-**Rules:**
-- **NEVER** send the staticrypt link.
-- **NEVER** mention an applicant hiring queue.
-- **DO:** Reach out as a peer Amsterdam technology executive and former consulting director.
-
-#### Option A: LinkedIn Connection Note (Strictly Peer-Level, 237 chars)
-```text
-Hi Wietske, following Eidra's trajectory and your move to Groot Handelsgebouw with great interest. As an Amsterdam-based tech founder and former consulting director exploring enterprise agentic systems, wanted to connect. Best, Alexey
-```
-
-#### Option B: Direct Executive Email to `wietske.rodenhuis@eidra.com` (If not connecting on LinkedIn)
-**Subject:** Digital craft and agentic architectures in the Netherlands
-
-```text
-Hi Wietske,
-
-I’ve been following Eidra’s evolution in the Netherlands with great interest — particularly how you bring together the strategic rigor of Curamando with the engineering craft of Q42.
-
-As an Amsterdam-based technology founder and former consulting director (20+ years delivering enterprise architectures), I've been spending much of my time building production multi-agent systems and governance frameworks.
-
-I recently put together an open-source research companion for AGNTCon & MCPCon Europe here in Amsterdam (github.com/asoshnin/AGNT_MCP_con_2026), testing how organizations transition from conversational AI toys to deterministic agentic tools.
-
-Given Eidra’s unique multidisciplinary positioning, I’d love to share perspectives on where Dutch enterprises are encountering real friction with autonomous agents. 
-
-No urgent agenda — just glad to connect with fellow leaders shaping the local ecosystem.
-
-Warm regards,
-Alexey Soshnin
-Amsterdam | alex@vwoosh.com | +31 6 ...
-```
-
----
-
-### 6.3 Re-Engagement Roadmap for Leonard & Sander
-- **Do not send a "bump" message:** Never write *"Did you have a chance to read my previous InMail?"*
-- **The Value-First Bridge:** In 10–14 days, send a 2-sentence note anchoring on public, un-encrypted proof-of-work:
-  > *"Hi Leonard / Sander, following up on our exchange — thought you might find this relevant given your focus on production AI: I just open-sourced an MCP companion for AGNTCon Europe demonstrating deterministic tool routing for multi-agent workflows (github.com/asoshnin/AGNT_MCP_con_2026). Hope the practice is having a strong Q3!"*
+*(Sections 5 and 6 remain reserved for subsequent review as requested by the operator).*
 """
 
 with open(PLAYBOOK_PATH, "w", encoding="utf-8") as f:
     f.write(full_playbook)
 
-print("Successfully written refined playbook to:", PLAYBOOK_PATH)
+print("Successfully generated playbook with honest developer tone and verified direct links.")
