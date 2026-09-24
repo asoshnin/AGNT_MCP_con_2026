@@ -26,4 +26,12 @@ jobs:
 
     - name: Run deterministic test suite
       run: |
-        python -m pytest tests/ -v
+        python -m pytest tests/ -v -rA --tb=short 2>&1 | tee pytest_output.txt
+
+    - name: Publish Test Summary
+      if: always()
+      run: |
+        echo "### Pytest CI Output" >> $GITHUB_STEP_SUMMARY
+        echo '```text' >> $GITHUB_STEP_SUMMARY
+        tail -n 80 pytest_output.txt >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
