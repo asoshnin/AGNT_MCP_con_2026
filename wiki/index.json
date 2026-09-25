@@ -540,9 +540,9 @@
     "concepts": [
       "mcp",
       "orchestration",
+      "agent-gateway",
       "evaluation",
-      "security",
-      "observability"
+      "security"
     ],
     "relevance_score": 0.95,
     "relevance_rationale": "Production case study of a 16-agent ADK system serving 5,000+ developers with concrete orchestration patterns, MCP tool integration, and battle-tested fixes for stream draining, recency drift, and root-agent anti-patterns.",

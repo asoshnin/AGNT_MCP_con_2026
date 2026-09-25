@@ -6,7 +6,7 @@ import os
 import sys
 import urllib.request
 
-HUB_DIR = os.path.dirname(os.path.abspath(__file__))
+HUB_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 env_path = os.path.join(HUB_DIR, ".env")
 if os.path.exists(env_path):
     with open(env_path, encoding="utf-8") as f:

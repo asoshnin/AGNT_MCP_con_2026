@@ -3,52 +3,46 @@ id: "2RB8M"
 title: "An Orchestra of Agents: What I Learned Running a Multi-Agent System for 5,000+ Developers"
 speakers: ["Muhammad Ahsan Ayaz"]
 sched_url: "https://agntconmcpconeu26.sched.com/event/2RB8M/an-orchestra-of-agents-what-i-learned-running-a-multi-agent-system-for-5000+-developers-muhammad-ahsan-ayaz-scania"
-concepts: ["mcp", "orchestration", "evaluation", "security", "observability"]
-relevance_score: 0.95
-relevance_rationale: "Production case study of a 16-agent ADK system serving 5,000+ developers with concrete orchestration patterns, MCP tool integration, and battle-tested fixes for stream draining, recency drift, and root-agent anti-patterns."
+concepts: ["mcp", "orchestration", "agent-gateway", "evaluation", "security"]
+relevance_score: 0.91
+relevance_rationale: "High-relevance production case study on multi-agent orchestration patterns, ADK architecture, MCP integration, and concurrency failure modes at scale."
 resources:
   - url: "https://github.com/AhsanAyaz/code-with-ahsan"
-    label: "Production Multi-Agent System Code"
-  - url: "https://bio.link/codewithahsan"
-    label: "Speaker Profile & Links"
-  - url: "https://twitter.com/codewith_ahsan"
-    label: "Speaker Twitter"
+    label: "Official Implementation"
 ---
 
 # An Orchestra of Agents: What I Learned Running a Multi-Agent System for 5,000+ Developers
 
 **Canonical Presentation on Sched:** [An Orchestra of Agents: What I Learned Running a Multi-Agent System for 5,000+ Developers](https://agntconmcpconeu26.sched.com/event/2RB8M/an-orchestra-of-agents-what-i-learned-running-a-multi-agent-system-for-5000+-developers-muhammad-ahsan-ayaz-scania)  
-**Speakers:** Muhammad Ahsan Ayaz (Software Architect, Scania)  
-**Relevance Score:** `0.95`
+**Speakers:** Muhammad Ahsan Ayaz  
+**Relevance Score:** `0.91`
 
 ## Essence
 
-Muhammad Ahsan Ayaz details the production architecture of a 16-agent system serving 5,000+ developers, built on Google's Agent Development Kit (ADK) with MCP tool integration. The system decomposes community queries into a tree of specialist agents coordinated through three orchestration primitives: sequential pipelines (onboarding chains three agents), parallel fan-out (external knowledge agents query GitHub, Dev.to, and StackOverflow simultaneously), and LLM-driven dynamic routing at the root. The critical architectural invariant is a route-only root agent—stripped of tools and opinions—that delegates exclusively to leaf agents, avoiding the "busy conductor pitfall" where a tool-holding root starves sub-agents. Recency drift (surfacing 2020 content in 2026) was fixed with a ten-token callback injecting the current UTC date into system_instruction, eliminating a round-trip get_date tool call. A drain-loop bug cancelled ParallelAgent mid-flight because ADK's Event.is_final_response() returns true per participating agent; the fix requires fully draining the event stream and handling synthesizer/leaf race conditions in fan-out. A cross-cutting callback layer handles PII sanitization, caching, and observability—none documented in tutorials. The guiding principle: determinism where possible, LLMs only where necessary, and always drain the whole stream.
+Muhammad Ahsan Ayaz presents a postmortem of a multi-agent system (16 agents, 5,000+ developers) built on Google's ADK (Agent Development Kit) with MCP integration. The core architectural lesson is the route-only root pattern: the orchestrator root_agent must carry only routing instructions and zero tools, otherwise it hoards turns and starves leaf sub-agents. A single break statement in the root caused a cascading outage where all 5,000 developers saw 'dev.to temporarily unavailable' — illustrating how one bad routing decision poisons the entire fan-out. Temporal context is injected via a 10-token system_instruction append rather than a get_date tool call, saving round-trip latency. The critical production bug was a fan-out race: the external_knowledge_synthesizer must produce its final response faster than the fastest leaf, otherwise is_final_response() fires per-agent and the stream drains incorrectly. ADK's Event.is_final_response() semantics change when multiple agents participate — each agent can emit its own final event, so the orchestrator must drain the complete stream per-agent, not assume a single terminal event. The speaker confesses the fix shipped without a regression test, then writes the missing async test validating synthesizer beats leaf in race conditions.
 
 ## Key Takeaways & Recommendations
 
-- Enforce route-only root agents: orchestrators route, leaves work. Never attach tools to the root agent; all MCP tool use lives in specialist leaf agents.
-- Inject current date via callback_context.append_instructions() (≈10 tokens) instead of a get_date tool to eliminate latency and prevent recency drift in external knowledge retrieval.
-- Always drain the complete event stream in multi-agent invocations; handle Event.is_final_response() per participant and write regression tests for fan-out race conditions (synthesizer vs. fastest leaf).
-- Build a reusable callback layer for cross-cutting concerns: PII sanitization, response caching, and structured observability hooks before they become production incidents.
-- Prefer deterministic orchestration primitives (sequential, parallel, explicit routing) over LLM-driven planning for predictable latency and debuggability at scale.
+- Use route-only root_agent with instruction=ROUTING_INSTRUCTION and zero tools; all work lives in leaf sub_agents
+- Inject temporal context via system_instruction append (≈10 tokens) instead of a tool call to avoid round-trip latency
+- Drain the full event stream checking is_final_response() per participating agent — never assume a single terminal event in multi-agent invocations
+- Write regression tests for concurrency/race conditions before considering any fix complete; async test_synthesizer_beats_fastest_leaf_in_fan_out_race is the template
+- Prefer determinism where possible; deploy LLM only where necessary, and keep production receipts for every routing decision
 
 ## Production Gotchas & Failure Modes
 
-- Drain-loop cancels ParallelAgent mid-flight when the orchestrator stops consuming events after the first Event.is_final_response(), leaving parallel branches unfinished.
-- Recency drift surfaces stale third-party content (e.g., 2020 articles in 2026) because the LLM lacks a grounded current date; fixed by callback-injected date, not a tool call.
-- Root agent hoarding tools (busy conductor pitfall) starves leaf agents of turns, breaking delegation; the root must be route-only with zero tools.
+- Root agent hoarding tool calls starves leaf sub-agents — the orchestrator routes, never answers; any tool attached to root steals turns from leaves
+- Fan-out race condition where synthesizer loses to fastest leaf, causing premature stream drain and incomplete answers
+- Missing regression tests for concurrency fixes — the speaker shipped the fix for weeks before writing the draining test
 
 ## Discovered Resources
 
-- [Production Multi-Agent System Code](https://github.com/AhsanAyaz/code-with-ahsan)
-- [Speaker Profile & Links](https://bio.link/codewithahsan)
-- [Speaker Twitter](https://twitter.com/codewith_ahsan)
+- [Official Implementation](https://github.com/AhsanAyaz/code-with-ahsan)
 
 ## Related Concepts
 
 - [[mcp]]
 - [[orchestration]]
+- [[agent-gateway]]
 - [[evaluation]]
 - [[security]]
-- [[observability]]

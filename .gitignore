@@ -23,6 +23,13 @@ _DEVELOPMENT/
 _DEVELOPMENT/**
 .vwoosh/
 .vwoosh/**
+40_SPRINTS/
+40_SPRINTS/**
+50_METAPROMPTS/
+50_METAPROMPTS/**
+*CONTRACT*.yaml
+connect_lmstudio.sh
+*.tmp
 
 # Ensure clean public database, summaries, and static site ARE committed
 !site/
