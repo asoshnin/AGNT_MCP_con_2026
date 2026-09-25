@@ -1802,7 +1802,12 @@ function setupChat() {
     const breadthSelect = document.getElementById("rag-breadth-select");
     const breadth = breadthSelect ? breadthSelect.value : "auto";
     const tier = localStorage.getItem("agntcon_inference_tier") || "cloud";
-    sendTelemetry("chat_query", { tier: tier, breadth: breadth });
+    sendTelemetry("chat_query", {
+      query: q.slice(0, 150),
+      tier: tier,
+      breadth: breadth,
+      only_slides: onlySlides
+    });
 
     // 1. BYOM: Direct Browser-Side Execution (Local or Custom Cloud)
     if (tier === "byom") {

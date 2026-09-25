@@ -281,6 +281,49 @@ def get_analytics_summary(db_path: str | None = None) -> dict[str, Any]:
         for q, cnt in sorted(q_freq.items(), key=lambda x: x[1], reverse=True)[:5]:
             top_searches.append({"query": q, "count": cnt})
 
+    # 5b. Top AI Assistant Inquiries
+    top_chat_queries: list[dict[str, Any]] = []
+    try:
+        cur.execute(
+            """
+            SELECT LOWER(TRIM(json_extract(metadata, '$.query'))) AS q,
+                   COUNT(*) AS cnt,
+                   SUM(CASE WHEN json_extract(metadata, '$.tier') = 'byom' THEN 1 ELSE 0 END) AS byom_cnt
+            FROM events
+            WHERE event_type = 'chat_query' AND metadata IS NOT NULL AND json_extract(metadata, '$.query') IS NOT NULL
+            GROUP BY q
+            HAVING q != ''
+            ORDER BY cnt DESC
+            LIMIT 10;
+            """
+        )
+        for r in cur.fetchall():
+            top_chat_queries.append({
+                "query": r["q"],
+                "count": r["cnt"],
+                "byom_count": r["byom_cnt"] or 0,
+            })
+    except Exception:
+        cur.execute("SELECT metadata FROM events WHERE event_type = 'chat_query' AND metadata IS NOT NULL;")
+        chat_q_freq: dict[str, int] = {}
+        chat_byom_freq: dict[str, int] = {}
+        for r in cur.fetchall():
+            try:
+                m = json.loads(r[0])
+                q = str(m.get("query", "")).strip().lower()
+                if q:
+                    chat_q_freq[q] = chat_q_freq.get(q, 0) + 1
+                    if m.get("tier") == "byom":
+                        chat_byom_freq[q] = chat_byom_freq.get(q, 0) + 1
+            except Exception:
+                continue
+        for q, cnt in sorted(chat_q_freq.items(), key=lambda x: x[1], reverse=True)[:10]:
+            top_chat_queries.append({
+                "query": q,
+                "count": cnt,
+                "byom_count": chat_byom_freq.get(q, 0),
+            })
+
     # 6. Hourly Activity (Last 24 Hours)
     # Generate 24 hourly buckets: current hour down to 23 hours ago
     now_utc = datetime.now(UTC)
@@ -330,6 +373,7 @@ def get_analytics_summary(db_path: str | None = None) -> dict[str, Any]:
         "geo_distribution": geo_distribution,
         "top_talks": top_talks,
         "top_searches": top_searches,
+        "top_chat_queries": top_chat_queries,
         "hourly_activity": hourly_activity,
         "generated_at": datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC"),
     }

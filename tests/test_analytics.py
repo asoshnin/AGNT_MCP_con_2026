@@ -404,3 +404,39 @@ def test_http_admin_analytics_reset_endpoint(analytics_test_server, temp_analyti
         # 5. Verify database is now empty
         assert analytics_db.get_analytics_summary(temp_analytics_db)["kpis"]["total_events"] == 0
 
+
+def test_top_chat_queries_aggregation(temp_analytics_db):
+    """Verify top_chat_queries aggregates assistant queries with frequency and BYOM count."""
+    analytics_db.record_event(
+        "s1", "chat_query", "US",
+        metadata={"query": "what is dylan ratcliffe's talk about?", "tier": "cloud"},
+        db_path=temp_analytics_db,
+    )
+    analytics_db.record_event(
+        "s2", "chat_query", "DE",
+        metadata={"query": "what is dylan ratcliffe's talk about?", "tier": "byom"},
+        db_path=temp_analytics_db,
+    )
+    analytics_db.record_event(
+        "s3", "chat_query", "NL",
+        metadata={"query": "tell me about agentic workflows", "tier": "cloud"},
+        db_path=temp_analytics_db,
+    )
+    analytics_db.record_event(
+        "s4", "chat_query", "FR",
+        metadata={"tier": "cloud"},  # No query field
+        db_path=temp_analytics_db,
+    )
+
+    summary = analytics_db.get_analytics_summary(temp_analytics_db)
+    assert summary["kpis"]["chat_queries_count"] == 4
+    top_chats = summary.get("top_chat_queries", [])
+    assert len(top_chats) == 2
+    assert top_chats[0]["query"] == "what is dylan ratcliffe's talk about?"
+    assert top_chats[0]["count"] == 2
+    assert top_chats[0]["byom_count"] == 1
+    assert top_chats[1]["query"] == "tell me about agentic workflows"
+    assert top_chats[1]["count"] == 1
+    assert top_chats[1]["byom_count"] == 0
+
+

@@ -1166,6 +1166,33 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": f"Question exceeds limit of {MAX_QUERY_CHARS} characters."}).encode("utf-8"))
                 return
 
+            # Record server-side telemetry for assistant query (Zero-PII & Abuse Protected)
+            ua = self.headers.get("User-Agent", "").lower()
+            is_internal = (
+                self.headers.get("X-Internal-Test") == "1"
+                or self.headers.get("X-Internal-Agent") == "true"
+                or any(b in ua for b in ["pytest", "playwright", "openclaw", "curl", "bot"])
+            )
+            if not is_internal:
+                try:
+                    s_hash = get_session_hash(client_ip)
+                    cntry = self.headers.get("CF-IPCountry", "XX").strip()
+                    ref = self.headers.get("Referer", self.headers.get("Referrer", "direct")).strip()
+                    analytics_db.record_event(
+                        session_hash=s_hash,
+                        event_type="chat_query",
+                        country=cntry,
+                        referrer=ref,
+                        metadata={
+                            "query": question[:150],
+                            "tier": "cloud",
+                            "breadth": breadth,
+                            "only_slides": only_slides,
+                        },
+                    )
+                except Exception:
+                    pass
+
             # 4. Queue Capacity Gate (Max 10 waiting)
             with QUEUE_LOCK:
                 if WAITING_TASKS >= MAX_WAITING_REQUESTS:

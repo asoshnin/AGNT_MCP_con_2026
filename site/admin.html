@@ -1361,6 +1361,7 @@
       const geo = data.geo_distribution || [];
       const talks = data.top_talks || [];
       const searches = data.top_searches || [];
+      const chatQueries = data.top_chat_queries || [];
       const hourly = data.hourly_activity || [];
       const maxHourly = Math.max(...hourly.map(h => h.count), 1);
 
@@ -1476,6 +1477,19 @@
         </div>
       `).join("") : `<div style="padding: 24px; text-align: center; color: var(--text-secondary);">No searches recorded yet.</div>`;
 
+      const chatQueriesHtml = chatQueries.length > 0 ? chatQueries.map((c, i) => `
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.88rem;">
+          <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; padding-right: 12px;">
+            <span style="font-weight: 700; color: var(--text-secondary); width: 20px;">#${i + 1}</span>
+            <span style="color: var(--text-primary); font-family: monospace; font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${c.query}">${c.query}</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+            ${c.byom_count > 0 ? `<span style="font-size: 0.7rem; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); padding: 1px 6px; border-radius: 4px;">BYOM: ${c.byom_count}</span>` : ''}
+            <span style="font-weight: 700; background: var(--bg-secondary); border: 1px solid var(--border); padding: 2px 8px; border-radius: 4px; font-size: 0.78rem;">${c.count} queries</span>
+          </div>
+        </div>
+      `).join("") : `<div style="padding: 24px; text-align: center; color: var(--text-secondary);">No assistant queries recorded yet.</div>`;
+
       const histHtml = hourly.map(h => {
         const pct = Math.max((h.count / maxHourly) * 100, 4);
         return `
@@ -1497,7 +1511,6 @@
           <div style="display: flex; align-items: center; gap: 10px;">
             <span style="font-size: 0.75rem; color: var(--text-secondary);">Updated: ${data.generated_at}</span>
             <button class="btn-header" style="font-size: 0.8rem; padding: 6px 12px;" onclick="loadAnalytics()">🔄 Refresh</button>
-            <button class="btn-header" style="border-color: rgba(239, 68, 68, 0.4); color: #f87171; font-size: 0.8rem;" onclick="confirmResetAnalytics()">🗑️ Reset Test Data</button>
           </div>
         </div>
 
@@ -1556,10 +1569,18 @@
           <div class="analytics-panel">
             <div class="panel-title">
               <span>🔍 Top Searched Terms</span>
-              <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">Conference Search</span>
+              <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">Keyword Search</span>
             </div>
             ${searchesHtml}
           </div>
+        </div>
+
+        <div class="analytics-panel" style="margin-bottom: 24px;">
+          <div class="panel-title">
+            <span>💬 Top AI Assistant Inquiries</span>
+            <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">Cloud + BYOM Questions</span>
+          </div>
+          ${chatQueriesHtml}
         </div>
 
         <div class="analytics-panel">
