@@ -107,6 +107,7 @@
           <button id="nav-tab-crm" class="admin-nav-tab active" onclick="switchAdminView('crm')">💼 Inquiries (CRM)</button>
           <button id="nav-tab-submissions" class="admin-nav-tab" onclick="switchAdminView('submissions')">📥 Submissions</button>
           <button id="nav-tab-analytics" class="admin-nav-tab" onclick="switchAdminView('analytics')">📊 Analytics</button>
+          <button id="nav-tab-health" class="admin-nav-tab" onclick="switchAdminView('health')">🖥️ Server Health</button>
         </div>
       </div>
       <div>
@@ -218,6 +219,13 @@
     <div id="analytics-view" class="analytics-view" style="display: none;">
       <div id="analytics-content">
         <div style="padding: 60px; text-align: center; color: var(--text-secondary);">Loading analytics...</div>
+      </div>
+    </div>
+
+    <!-- Infrastructure Health Dashboard View (Sprint 21) -->
+    <div id="health-view" class="analytics-view" style="display: none;">
+      <div id="health-content">
+        <div style="padding: 60px; text-align: center; color: var(--text-secondary);">Loading server telemetry...</div>
       </div>
     </div>
   </div>
@@ -725,29 +733,37 @@
       const crmTab = document.getElementById("nav-tab-crm");
       const subTab = document.getElementById("nav-tab-submissions");
       const analyticsTab = document.getElementById("nav-tab-analytics");
+      const healthTab = document.getElementById("nav-tab-health");
       const crmLayout = document.getElementById("crm-inbox-view");
       const subLayout = document.getElementById("submissions-view");
       const analyticsLayout = document.getElementById("analytics-view");
+      const healthLayout = document.getElementById("health-view");
 
-      crmTab.classList.remove("active");
-      subTab.classList.remove("active");
-      analyticsTab.classList.remove("active");
-      crmLayout.style.display = "none";
-      subLayout.style.display = "none";
-      analyticsLayout.style.display = "none";
+      if (crmTab) crmTab.classList.remove("active");
+      if (subTab) subTab.classList.remove("active");
+      if (analyticsTab) analyticsTab.classList.remove("active");
+      if (healthTab) healthTab.classList.remove("active");
+      if (crmLayout) crmLayout.style.display = "none";
+      if (subLayout) subLayout.style.display = "none";
+      if (analyticsLayout) analyticsLayout.style.display = "none";
+      if (healthLayout) healthLayout.style.display = "none";
 
       if (view === "analytics") {
-        analyticsTab.classList.add("active");
-        analyticsLayout.style.display = "block";
+        if (analyticsTab) analyticsTab.classList.add("active");
+        if (analyticsLayout) analyticsLayout.style.display = "block";
         loadAnalytics();
+      } else if (view === "health") {
+        if (healthTab) healthTab.classList.add("active");
+        if (healthLayout) healthLayout.style.display = "block";
+        loadInfraHealth();
       } else if (view === "submissions") {
-        subTab.classList.add("active");
-        subLayout.style.display = "block";
+        if (subTab) subTab.classList.add("active");
+        if (subLayout) subLayout.style.display = "block";
         loadSubmissions();
         loadContactsSummary();
       } else {
-        crmTab.classList.add("active");
-        crmLayout.style.display = "grid";
+        if (crmTab) crmTab.classList.add("active");
+        if (crmLayout) crmLayout.style.display = "grid";
       }
     }
 
@@ -1591,6 +1607,210 @@
           <div class="histogram-wrap">
             ${histHtml}
           </div>
+        </div>
+      `;
+    }
+
+    async function loadInfraHealth() {
+      const contentEl = document.getElementById("health-content");
+      if (!contentEl) return;
+      contentEl.innerHTML = `<div style="padding: 60px; text-align: center; color: var(--text-secondary);">Loading server telemetry...</div>`;
+
+      const token = localStorage.getItem("agntcon_admin_token");
+      try {
+        const res = await fetch("/api/admin/infra-status", {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (res.status === 401) {
+          alert("Unauthorized or session expired. Please log in again.");
+          localStorage.removeItem("agntcon_admin_token");
+          location.reload();
+          return;
+        }
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        renderInfraHealth(data);
+      } catch (err) {
+        contentEl.innerHTML = `<div style="padding: 40px; color: #f87171; text-align: center;">Failed to load server telemetry: ${err.message}</div>`;
+      }
+    }
+
+    async function testTelegramAlert() {
+      const token = localStorage.getItem("agntcon_admin_token");
+      try {
+        const res = await fetch("/api/admin/infra/test-telegram", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+        });
+        const data = await res.json();
+        if (res.ok && data.test_alert_delivered) {
+          alert("✅ Test alert successfully delivered to your Telegram via ToyProjectsBot!");
+        } else if (res.ok && !data.test_alert_delivered) {
+          alert("⚠️ Alert processed, but Telegram API rejected delivery. Verify bot token and chat ID in .env.");
+        } else {
+          alert(`❌ Failed: ${data.error || "Unknown error"}`);
+        }
+      } catch (err) {
+        alert(`❌ Network error sending test alert: ${err.message}`);
+      }
+    }
+
+    function renderInfraHealth(data) {
+      const live = data.live || {};
+      const oracle = data.oracle || {};
+      const procs = live.processes || [];
+
+      const hubStatus = live.services && live.services.hub && live.services.hub.status === "active";
+      const tunnelStatus = live.services && live.services.cloudflared && live.services.cloudflared.status === "active";
+      const zombies = live.zombies_count || 0;
+
+      const procsHtml = procs.length > 0 ? `
+        <table class="geo-table">
+          <thead>
+            <tr>
+              <th style="width: 70px;">PID</th>
+              <th style="width: 80px;">User</th>
+              <th style="text-align: right; width: 70px;">CPU %</th>
+              <th style="text-align: right; width: 70px;">RAM %</th>
+              <th style="text-align: center; width: 60px;">State</th>
+              <th>Command</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${procs.map(p => `
+              <tr>
+                <td><code>${p.pid}</code></td>
+                <td><span style="color: var(--text-secondary); font-size: 0.8rem;">${p.user}</span></td>
+                <td style="text-align: right; font-weight: 600; color: ${p.cpu > 50 ? '#f87171' : 'var(--text-primary)'};">${p.cpu}%</td>
+                <td style="text-align: right; color: var(--text-secondary);">${p.mem}%</td>
+                <td style="text-align: center;"><code>${p.stat}</code></td>
+                <td><code style="font-size: 0.78rem; word-break: break-all;">${p.comm}</code></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      ` : `<div style="padding: 24px; text-align: center; color: var(--text-secondary);">No active process telemetry.</div>`;
+
+      document.getElementById("health-content").innerHTML = `
+        <div class="analytics-header">
+          <div>
+            <h2 style="margin: 0; font-size: 1.3rem;">🖥️ Server Health & Infrastructure Observability</h2>
+            <p style="margin: 4px 0 0 0; font-size: 0.82rem; color: var(--text-secondary);">
+              Host compute telemetry, systemd service health, anti-reclamation guard & out-of-band Telegram alerting.
+            </p>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 0.75rem; color: var(--text-secondary);">Updated: ${data.timestamp}</span>
+            <button class="btn-header" style="font-size: 0.8rem; padding: 6px 12px;" onclick="loadInfraHealth()">🔄 Refresh</button>
+            <button class="btn-header" style="font-size: 0.8rem; padding: 6px 12px; background: rgba(59, 130, 246, 0.15); border-color: rgba(59, 130, 246, 0.4); color: #60a5fa;" onclick="testTelegramAlert()">🔔 Test Telegram</button>
+          </div>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">⚡ CPU Load Average</div>
+            <div class="kpi-value">${live.cpu_load ? live.cpu_load[0] : 0}</div>
+            <div class="kpi-sub">5m: ${live.cpu_load ? live.cpu_load[1] : 0} · 15m: ${live.cpu_load ? live.cpu_load[2] : 0}</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">🧠 Memory (RAM)</div>
+            <div class="kpi-value" style="color: ${live.ram && live.ram.pct > 85 ? '#f87171' : 'var(--text-primary)'};">${live.ram ? live.ram.pct : 0}%</div>
+            <div class="kpi-sub">${live.ram ? live.ram.used_mb : 0} MB used / ${live.ram ? live.ram.total_mb : 0} MB total</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">💾 Storage (SSD)</div>
+            <div class="kpi-value" style="color: ${live.disk && live.disk.pct > 85 ? '#f87171' : 'var(--text-primary)'};">${live.disk ? live.disk.pct : 0}%</div>
+            <div class="kpi-sub">${live.disk ? live.disk.used_gb : 0} GB used / ${live.disk ? live.disk.total_gb : 0} GB total</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">⏱️ Host Uptime</div>
+            <div class="kpi-value" style="font-size: 1.25rem;">${live.uptime_formatted || '0d'}</div>
+            <div class="kpi-sub">Total: ${live.uptime_seconds || 0} seconds</div>
+          </div>
+        </div>
+
+        <div class="analytics-grid-2">
+          <div class="analytics-panel">
+            <div class="panel-title">
+              <span>🛡️ Core Systemd Services & Edge Ingress</span>
+              <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">Local Host & Tunnel</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 12px; padding: 12px 0;">
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px;">
+                <div>
+                  <strong>agntcon-hub.service</strong>
+                  <div style="font-size: 0.75rem; color: var(--text-secondary);">Python HTTP Server (Port 8088)</div>
+                </div>
+                <span style="font-size: 0.78rem; font-weight: 700; padding: 3px 8px; border-radius: 4px; ${hubStatus ? 'background: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3);' : 'background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);'}">
+                  ${hubStatus ? '● Active (Running)' : '● Down / Unreachable'}
+                </span>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px;">
+                <div>
+                  <strong>cloudflared.service</strong>
+                  <div style="font-size: 0.75rem; color: var(--text-secondary);">Cloudflare Zero Trust Edge Tunnel</div>
+                </div>
+                <span style="font-size: 0.78rem; font-weight: 700; padding: 3px 8px; border-radius: 4px; ${tunnelStatus ? 'background: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3);' : 'background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);'}">
+                  ${tunnelStatus ? '● Active (Connected)' : '● Disconnected'}
+                </span>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px;">
+                <div>
+                  <strong>Zombie / Orphan Processes</strong>
+                  <div style="font-size: 0.75rem; color: var(--text-secondary);">Defunct sub-workers inspection</div>
+                </div>
+                <span style="font-size: 0.78rem; font-weight: 700; padding: 3px 8px; border-radius: 4px; ${zombies === 0 ? 'background: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3);' : 'background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);'}">
+                  ${zombies === 0 ? '✓ None (Healthy)' : `⚠️ ${zombies} Detected`}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="analytics-panel">
+            <div class="panel-title">
+              <span>🏛️ Oracle Cloud Always Free & Anti-Reclamation</span>
+              <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">Always Free Guardrails</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 12px; padding: 12px 0; font-size: 0.85rem;">
+              <div style="padding: 10px 14px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <strong>Cost Liability</strong>
+                  <span style="font-weight: 700; color: #22c55e;">${oracle.cost_liability || '€0.00 / mo'}</span>
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                  Compute shape: ${oracle.shape || 'Ampere A1'} · 1 OCPU / 6 GB RAM
+                </div>
+              </div>
+              <div style="padding: 10px 14px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <strong>Tenancy Quota Headroom</strong>
+                  <span style="font-size: 0.72rem; color: var(--accent);">3 OCPU / 18 GB RAM Free</span>
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                  ${oracle.tenancy_quota ? `${oracle.tenancy_quota.ocpu} · ${oracle.tenancy_quota.ram}` : 'Within Always Free limits'}
+                </div>
+              </div>
+              <div style="padding: 10px 14px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <strong>Anti-Reclamation Status</strong>
+                  <span style="font-weight: 600; color: #22c55e;">${oracle.anti_reclamation ? oracle.anti_reclamation.status : 'Monitored'}</span>
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                  ${oracle.anti_reclamation && oracle.anti_reclamation.payg_protected ? 'Account has Pay-As-You-Go status. Officially 100% exempt from idle instance reclamation.' : `7-day p95 CPU load: ${oracle.anti_reclamation ? oracle.anti_reclamation.seven_day_p95_cpu : 0} (Idle threshold: 0.20)`}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="analytics-panel" style="margin-bottom: 24px;">
+          <div class="panel-title">
+            <span>🔍 Top Host Processes</span>
+            <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: normal;">Sanitized Linux /proc Telemetry (Read-Only)</span>
+          </div>
+          ${procsHtml}
         </div>
       `;
     }

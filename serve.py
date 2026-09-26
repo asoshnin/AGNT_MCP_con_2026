@@ -569,6 +569,101 @@ def get_real_client_ip(headers, client_address) -> str:
 def get_effective_client_ip(headers, fallback_ip: str) -> str:
     return get_real_client_ip(headers, (fallback_ip,))
 
+def get_system_uptime_formatted() -> tuple[int, str]:
+    try:
+        with open("/proc/uptime", encoding="utf-8") as f:
+            total_seconds = int(float(f.readline().split()[0]))
+            days = total_seconds // 86400
+            hours = (total_seconds % 86400) // 3600
+            minutes = (total_seconds % 3600) // 60
+            return total_seconds, f"{days}d {hours}h {minutes}m"
+    except Exception:
+        return 0, "Unknown"
+
+def get_live_infra_status() -> dict[str, Any]:
+    from scripts.watchdog import (
+        get_cpu_load, get_mem_info, get_disk_info,
+        check_hub_alive, check_service_active, count_zombie_processes,
+        get_top_processes
+    )
+    from scripts.anti_reclamation_worker import check_and_apply_anti_reclamation, get_seven_day_metrics
+
+    cpu_1m, cpu_5m, cpu_15m = get_cpu_load()
+    ram_used, ram_total, ram_pct = get_mem_info()
+    disk_used, disk_total, disk_pct = get_disk_info()
+    uptime_sec, uptime_str = get_system_uptime_formatted()
+    hub_ok = check_hub_alive()
+    tunnel_ok = check_service_active("cloudflared")
+    zombies = count_zombie_processes()
+    procs = get_top_processes(limit=7)
+    anti_rec = check_and_apply_anti_reclamation(check_only=True)
+    avg_cpu_7d, p95_cpu_7d, sample_cnt = get_seven_day_metrics()
+
+    recent_history = []
+    db_hist_path = os.path.join(HUB_DIR, "data", "infra_history.sqlite")
+    if os.path.exists(db_hist_path):
+        try:
+            conn = sqlite3.connect(f"file:{os.path.abspath(db_hist_path)}?mode=ro", uri=True)
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT timestamp, cpu_load_1m, ram_pct, disk_pct, hub_ok, tunnel_ok
+                FROM snapshots ORDER BY id DESC LIMIT 24;
+            """)
+            for row in cur.fetchall():
+                recent_history.append({
+                    "timestamp": row[0],
+                    "cpu_load_1m": row[1],
+                    "ram_pct": row[2],
+                    "disk_pct": row[3],
+                    "hub_ok": row[4],
+                    "tunnel_ok": row[5]
+                })
+            conn.close()
+        except Exception:
+            pass
+
+    return {
+        "live": {
+            "cpu_load": [round(cpu_1m, 2), round(cpu_5m, 2), round(cpu_15m, 2)],
+            "ram": {
+                "used_mb": ram_used,
+                "total_mb": ram_total,
+                "pct": ram_pct
+            },
+            "disk": {
+                "used_gb": disk_used,
+                "total_gb": disk_total,
+                "pct": disk_pct
+            },
+            "uptime_seconds": uptime_sec,
+            "uptime_formatted": uptime_str,
+            "services": {
+                "hub": {"status": "active" if hub_ok else "down", "code": 200 if hub_ok else 500},
+                "cloudflared": {"status": "active" if tunnel_ok else "down"}
+            },
+            "zombies_count": zombies,
+            "processes": procs
+        },
+        "oracle": {
+            "shape": "VM.Standard.A1.Flex (Ampere ARM)",
+            "tenancy_quota": {
+                "ocpu": "1/4 OCPU (75% free)",
+                "ram": "6/24 GB RAM (75% free)",
+                "disk": "46.6/200 GB NVMe (76.7% free)"
+            },
+            "cost_liability": "€0.00 / month forever",
+            "anti_reclamation": {
+                "payg_protected": anti_rec.get("payg_protected", True),
+                "seven_day_avg_cpu": avg_cpu_7d,
+                "seven_day_p95_cpu": p95_cpu_7d,
+                "sample_count": sample_cnt,
+                "status": anti_rec.get("status", "Nominal")
+            }
+        },
+        "history": list(reversed(recent_history)),
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    }
+
 class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=SITE_DIR, **kwargs)
@@ -785,6 +880,30 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": f"Failed to get analytics summary: {e}"}).encode("utf-8"))
+            return
+
+        # API: Admin Infrastructure Health & Telemetry Status (Sprint 21)
+        if path == "/api/admin/infra-status":
+            if not check_admin_auth(self.headers, query_params):
+                self.send_response(401)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Unauthorized"}).encode("utf-8"))
+                return
+            try:
+                status_data = get_live_infra_status()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps(status_data, ensure_ascii=False).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": f"Failed to get infra status: {e}"}).encode("utf-8"))
             return
 
         # API: Admin Contacts Summary (Sprint 18)
@@ -1792,6 +1911,31 @@ class HubHTTPRequestHandler(SimpleHTTPRequestHandler):
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": f"Failed to reset analytics events: {e}"}).encode("utf-8"))
+            return
+
+        # API: Admin Test Telegram Alert (Sprint 21)
+        if path == "/api/admin/infra/test-telegram":
+            if not check_admin_auth(self.headers, query_params):
+                self.send_response(401)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Unauthorized"}).encode("utf-8"))
+                return
+            try:
+                from scripts.watchdog import run_watchdog_cycle
+                result = run_watchdog_cycle(test_alert=True)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": f"Failed to send test alert: {e}"}).encode("utf-8"))
             return
 
         # Admin Login Endpoint

@@ -44,6 +44,8 @@ connect_lmstudio.sh
 *.sqlite-wal
 *.sqlite-shm
 crm.sqlite*
+infra_history.sqlite*
+watchdog_state.json
 author_feedback.jsonl
 collaboration_inquiries.jsonl
 

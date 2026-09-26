@@ -204,7 +204,34 @@ The platform provides privacy-preserving engagement telemetry for operators and 
 - **Edge Geodistribution:** Country metrics are derived automatically from Cloudflare Edge request headers (`CF-IPCountry`).
 - **Cloudflare GraphQL Edge Sync:** Live integration querying Cloudflare's GraphQL API (`CLOUDFLARE_ANALYTICS_TOKEN` & `CLOUDFLARE_ZONE_ID`) with in-memory caching to monitor 7-day zone requests, pageviews, bandwidth, and cache ratios.
 - **4-Tier Tester Exclusion:** Automatic client-side muting when logged into `/admin`, opt-out magic link (`?internal=1`), settings toggle, and server IP denylist (`ANALYTICS_IGNORE_IPS`).
-- **Operator Dashboard:** Accessible at `/admin` (password-protected) with conversion funnels, top clicked talks, top searched keywords, and a one-click `🗑️ Reset Test Data` purge utility.
+- **Operator Dashboard:** Accessible at `/admin` (password-protected) with conversion funnels, top clicked talks, top searched keywords, and top AI assistant queries with BYOM inference tier breakdowns.
+
+---
+
+## 🖥️ Server Infrastructure Observability & Telegram Watchdog
+
+To maintain permanent, zero-cost operations on Oracle Cloud Infrastructure (OCI Always Free) with zero manual SSH maintenance:
+
+- **Autonomous Out-of-Band Watchdog (`scripts/watchdog.py`):** Runs independently via systemd timer or cron every 5 minutes to inspect:
+  - Local HTTP availability (`/api/health` 200 OK ping).
+  - Cloudflare Zero Trust Edge Tunnel status (`cloudflared.service`).
+  - Host RAM available vs total from `/proc/meminfo` (alerts at $\ge 90\%$ utilization).
+  - NVMe disk space via `shutil.disk_usage` (alerts at $\ge 85\%$ utilization).
+  - Host CPU load averages (1m, 5m, 15m) and zombie/defunct sub-workers (`stat == 'Z'`).
+  - Rolling 7-day snapshot history stored in `data/infra_history.sqlite` ($\le 350$ KB).
+- **Out-of-Band Telegram Alerting Gateway (`ToyProjectsBot`):**
+  - Sends instant, actionable Markdown alerts to the maintainer's Telegram for P0 critical failures (tunnel down, web server unreachable) or P1 warnings (disk $\ge 85\%$, RAM $\ge 90\%$).
+  - **Token-Bucket Anti-Spam Cooldown:** Maximum 1 alert per 30 minutes for persistent conditions.
+  - **Automated Recovery Notice:** Dispatches an immediate `🟢 Incident Resolved` notification when failed services recover.
+- **Oracle Cloud Always Free & Anti-Reclamation Guard (`scripts/anti_reclamation_worker.py`):**
+  - Monitors the 7-day 95th-percentile compute metrics against Oracle's 20% idle reclamation threshold.
+  - Respects Pay-As-You-Go (`OCI_PAYG_PROTECTED=true`) status, which officially provides 100% exemption from idle reclamation.
+  - For standard Free Tier accounts, executes a gentle, low-priority (`nice -n 19`) off-peak maintenance task (03:30 UTC) to ensure the instance is never reclaimed by automated OCI reapers.
+- **Operator Health Console (`/admin`):**
+  - Dedicated **🖥️ Server Health** tab with live CPU, RAM, Disk, and Host Uptime dials.
+  - Real-time service status badges for `agntcon-hub` and `cloudflared`.
+  - Sanitized, read-only Linux `/proc` Process Inspector with zero secret exposure.
+  - 1-click **`[🔔 Test Telegram]`** button to verify out-of-band alerting connectivity.
 
 ---
 
