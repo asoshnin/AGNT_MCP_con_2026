@@ -3,46 +3,48 @@ id: "2RB8M"
 title: "An Orchestra of Agents: What I Learned Running a Multi-Agent System for 5,000+ Developers"
 speakers: ["Muhammad Ahsan Ayaz"]
 sched_url: "https://agntconmcpconeu26.sched.com/event/2RB8M/an-orchestra-of-agents-what-i-learned-running-a-multi-agent-system-for-5000+-developers-muhammad-ahsan-ayaz-scania"
-concepts: ["mcp", "orchestration", "agent-gateway", "evaluation", "security"]
-relevance_score: 0.91
-relevance_rationale: "High-relevance production case study on multi-agent orchestration patterns, ADK architecture, MCP integration, and concurrency failure modes at scale."
+concepts: ["mcp", "orchestration", "sandboxing"]
+relevance_score: 0.94
+relevance_rationale: "This session provides a production-grade blueprint for scaling multi-agent systems to enterprise levels (5,000+ developers). It covers critical architectural patterns (delegation over hoarding), protocol integration (MCP), and operational safeguards (deterministic streaming, regression testing). The concrete examples — such as the root-agent tool-hoarding pitfall and the 10-token date-context optimization — offer immediate, actionable guidance for engineers building similar systems."
 resources:
-  - url: "https://github.com/AhsanAyaz/code-with-ahsan"
-    label: "Official Implementation"
+  - url: "https://agntconmcpconeu26.sched.com/event/2RB8M/an-orchestra-of-agents-what-i-learned-running-a-multi-agent-system-for-5000+-developers-muhammad-ahsan-ayaz-scania"
+    label: "Original Session"
+  - url: "/assets/slides/2RB8M.pdf"
+    label: "Slide Deck"
 ---
 
 # An Orchestra of Agents: What I Learned Running a Multi-Agent System for 5,000+ Developers
 
 **Canonical Presentation on Sched:** [An Orchestra of Agents: What I Learned Running a Multi-Agent System for 5,000+ Developers](https://agntconmcpconeu26.sched.com/event/2RB8M/an-orchestra-of-agents-what-i-learned-running-a-multi-agent-system-for-5000+-developers-muhammad-ahsan-ayaz-scania)  
 **Speakers:** Muhammad Ahsan Ayaz  
-**Relevance Score:** `0.91`
+**Relevance Score:** `0.94`
 
 ## Essence
 
-Muhammad Ahsan Ayaz presents a postmortem of a multi-agent system (16 agents, 5,000+ developers) built on Google's ADK (Agent Development Kit) with MCP integration. The core architectural lesson is the route-only root pattern: the orchestrator root_agent must carry only routing instructions and zero tools, otherwise it hoards turns and starves leaf sub-agents. A single break statement in the root caused a cascading outage where all 5,000 developers saw 'dev.to temporarily unavailable' — illustrating how one bad routing decision poisons the entire fan-out. Temporal context is injected via a 10-token system_instruction append rather than a get_date tool call, saving round-trip latency. The critical production bug was a fan-out race: the external_knowledge_synthesizer must produce its final response faster than the fastest leaf, otherwise is_final_response() fires per-agent and the stream drains incorrectly. ADK's Event.is_final_response() semantics change when multiple agents participate — each agent can emit its own final event, so the orchestrator must drain the complete stream per-agent, not assume a single terminal event. The speaker confesses the fix shipped without a regression test, then writes the missing async test validating synthesizer beats leaf in race conditions.
+Running a multi-agent system for 5,000+ developers reveals that orchestration must separate routing from execution. The core problem is preventing 'root hoarding' — when a root agent retains too many tools (e.g., search_blog_posts) it starves sub-agents because they lack access to the same capabilities. The fix is a strict delegation pattern: the root agent receives a ROUTING_INSTRUCTION and delegates all work to leaf sub-agents (content_agent, mentorship_agent, etc.), ensuring no single node monopolizes the toolset. This pattern scales linearly — with 16 agents across the system, each leaf operates independently without contention.
+
+MCP serves as the glue protocol binding these agents. The speaker demonstrates a 10-token optimization: instead of invoking a dedicated date-tool (which adds a round-trip latency), the system-injects current UTC time directly into the LLM prompt via a custom function `inject_current_date`. This avoids unnecessary tool calls while keeping context fresh for third-party content queries. The architecture also enforces deterministic behavior where possible — draining the complete event stream from orchestrators ensures consistent state reconstruction, even under fan-out racing conditions (as shown in the synthesizer vs. leaf race test).
+
+Security-wise, the design treats each sub-agent as an isolated sandbox: tools are scoped per-deployment, and the root agent acts purely as a router. No agent harvests another's tool inventory, eliminating cross-contamination risks. The system also guards against regressions through targeted tests that compare aggregated outputs from the synthesizer against individual leaf responses, catching drift before deployment.
 
 ## Key Takeaways & Recommendations
 
-- Use route-only root_agent with instruction=ROUTING_INSTRUCTION and zero tools; all work lives in leaf sub_agents
-- Inject temporal context via system_instruction append (≈10 tokens) instead of a tool call to avoid round-trip latency
-- Drain the full event stream checking is_final_response() per participating agent — never assume a single terminal event in multi-agent invocations
-- Write regression tests for concurrency/race conditions before considering any fix complete; async test_synthesizer_beats_fastest_leaf_in_fan_out_race is the template
-- Prefer determinism where possible; deploy LLM only where necessary, and keep production receipts for every routing decision
+- Enforce a strict separation between the orchestrator (router) and worker agents: the root agent should only hold a routing instruction and delegate all tool usage to leaf sub-agents. This prevents capability monopolization and enables independent scaling.
+- Inject contextual metadata (like current UTC timestamp) via system-level function calls rather than dedicated tool invocations. This reduces latency and eliminates unnecessary round trips in real-time queries.
+- Implement comprehensive regression testing that compares aggregated outputs from all leaf agents against a canonical synthesizer response. Use structured event streams with explicit `is_final_response()` tracking to catch divergence early.
 
 ## Production Gotchas & Failure Modes
 
-- Root agent hoarding tool calls starves leaf sub-agents — the orchestrator routes, never answers; any tool attached to root steals turns from leaves
-- Fan-out race condition where synthesizer loses to fastest leaf, causing premature stream drain and incomplete answers
-- Missing regression tests for concurrency fixes — the speaker shipped the fix for weeks before writing the draining test
+- Root agent hoarding tools (e.g., search_blog_posts) causes sub-agents to starve due to resource contention and missing capabilities.
+- Race conditions in fan-out architectures where multiple leaf agents compete to produce final responses, requiring deterministic stream-draining and explicit synchronization.
 
 ## Discovered Resources
 
-- [Official Implementation](https://github.com/AhsanAyaz/code-with-ahsan)
+- [Original Session](https://agntconmcpconeu26.sched.com/event/2RB8M/an-orchestra-of-agents-what-i-learned-running-a-multi-agent-system-for-5000+-developers-muhammad-ahsan-ayaz-scania)
+- [Slide Deck](/assets/slides/2RB8M.pdf)
 
 ## Related Concepts
 
 - [[mcp]]
 - [[orchestration]]
-- [[agent-gateway]]
-- [[evaluation]]
-- [[security]]
+- [[sandboxing]]
